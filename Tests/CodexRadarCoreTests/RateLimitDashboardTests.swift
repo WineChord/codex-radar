@@ -33,6 +33,31 @@ final class RateLimitDashboardTests: XCTestCase {
         XCTAssertEqual(dashboard.weeklyRemainingPercent, 60)
         XCTAssertEqual(dashboard.shortRemainingPercent, 80)
     }
+
+    func testDashboardStatusTitleUsesCompactSegments() throws {
+        let response = try JSONDecoder().decode(RateLimitResponse.self, from: sampleRateLimitData)
+        let dashboard = RateLimitDashboard(response: response)
+        let prediction = try JSONDecoder().decode(RadarPrediction.self, from: Data(#"{ "level": "low" }"#.utf8))
+        let iq = try JSONDecoder().decode(ModelIQEnvelope.self, from: Data(#"{ "latest": { "iq_score": 75, "status": "red" } }"#.utf8))
+        let state = DashboardState(
+            rateLimits: dashboard,
+            current: nil,
+            prediction: prediction,
+            modelIQ: iq
+        )
+
+        XCTAssertEqual(state.statusTitle, "98%/75/低")
+
+        let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(#"{ "window_open": true }"#.utf8))
+        let speedState = DashboardState(
+            rateLimits: dashboard,
+            current: current,
+            prediction: prediction,
+            modelIQ: iq
+        )
+
+        XCTAssertEqual(speedState.statusTitle, "98%/75/速蹬")
+    }
 }
 
 private let sampleRateLimitData = Data("""

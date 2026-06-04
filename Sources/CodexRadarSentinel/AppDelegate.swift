@@ -1,10 +1,16 @@
 import AppKit
+import CodexRadarCore
 import Combine
 import SwiftUI
 import UserNotifications
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private enum MenuMetrics {
+        static let width: CGFloat = 340
+        static let height: CGFloat = 430
+    }
+
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let store = SentinelStore()
     private var cancellables = Set<AnyCancellable>()
@@ -20,8 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func configureStatusItem() {
-        statusItem.button?.title = store.state.statusTitle
-        statusItem.button?.font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .medium)
+        updateStatusButton(for: store.state)
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
@@ -29,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store.$state
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
-                self?.statusItem.button?.title = state.statusTitle
+                self?.updateStatusButton(for: state)
             }
             .store(in: &cancellables)
         rebuildMenu(menu)
@@ -43,9 +48,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
         let root = DashboardMenuView(store: store)
         let hostingView = NSHostingView(rootView: root)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: 520)
+        hostingView.frame = NSRect(x: 0, y: 0, width: MenuMetrics.width, height: MenuMetrics.height)
         let item = NSMenuItem()
         item.view = hostingView
         menu.addItem(item)
+    }
+
+    private func updateStatusButton(for state: DashboardState) {
+        guard let button = statusItem.button else {
+            return
+        }
+        button.attributedTitle = StatusTitleFormatter.attributedTitle(for: state)
+        button.toolTip = "\(AppConstants.appName) \(state.statusTitle)"
+        button.setAccessibilityTitle(state.statusTitle)
     }
 }

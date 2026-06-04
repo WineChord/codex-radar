@@ -101,7 +101,7 @@ swift build -c release
 Build release packages:
 
 ```bash
-./scripts/package_release.sh 0.1.0
+./scripts/package_release.sh 0.1.1
 ```
 
 ## Credits

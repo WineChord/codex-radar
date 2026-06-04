@@ -4,24 +4,43 @@ import SwiftUI
 struct DashboardMenuView: View {
     @ObservedObject var store: SentinelStore
 
+    private enum Layout {
+        static let width: CGFloat = 340
+        static let height: CGFloat = 430
+        static let contentPadding: CGFloat = 12
+        static let sectionSpacing: CGFloat = 10
+        static let tileSpacing: CGFloat = 8
+        static let quotaTileHeight: CGFloat = 66
+        static let toolbarButtonSize: CGFloat = 28
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            Divider()
-            quotaSection
-            Divider()
-            radarSection
-            predictionSection
-            iqSection
-            if let error = store.state.lastError {
-                errorSection(error)
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
+                    header
+                    Divider()
+                    quotaSection
+                    Divider()
+                    radarSection
+                    predictionSection
+                    iqSection
+                    if let error = store.state.lastError {
+                        errorSection(error)
+                    }
+                    Divider()
+                    settingsSection
+                }
+                .padding(.horizontal, Layout.contentPadding)
+                .padding(.top, Layout.contentPadding)
+                .padding(.bottom, 8)
             }
             Divider()
-            settingsSection
             actionButtons
+                .padding(.horizontal, Layout.contentPadding)
+                .padding(.vertical, 8)
         }
-        .padding(14)
-        .frame(width: 380, alignment: .leading)
+        .frame(width: Layout.width, height: Layout.height, alignment: .leading)
     }
 
     private var header: some View {
@@ -31,23 +50,28 @@ struct DashboardMenuView: View {
                 .foregroundStyle(headerColor)
             VStack(alignment: .leading, spacing: 2) {
                 Text(store.state.actionLabel)
-                    .font(.headline)
+                    .font(.system(.subheadline, weight: .semibold))
                     .lineLimit(1)
                 Text("Updated \(DisplayFormatters.compactDateTime(store.state.lastUpdatedAt))")
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             Text(store.state.statusTitle)
-                .font(.system(.body, design: .monospaced, weight: .semibold))
+                .font(.system(.caption, design: .monospaced, weight: .semibold))
+                .foregroundStyle(headerColor)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(headerColor.opacity(0.12), in: Capsule())
         }
     }
 
     private var quotaSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 7) {
             sectionTitle("Codex Quota", systemImage: "speedometer")
-            HStack(spacing: 10) {
+            HStack(spacing: Layout.tileSpacing) {
                 quotaTile(
                     title: "Weekly",
                     value: DisplayFormatters.percent(store.state.rateLimits?.weeklyRemainingPercent),
@@ -81,7 +105,7 @@ struct DashboardMenuView: View {
             Text(store.state.current?.lastWindow?.summary ?? "CodexRadar current.json has not been loaded yet.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(3)
+                .lineLimit(2)
         }
     }
 
@@ -98,7 +122,7 @@ struct DashboardMenuView: View {
             Text(store.state.prediction?.reasoningSummary ?? "No prediction summary loaded.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(3)
+                .lineLimit(2)
         }
     }
 
@@ -139,19 +163,35 @@ struct DashboardMenuView: View {
 
     private var actionButtons: some View {
         HStack(spacing: 8) {
-            Button("Refresh") {
+            Button {
                 store.refreshNow()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .frame(width: Layout.toolbarButtonSize, height: Layout.toolbarButtonSize)
             }
-            Button("Radar") {
+            .help("Refresh")
+            Button {
                 store.openCodexRadar()
+            } label: {
+                Image(systemName: "safari")
+                    .frame(width: Layout.toolbarButtonSize, height: Layout.toolbarButtonSize)
             }
-            Button("Codex") {
+            .help("Open CodexRadar")
+            Button {
                 store.openCodexApp()
+            } label: {
+                Image(systemName: "terminal")
+                    .frame(width: Layout.toolbarButtonSize, height: Layout.toolbarButtonSize)
             }
+            .help("Open Codex")
             Spacer()
-            Button("Quit") {
+            Button {
                 store.quit()
+            } label: {
+                Image(systemName: "power")
+                    .frame(width: Layout.toolbarButtonSize, height: Layout.toolbarButtonSize)
             }
+            .help("Quit")
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
@@ -178,7 +218,8 @@ struct DashboardMenuView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-        .padding(10)
+        .padding(8)
+        .frame(height: Layout.quotaTileHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
     }

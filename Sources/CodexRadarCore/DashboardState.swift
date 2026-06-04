@@ -25,20 +25,17 @@ public struct DashboardState: Equatable {
     }
 
     public var statusTitle: String {
+        let quota = DisplayFormatters.percent(rateLimits?.weeklyRemainingPercent)
+        let iq = modelIQ?.latest?.iqScore.map(String.init) ?? DisplayFormatters.percentPlaceholder
+        let signal: String
         if current?.windowOpen == true {
-            return "速蹬 · WK \(DisplayFormatters.percent(rateLimits?.weeklyRemainingPercent))"
+            signal = "速蹬"
+        } else if rateLimits?.isBlocked == true {
+            signal = "限额"
+        } else {
+            signal = predictionLevelLabel ?? "-"
         }
-        if rateLimits?.isBlocked == true {
-            return "限额 · WK \(DisplayFormatters.percent(rateLimits?.weeklyRemainingPercent))"
-        }
-        var parts = ["WK \(DisplayFormatters.percent(rateLimits?.weeklyRemainingPercent))"]
-        if let iqScore = modelIQ?.latest?.iqScore {
-            parts.append("IQ\(iqScore)")
-        }
-        if let level = predictionLevelLabel {
-            parts.append(level)
-        }
-        return parts.joined(separator: " · ")
+        return "\(quota)/\(iq)/\(signal)"
     }
 
     public var actionLabel: String {
