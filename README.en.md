@@ -85,6 +85,8 @@ Notification sound is off by default and can be enabled in the dropdown. Histori
 
 Automatic updates are on by default. The app checks once 5 seconds after launch, then every 6 hours checks the latest GitHub Release, downloads the ZIP, verifies the release SHA256, replaces the installed app bundle, and reopens itself.
 
+If download, verification, or installation fails, the app keeps the current version running and shows the failure in the menu. The installer also backs up the old app first; if replacement fails, it restores and reopens the old app. Automatic updates pause short-term retries for the same failed version, while manual `Check` can retry immediately.
+
 The dropdown also includes:
 
 - `Check`: manually checks and installs a newer release.
@@ -170,7 +172,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.6
+./scripts/package_release.sh 0.1.7
 ```
 
 Update README menu bar and menu screenshots:

@@ -499,6 +499,11 @@ final class SentinelStore: NSObject, ObservableObject {
                 updatePhase = .upToDate(Date())
                 return
             }
+            if automatic, shouldPauseAutomaticRetry(for: update.version) {
+                latestUpdate = update
+                updatePhase = .failed("automatic retry paused for \(update.version) after a recent install failure")
+                return
+            }
             latestUpdate = update
             updatePhase = .available(update.version)
             updatePhase = .downloading(update.version)
@@ -512,6 +517,23 @@ final class SentinelStore: NSObject, ObservableObject {
         } catch {
             updatePhase = .failed(error.localizedDescription)
         }
+    }
+
+    private func shouldPauseAutomaticRetry(for version: String) -> Bool {
+        guard defaults.string(forKey: AppConstants.installerFailureVersionDefaultsKey) == version else {
+            return false
+        }
+        let failedAt = defaults.double(forKey: AppConstants.installerFailureAtDefaultsKey)
+        guard failedAt > 0 else {
+            return false
+        }
+        let elapsed = Date().timeIntervalSince1970 - failedAt
+        guard elapsed < AppConstants.failedInstallerRetryDelaySeconds else {
+            defaults.removeObject(forKey: AppConstants.installerFailureVersionDefaultsKey)
+            defaults.removeObject(forKey: AppConstants.installerFailureAtDefaultsKey)
+            return false
+        }
+        return true
     }
 
     private static func loadSelectedStatusMetrics(defaults: UserDefaults) -> [StatusMetric] {

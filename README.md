@@ -85,6 +85,8 @@
 
 自动更新默认开启。应用启动 5 秒后会先检查一次，之后每 6 小时检查一次最新 GitHub Release，下载 ZIP，校验 release 里的 SHA256，然后替换已安装的 app bundle 并自动重开。
 
+如果下载、校验或安装失败，应用会保留当前版本并在菜单里显示失败原因。安装脚本也会先备份旧版；如果替换失败，会恢复并重新打开旧版。对同一个刚刚安装失败的版本，自动更新会暂停短期重试，手动 `检查更新` 仍可立即重试。
+
 下拉菜单还提供：
 
 - `检查更新`：立刻检查并安装新版本。
@@ -170,7 +172,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.6
+./scripts/package_release.sh 0.1.7
 ```
 
 更新 README 状态栏和菜单截图：

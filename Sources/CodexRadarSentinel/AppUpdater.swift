@@ -151,6 +151,7 @@ final class AppUpdater {
         guard let appBundle = findAppBundle(in: extractDirectory) else {
             throw AppUpdaterError.missingAppBundle
         }
+        try validateAppBundle(appBundle, expectedVersion: update.version)
         let targetBundle = Bundle.main.bundleURL
         guard targetBundle.pathExtension == "app" else {
             throw AppUpdaterError.unsupportedInstallLocation
@@ -159,7 +160,8 @@ final class AppUpdater {
         try launchInstaller(
             sourceBundle: appBundle,
             targetBundle: targetBundle,
-            workingDirectory: workingDirectory
+            workingDirectory: workingDirectory,
+            updateVersion: update.version
         )
     }
 
@@ -275,10 +277,36 @@ final class AppUpdater {
         return nil
     }
 
+    private func validateAppBundle(_ appBundle: URL, expectedVersion: String) throws {
+        let actualVersion = try bundleVersion(in: appBundle)
+        guard actualVersion == expectedVersion else {
+            throw AppUpdaterError.unexpectedBundleVersion(expected: expectedVersion, actual: actualVersion)
+        }
+        try runProcess(
+            "/usr/bin/codesign",
+            arguments: ["--verify", "--deep", "--strict", appBundle.path]
+        )
+    }
+
+    private func bundleVersion(in appBundle: URL) throws -> String {
+        let infoPlistURL = appBundle
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Info.plist")
+        let data = try Data(contentsOf: infoPlistURL)
+        let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        guard let dictionary = plist as? [String: Any],
+              let version = dictionary["CFBundleShortVersionString"] as? String,
+              !version.isEmpty else {
+            throw AppUpdaterError.missingBundleVersion
+        }
+        return version
+    }
+
     private func launchInstaller(
         sourceBundle: URL,
         targetBundle: URL,
-        workingDirectory: URL
+        workingDirectory: URL,
+        updateVersion: String
     ) throws {
         let scriptURL = workingDirectory.appendingPathComponent("install.sh")
         let logURL = workingDirectory.appendingPathComponent("install.log")
@@ -290,8 +318,42 @@ final class AppUpdater {
         source_bundle="$2"
         target_bundle="$3"
         log_file="$4"
+        update_version="$5"
+        defaults_domain="$6"
+        failure_version_key="$7"
+        failure_at_key="$8"
 
         exec >> "$log_file" 2>&1
+
+        working_directory="$(/usr/bin/dirname "$log_file")"
+        staged_bundle="$working_directory/staged.app"
+        backup_bundle="$working_directory/backup.app"
+
+        record_failure() {
+          /usr/bin/defaults write "$defaults_domain" "$failure_version_key" "$update_version" >/dev/null 2>&1 || true
+          /usr/bin/defaults write "$defaults_domain" "$failure_at_key" "$(/bin/date +%s)" >/dev/null 2>&1 || true
+        }
+
+        restore_and_open() {
+          if [ ! -d "$target_bundle" ] && [ -d "$backup_bundle" ]; then
+            /usr/bin/ditto "$backup_bundle" "$target_bundle" || true
+          fi
+          if [ -d "$target_bundle" ]; then
+            /usr/bin/open "$target_bundle" || true
+          fi
+        }
+
+        on_failure() {
+          status="$?"
+          if [ "$status" -ne 0 ]; then
+            echo "install failed with status $status"
+            record_failure
+            restore_and_open
+          fi
+          exit "$status"
+        }
+
+        trap on_failure EXIT
 
         for _ in {1..80}; do
           if ! /bin/kill -0 "$pid" >/dev/null 2>&1; then
@@ -299,14 +361,29 @@ final class AppUpdater {
           fi
           /bin/sleep 0.25
         done
+        if /bin/kill -0 "$pid" >/dev/null 2>&1; then
+          echo "app process $pid did not exit in time"
+          exit 1
+        fi
 
+        /bin/rm -rf "$staged_bundle" "$backup_bundle"
+        /usr/bin/ditto "$source_bundle" "$staged_bundle"
+        /usr/bin/codesign --verify --deep --strict "$staged_bundle"
+
+        if [ -d "$target_bundle" ]; then
+          /usr/bin/ditto "$target_bundle" "$backup_bundle"
+        fi
         /bin/rm -rf "$target_bundle"
-        /usr/bin/ditto "$source_bundle" "$target_bundle"
+        /bin/mv "$staged_bundle" "$target_bundle"
         /usr/bin/codesign --verify --deep --strict "$target_bundle"
+        /usr/bin/defaults delete "$defaults_domain" "$failure_version_key" >/dev/null 2>&1 || true
+        /usr/bin/defaults delete "$defaults_domain" "$failure_at_key" >/dev/null 2>&1 || true
         /usr/bin/open "$target_bundle"
+        trap - EXIT
         """
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+        try runProcess("/bin/bash", arguments: ["-n", scriptURL.path])
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -316,6 +393,10 @@ final class AppUpdater {
             sourceBundle.path,
             targetBundle.path,
             logURL.path,
+            updateVersion,
+            AppConstants.bundleIdentifier,
+            AppConstants.installerFailureVersionDefaultsKey,
+            AppConstants.installerFailureAtDefaultsKey,
         ]
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
@@ -367,6 +448,8 @@ private enum AppUpdaterError: LocalizedError {
     case checksumNotFound(String)
     case checksumMismatch
     case missingAppBundle
+    case missingBundleVersion
+    case unexpectedBundleVersion(expected: String, actual: String)
     case unsupportedInstallLocation
     case processFailed(String, Int32)
 
@@ -395,6 +478,10 @@ private enum AppUpdaterError: LocalizedError {
             return "Checksum mismatch"
         case .missingAppBundle:
             return "App bundle not found in update archive"
+        case .missingBundleVersion:
+            return "Update app bundle version not found"
+        case .unexpectedBundleVersion(let expected, let actual):
+            return "Update app bundle version \(actual) does not match release \(expected)"
         case .unsupportedInstallLocation:
             return "Current app is not running from an app bundle"
         case .processFailed(let executable, let status):
