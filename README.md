@@ -2,7 +2,7 @@
 
 Codex Radar Sentinel is a local macOS menu bar app for Codex usage timing. It keeps the most important signal visible without opening [CodexRadar](https://codexradar.com/) or checking the Codex usage page.
 
-![Codex Radar Sentinel menu bar](docs/assets/readme-statusbar.png)
+![Codex Radar Sentinel normal status](docs/assets/readme-status-normal.png)
 
 ![Codex Radar Sentinel dropdown](docs/assets/readme-menu.png)
 
@@ -20,6 +20,16 @@ The three segments are:
 
 When [CodexRadar](https://codexradar.com/) reports an active speed window, the menu bar item turns red until the current alert is dismissed, the window is no longer active, or the 30-minute emphasis window expires.
 
+The app defaults to Chinese. English can be selected from the dropdown. Technical terms such as Codex, IQ, Reset, Prediction, and Radar are kept where they are clearer than translation.
+
+## Status States
+
+| Normal | Speed window | Limit reached | Custom |
+| --- | --- | --- | --- |
+| ![Normal status](docs/assets/readme-status-normal.png) | ![Speed status](docs/assets/readme-status-speed.png) | ![Limit status](docs/assets/readme-status-limit.png) | ![Custom status](docs/assets/readme-status-custom.png) |
+
+The menu bar can show any combination of the three segments. For example, users who do not care about IQ can show only `97%/低`.
+
 ## What It Shows
 
 - Weekly Codex quota remaining, read from the local Codex app-server.
@@ -28,7 +38,7 @@ When [CodexRadar](https://codexradar.com/) reports an active speed window, the m
 - [CodexRadar](https://codexradar.com/) 24h and 48h reset prediction.
 - Codex model IQ score from the daily probe.
 
-The dropdown starts with a small legend for `Weekly / IQ / Signal`, then shows the detailed quota, radar, prediction, and IQ sections. Text size can be changed in the dropdown with `M`, `L`, or `XL`.
+The dropdown starts with a small legend for `周额度 / IQ / 信号`, then shows the detailed quota, radar, prediction, and IQ sections. Text size can be changed in the dropdown with `M`, `L`, or `XL`.
 
 ## Notifications
 
@@ -41,6 +51,8 @@ The app sends macOS notifications for events that should not require manual chec
 - Weekly quota recovers after a low-remaining state.
 - Prediction rises to high, or CodexRadar explicitly marks it as notify-worthy.
 - Codex IQ falls into a red or sub-80 state.
+
+Notification sound is off by default. It can be enabled in the dropdown when audible alerts are useful.
 
 Historical reset windows are seeded on first launch, so starting the app after a reset does not replay old reset notifications. If the first launch happens during an active speed window, it still notifies.
 
@@ -128,7 +140,7 @@ swift build -c release
 Build release packages:
 
 ```bash
-./scripts/package_release.sh 0.1.2
+./scripts/package_release.sh 0.1.3
 ```
 
 Update README screenshots after UI changes:

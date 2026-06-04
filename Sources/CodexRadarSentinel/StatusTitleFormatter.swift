@@ -3,27 +3,33 @@ import CodexRadarCore
 
 enum StatusTitleFormatter {
     private static let separator = "/"
-    private static let missingValue = DisplayFormatters.percentPlaceholder
 
-    static func attributedTitle(for state: DashboardState, emphasized: Bool) -> NSAttributedString {
+    static func plainTitle(
+        for state: DashboardState,
+        metrics: [StatusMetric],
+        language: AppLanguage
+    ) -> String {
+        let activeMetrics = normalizedMetrics(metrics)
+        return activeMetrics.map { $0.value(for: state, language: language) }.joined(separator: separator)
+    }
+
+    static func attributedTitle(
+        for state: DashboardState,
+        emphasized: Bool,
+        metrics: [StatusMetric],
+        language: AppLanguage
+    ) -> NSAttributedString {
         let font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
         let title = NSMutableAttributedString()
-        let quota = DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)
-        let iq = state.modelIQ?.latest?.iqScore.map(String.init) ?? missingValue
-        let signal = signalSegment(for: state)
+        let activeMetrics = normalizedMetrics(metrics)
 
-        if emphasized {
-            append(quota, color: .white, font: font, to: title)
-            appendSeparator(color: NSColor.white.withAlphaComponent(0.75), font: font, to: title)
-            append(iq, color: .white, font: font, to: title)
-            appendSeparator(color: NSColor.white.withAlphaComponent(0.75), font: font, to: title)
-            append(signal, color: .white, font: font, to: title)
-        } else {
-            append(quota, color: quotaColor(for: state), font: font, to: title)
-            appendSeparator(color: .secondaryLabelColor, font: font, to: title)
-            append(iq, color: iqColor(for: state), font: font, to: title)
-            appendSeparator(color: .secondaryLabelColor, font: font, to: title)
-            append(signal, color: signalColor(for: state, signal: signal), font: font, to: title)
+        for (index, metric) in activeMetrics.enumerated() {
+            if index > 0 {
+                let color = emphasized ? NSColor.white.withAlphaComponent(0.75) : .secondaryLabelColor
+                appendSeparator(color: color, font: font, to: title)
+            }
+            let color = emphasized ? .white : metricColor(for: metric, state: state, language: language)
+            append(metric.value(for: state, language: language), color: color, font: font, to: title)
         }
 
         return title
@@ -50,14 +56,26 @@ enum StatusTitleFormatter {
         append(separator, color: color, font: font, to: title)
     }
 
-    private static func signalSegment(for state: DashboardState) -> String {
-        if state.current?.windowOpen == true {
-            return "速蹬"
+    private static func normalizedMetrics(_ metrics: [StatusMetric]) -> [StatusMetric] {
+        if metrics.isEmpty {
+            return [.weeklyQuota]
         }
-        if state.rateLimits?.isBlocked == true {
-            return "限额"
+        return StatusMetric.allCases.filter { metrics.contains($0) }
+    }
+
+    private static func metricColor(
+        for metric: StatusMetric,
+        state: DashboardState,
+        language: AppLanguage
+    ) -> NSColor {
+        switch metric {
+        case .weeklyQuota:
+            return quotaColor(for: state)
+        case .codexIQ:
+            return iqColor(for: state)
+        case .signal:
+            return signalColor(for: state, signal: metric.value(for: state, language: language))
         }
-        return state.predictionLevelLabel ?? "-"
     }
 
     private static func quotaColor(for state: DashboardState) -> NSColor {
@@ -99,11 +117,11 @@ enum StatusTitleFormatter {
             return .systemOrange
         }
         switch signal {
-        case "高":
+        case "高", "high":
             return .systemRed
-        case "中":
+        case "中", "med":
             return .systemOrange
-        case "低":
+        case "低", "low":
             return .systemTeal
         default:
             return .secondaryLabelColor

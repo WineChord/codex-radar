@@ -18,6 +18,20 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var appLanguage: AppLanguage {
+        didSet {
+            defaults.set(appLanguage.rawValue, forKey: DefaultsKey.appLanguage)
+            updateTitleForStatusItem()
+        }
+    }
+
+    @Published private(set) var selectedStatusMetrics: [StatusMetric] {
+        didSet {
+            defaults.set(selectedStatusMetrics.map(\.rawValue), forKey: DefaultsKey.selectedStatusMetrics)
+            updateTitleForStatusItem()
+        }
+    }
+
     @Published var debugPreview: DashboardPreview = .live {
         didSet {
             if debugPreview != .live {
@@ -45,6 +59,12 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var notificationSoundEnabled: Bool {
+        didSet {
+            defaults.set(notificationSoundEnabled, forKey: DefaultsKey.notificationSoundEnabled)
+        }
+    }
+
     @Published var launchAtLoginEnabled: Bool {
         didSet {
             LaunchAtLoginController.setEnabled(launchAtLoginEnabled)
@@ -53,9 +73,12 @@ final class SentinelStore: NSObject, ObservableObject {
     }
 
     private enum DefaultsKey {
+        static let appLanguage = "appLanguage"
         static let menuTextSize = "menuTextSize"
+        static let selectedStatusMetrics = "selectedStatusMetrics"
         static let predictionNotificationsEnabled = "predictionNotificationsEnabled"
         static let iqNotificationsEnabled = "iqNotificationsEnabled"
+        static let notificationSoundEnabled = "notificationSoundEnabled"
         static let launchAtLoginEnabled = "launchAtLoginEnabled"
         static let notificationMemory = "notificationMemory"
         static let dismissedSpeedAlertKey = "dismissedSpeedAlertKey"
@@ -79,12 +102,16 @@ final class SentinelStore: NSObject, ObservableObject {
         self.defaults = defaults
         self.radarClient = radarClient
         self.appServerClient = appServerClient
+        let rawLanguage = defaults.string(forKey: DefaultsKey.appLanguage)
+        self.appLanguage = rawLanguage.flatMap(AppLanguage.init(rawValue:)) ?? .zhHans
         let rawTextSize = defaults.string(forKey: DefaultsKey.menuTextSize)
         self.menuTextSize = rawTextSize.flatMap(DashboardTextSize.init(rawValue:)) ?? .large
+        self.selectedStatusMetrics = Self.loadSelectedStatusMetrics(defaults: defaults)
         let rawPreview = ProcessInfo.processInfo.environment[AppConstants.debugPreviewEnvironmentKey]
         self.debugPreview = rawPreview.flatMap(DashboardPreview.init(rawValue:)) ?? .live
         self.predictionNotificationsEnabled = defaults.object(forKey: DefaultsKey.predictionNotificationsEnabled) as? Bool ?? true
         self.iqNotificationsEnabled = defaults.object(forKey: DefaultsKey.iqNotificationsEnabled) as? Bool ?? true
+        self.notificationSoundEnabled = defaults.object(forKey: DefaultsKey.notificationSoundEnabled) as? Bool ?? false
         self.launchAtLoginEnabled = defaults.object(forKey: DefaultsKey.launchAtLoginEnabled) as? Bool ?? LaunchAtLoginController.isEnabled
         self.dismissedSpeedAlertKey = defaults.string(forKey: DefaultsKey.dismissedSpeedAlertKey)
         self.notificationMemory = Self.loadNotificationMemory(defaults: defaults)
@@ -120,6 +147,23 @@ final class SentinelStore: NSObject, ObservableObject {
     func resetSpeedAlertDismissal() {
         dismissedSpeedAlertKey = nil
         updateTitleForStatusItem()
+    }
+
+    func isStatusMetricEnabled(_ metric: StatusMetric) -> Bool {
+        selectedStatusMetrics.contains(metric)
+    }
+
+    func setStatusMetric(_ metric: StatusMetric, enabled: Bool) {
+        var next = Set(selectedStatusMetrics)
+        if enabled {
+            next.insert(metric)
+        } else {
+            next.remove(metric)
+        }
+        guard !next.isEmpty else {
+            return
+        }
+        selectedStatusMetrics = StatusMetric.allCases.filter { next.contains($0) }
     }
 
     func start() {
@@ -161,7 +205,11 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private func updateTitleForStatusItem() {
         updateSpeedAlertLifetime()
-        titleForStatusItem = dashboardState.statusTitle
+        titleForStatusItem = StatusTitleFormatter.plainTitle(
+            for: dashboardState,
+            metrics: selectedStatusMetrics,
+            language: appLanguage
+        )
     }
 
     private func updateSpeedAlertLifetime() {
@@ -269,8 +317,19 @@ final class SentinelStore: NSObject, ObservableObject {
             }
         }
         for event in filtered {
-            NotificationService.shared.deliver(event)
+            NotificationService.shared.deliver(event, soundEnabled: notificationSoundEnabled)
         }
+    }
+
+    private static func loadSelectedStatusMetrics(defaults: UserDefaults) -> [StatusMetric] {
+        guard let rawValues = defaults.stringArray(forKey: DefaultsKey.selectedStatusMetrics) else {
+            return StatusMetric.allCases
+        }
+        let metrics = rawValues.compactMap(StatusMetric.init(rawValue:))
+        if metrics.isEmpty {
+            return StatusMetric.allCases
+        }
+        return StatusMetric.allCases.filter { metrics.contains($0) }
     }
 
     private static func loadNotificationMemory(defaults: UserDefaults) -> NotificationMemory {

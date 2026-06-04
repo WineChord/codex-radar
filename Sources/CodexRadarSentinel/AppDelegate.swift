@@ -30,10 +30,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         statusItem.menu = menu
 
-        store.$state.combineLatest(store.$debugPreview, store.$dismissedSpeedAlertKey)
+        store.objectWillChange
             .receive(on: RunLoop.main)
-            .sink { [weak self] _, _, _ in
-                self?.updateStatusButton()
+            .sink { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.updateStatusButton()
+                }
             }
             .store(in: &cancellables)
         rebuildMenu(menu)
@@ -60,9 +62,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let state = store.dashboardState
         let emphasized = store.shouldEmphasizeSpeedAlert
-        button.attributedTitle = StatusTitleFormatter.attributedTitle(for: state, emphasized: emphasized)
-        button.toolTip = "\(AppConstants.appName) \(state.statusTitle)"
-        button.setAccessibilityTitle(state.statusTitle)
+        let title = StatusTitleFormatter.plainTitle(
+            for: state,
+            metrics: store.selectedStatusMetrics,
+            language: store.appLanguage
+        )
+        button.attributedTitle = StatusTitleFormatter.attributedTitle(
+            for: state,
+            emphasized: emphasized,
+            metrics: store.selectedStatusMetrics,
+            language: store.appLanguage
+        )
+        button.toolTip = "\(AppConstants.appName) \(title)"
+        button.setAccessibilityTitle(title)
         button.wantsLayer = true
         if emphasized {
             button.layer?.backgroundColor = NSColor.systemRed.cgColor

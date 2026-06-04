@@ -6,8 +6,10 @@ struct DashboardMenuView: View {
 
     private enum Layout {
         static let contentPadding: CGFloat = 12
-        static let sectionSpacing: CGFloat = 11
+        static let sectionSpacing: CGFloat = 12
         static let tileSpacing: CGFloat = 8
+        static let toolbarHeight: CGFloat = 48
+        static let toolbarCornerRadius: CGFloat = 8
     }
 
     private var state: DashboardState {
@@ -16,6 +18,18 @@ struct DashboardMenuView: View {
 
     private var metrics: DashboardTextSize.Metrics {
         store.menuTextSize.metrics
+    }
+
+    private var language: AppLanguage {
+        store.appLanguage
+    }
+
+    private var menuBarTitle: String {
+        StatusTitleFormatter.plainTitle(
+            for: state,
+            metrics: store.selectedStatusMetrics,
+            language: language
+        )
     }
 
     var body: some View {
@@ -57,11 +71,14 @@ struct DashboardMenuView: View {
             Image(systemName: "bolt.circle.fill")
                 .font(.system(size: metrics.headerIcon, weight: .bold))
             VStack(alignment: .leading, spacing: 2) {
-                Text("速蹬窗口开启")
+                Text(text("速蹬窗口开启", "Speed window open"))
                     .font(.system(size: metrics.headerTitle, weight: .bold))
-                Text("Use quota now · \(DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)) weekly left")
-                    .font(.system(size: metrics.caption, weight: .medium))
-                    .lineLimit(1)
+                Text(text(
+                    "建议尽快使用 · 周额度剩余 \(DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent))",
+                    "Use quota now · \(DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)) weekly left"
+                ))
+                .font(.system(size: metrics.caption, weight: .medium))
+                .lineLimit(1)
             }
             Spacer()
             Button {
@@ -71,7 +88,7 @@ struct DashboardMenuView: View {
                     .font(.system(size: metrics.headerIcon, weight: .semibold))
             }
             .buttonStyle(.plain)
-            .help("Dismiss current speed-window alert")
+            .help(text("关闭本次速蹬强调", "Dismiss current speed-window alert"))
         }
         .foregroundStyle(.white)
         .padding(10)
@@ -84,19 +101,19 @@ struct DashboardMenuView: View {
                 .font(.system(size: metrics.headerIcon, weight: .semibold))
                 .foregroundStyle(headerColor)
             VStack(alignment: .leading, spacing: 2) {
-                Text(state.actionLabel)
+                Text(actionText)
                     .font(.system(size: metrics.headerTitle, weight: .semibold))
                     .lineLimit(1)
-                Text("Updated \(DisplayFormatters.compactDateTime(state.lastUpdatedAt))")
+                Text("\(text("更新", "Updated")) \(DisplayFormatters.compactDateTime(state.lastUpdatedAt))")
                     .font(.system(size: metrics.caption))
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(state.statusTitle)
+            Text(menuBarTitle)
                 .font(.system(size: metrics.badge, weight: .semibold, design: .monospaced))
                 .foregroundStyle(headerColor)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(0.75)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(headerColor.opacity(0.12), in: Capsule())
@@ -104,42 +121,40 @@ struct DashboardMenuView: View {
     }
 
     private var statusLegend: some View {
-        HStack(spacing: Layout.tileSpacing) {
-            legendTile(
-                title: "Weekly",
-                value: DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent),
-                color: quotaColor
-            )
-            legendTile(
-                title: "IQ",
-                value: state.modelIQ?.latest?.iqScore.map(String.init) ?? DisplayFormatters.percentPlaceholder,
-                color: iqColor
-            )
-            legendTile(
-                title: "Signal",
-                value: signalLabel,
-                color: signalColor
-            )
+        VStack(alignment: .leading, spacing: 7) {
+            sectionTitle(text("状态栏含义", "Menu Bar"), systemImage: "menubar.rectangle")
+            Text(text(
+                "菜单栏按“周额度 / IQ / 信号”拼接；下面可以选择显示哪些项。",
+                "The menu bar joins Weekly / IQ / Signal; choose visible segments below."
+            ))
+            .font(.system(size: metrics.caption))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            HStack(spacing: Layout.tileSpacing) {
+                legendTile(metric: .weeklyQuota, color: quotaColor)
+                legendTile(metric: .codexIQ, color: iqColor)
+                legendTile(metric: .signal, color: signalColor)
+            }
         }
     }
 
     private var quotaSection: some View {
         VStack(alignment: .leading, spacing: 7) {
-            sectionTitle("Codex Quota", systemImage: "speedometer")
+            sectionTitle(text("Codex 额度", "Codex Quota"), systemImage: "speedometer")
             HStack(spacing: Layout.tileSpacing) {
                 quotaTile(
-                    title: "Weekly",
+                    title: text("周额度", "Weekly"),
                     value: DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent),
-                    subtitle: "reset \(DisplayFormatters.relativeReset(state.rateLimits?.weeklyBucket?.resetsAt))"
+                    subtitle: "\(text("重置", "reset")) \(DisplayFormatters.relativeReset(state.rateLimits?.weeklyBucket?.resetsAt))"
                 )
                 quotaTile(
-                    title: "Short",
+                    title: text("短窗", "Short"),
                     value: DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent),
-                    subtitle: "reset \(DisplayFormatters.relativeReset(state.rateLimits?.shortBucket?.resetsAt))"
+                    subtitle: "\(text("重置", "reset")) \(DisplayFormatters.relativeReset(state.rateLimits?.shortBucket?.resetsAt))"
                 )
             }
             if let planType = state.rateLimits?.snapshot.planType {
-                Text("Plan \(planType)")
+                Text("\(text("套餐", "Plan")) \(planType)")
                     .font(.system(size: metrics.caption))
                     .foregroundStyle(.secondary)
             }
@@ -149,35 +164,41 @@ struct DashboardMenuView: View {
     private var radarSection: some View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle("Reset Radar", systemImage: "dot.radiowaves.left.and.right")
-            Text(state.current?.lastWindow?.title ?? "No reset window loaded")
+            Text(state.current?.lastWindow?.title ?? text("还没有加载 reset 窗口", "No reset window loaded"))
                 .font(.system(size: metrics.body, weight: .medium))
                 .lineLimit(2)
             HStack {
-                labelPair("Window", state.current?.lastWindow?.windowHuman ?? "unknown")
+                labelPair(text("窗口", "Window"), state.current?.lastWindow?.windowHuman ?? text("未知", "unknown"))
                 Spacer()
-                labelPair("Scope", state.current?.lastWindow?.scope ?? "unknown")
+                labelPair(text("范围", "Scope"), state.current?.lastWindow?.scope ?? text("未知", "unknown"))
             }
-            Text(state.current?.lastWindow?.summary ?? "CodexRadar current.json has not been loaded yet.")
-                .font(.system(size: metrics.label))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            Text(state.current?.lastWindow?.summary ?? text(
+                "还没有读取到 CodexRadar current.json。",
+                "CodexRadar current.json has not been loaded yet."
+            ))
+            .font(.system(size: metrics.label))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
         }
     }
 
     private var predictionSection: some View {
         VStack(alignment: .leading, spacing: 7) {
-            sectionTitle("Prediction", systemImage: "chart.line.uptrend.xyaxis")
+            sectionTitle(text("Prediction 预测", "Prediction"), systemImage: "chart.line.uptrend.xyaxis")
             HStack {
-                labelPair("Level", state.prediction?.level ?? state.current?.prediction?.level ?? "unknown")
+                labelPair(text("等级", "Level"), predictionLevelText(state.prediction?.level ?? state.current?.prediction?.level))
                 Spacer()
                 labelPair("24h", probability(state.prediction?.probability24h ?? state.current?.prediction?.probability24h))
                 Spacer()
                 labelPair("48h", probability(state.prediction?.probability48h ?? state.current?.prediction?.probability48h))
             }
-            Text(state.prediction?.reasoningSummary ?? "No prediction summary loaded.")
-                .font(.system(size: metrics.label))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            Text(state.prediction?.reasoningSummary ?? text(
+                "还没有读取到预测摘要。",
+                "No prediction summary loaded."
+            ))
+            .font(.system(size: metrics.label))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
         }
     }
 
@@ -185,20 +206,20 @@ struct DashboardMenuView: View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle("Codex IQ", systemImage: "brain.head.profile")
             HStack {
-                labelPair("IQ", state.modelIQ?.latest?.iqScore.map(String.init) ?? "unknown")
+                labelPair("IQ", state.modelIQ?.latest?.iqScore.map(String.init) ?? text("未知", "unknown"))
                 Spacer()
                 let passed = state.modelIQ?.latest?.passed.map(String.init) ?? "?"
                 let tasks = state.modelIQ?.latest?.tasks.map(String.init) ?? "?"
-                labelPair("Probe", "\(passed)/\(tasks)")
+                labelPair(text("探针", "Probe"), "\(passed)/\(tasks)")
                 Spacer()
-                labelPair("Status", state.modelIQ?.latest?.status ?? "unknown")
+                labelPair(text("状态", "Status"), state.modelIQ?.latest?.status ?? text("未知", "unknown"))
             }
         }
     }
 
     private func errorSection(_ error: String) -> some View {
         VStack(alignment: .leading, spacing: 7) {
-            sectionTitle("Connection", systemImage: "exclamationmark.triangle")
+            sectionTitle(text("连接", "Connection"), systemImage: "exclamationmark.triangle")
             Text(error)
                 .font(.system(size: metrics.label))
                 .foregroundStyle(.secondary)
@@ -207,18 +228,38 @@ struct DashboardMenuView: View {
     }
 
     private var settingsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("Settings", systemImage: "slider.horizontal.3")
-            Picker("Text size", selection: $store.menuTextSize) {
-                ForEach(DashboardTextSize.allCases) { size in
-                    Text(size.label).tag(size)
+        VStack(alignment: .leading, spacing: 9) {
+            sectionTitle(text("显示与提醒", "Display & Alerts"), systemImage: "slider.horizontal.3")
+            pickerRow(title: text("语言", "Language")) {
+                Picker(text("语言", "Language"), selection: $store.appLanguage) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.label).tag(language)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            pickerRow(title: text("字号", "Text size")) {
+                Picker(text("字号", "Text size"), selection: $store.menuTextSize) {
+                    ForEach(DashboardTextSize.allCases) { size in
+                        Text(size.label).tag(size)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(text("状态栏显示", "Menu bar segments"))
+                    .font(.system(size: metrics.caption, weight: .medium))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    metricToggle(.weeklyQuota)
+                    metricToggle(.codexIQ)
+                    metricToggle(.signal)
                 }
             }
-            .pickerStyle(.segmented)
-            .font(.system(size: metrics.label))
-            Toggle("Prediction alerts", isOn: $store.predictionNotificationsEnabled)
-            Toggle("IQ alerts", isOn: $store.iqNotificationsEnabled)
-            Toggle("Launch at login", isOn: $store.launchAtLoginEnabled)
+            Toggle(text("Prediction 提醒", "Prediction alerts"), isOn: $store.predictionNotificationsEnabled)
+            Toggle(text("IQ 提醒", "IQ alerts"), isOn: $store.iqNotificationsEnabled)
+            Toggle(text("通知声音", "Notification sound"), isOn: $store.notificationSoundEnabled)
+            Toggle(text("登录时启动", "Launch at login"), isOn: $store.launchAtLoginEnabled)
         }
         .toggleStyle(.checkbox)
         .font(.system(size: metrics.label))
@@ -226,56 +267,75 @@ struct DashboardMenuView: View {
 
     private var previewSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("Preview", systemImage: "eye")
-            Picker("Preview", selection: $store.debugPreview) {
+            sectionTitle(text("调试预览", "Preview"), systemImage: "eye")
+            Picker(text("预览", "Preview"), selection: $store.debugPreview) {
                 ForEach(DashboardPreview.allCases) { preview in
-                    Text(preview.label).tag(preview)
+                    Text(preview.label(language: language)).tag(preview)
                 }
             }
             .pickerStyle(.segmented)
             .font(.system(size: metrics.label))
-            if store.debugPreview != .live {
-                Text("UI preview only; notifications still use live data.")
-                    .font(.system(size: metrics.caption))
-                    .foregroundStyle(.secondary)
-            }
+            Text(text(
+                "只预览 UI；真实通知和去重仍使用 live 数据。",
+                "UI preview only; notifications still use live data."
+            ))
+            .font(.system(size: metrics.caption))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
         }
     }
 
     private var actionButtons: some View {
         HStack(spacing: 8) {
-            Button {
+            toolbarButton(title: text("刷新", "Refresh"), systemImage: "arrow.clockwise") {
                 store.refreshNow()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .frame(width: metrics.toolbarButtonSize, height: metrics.toolbarButtonSize)
             }
-            .help("Refresh")
-            Button {
+            toolbarButton(title: "Radar", systemImage: "safari") {
                 store.openCodexRadar()
-            } label: {
-                Image(systemName: "safari")
-                    .frame(width: metrics.toolbarButtonSize, height: metrics.toolbarButtonSize)
             }
-            .help("Open CodexRadar")
-            Button {
+            toolbarButton(title: "Codex", systemImage: "terminal") {
                 store.openCodexApp()
-            } label: {
-                Image(systemName: "terminal")
-                    .frame(width: metrics.toolbarButtonSize, height: metrics.toolbarButtonSize)
             }
-            .help("Open Codex")
-            Spacer()
-            Button {
+            toolbarButton(title: text("退出", "Quit"), systemImage: "power") {
                 store.quit()
-            } label: {
-                Image(systemName: "power")
-                    .frame(width: metrics.toolbarButtonSize, height: metrics.toolbarButtonSize)
             }
-            .help("Quit")
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
+    }
+
+    private func toolbarButton(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: systemImage)
+                    .font(.system(size: metrics.section, weight: .semibold))
+                Text(title)
+                    .font(.system(size: metrics.caption, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, minHeight: Layout.toolbarHeight)
+            .contentShape(RoundedRectangle(cornerRadius: Layout.toolbarCornerRadius))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: Layout.toolbarCornerRadius))
+        .help(title)
+    }
+
+    private func pickerRow<Content: View>(
+        title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.system(size: metrics.caption, weight: .medium))
+                .foregroundStyle(.secondary)
+            content()
+                .font(.system(size: metrics.label))
+        }
     }
 
     private func sectionTitle(_ title: String, systemImage: String) -> some View {
@@ -288,20 +348,43 @@ struct DashboardMenuView: View {
         .foregroundStyle(.secondary)
     }
 
-    private func legendTile(title: String, value: String, color: Color) -> some View {
+    private func legendTile(metric: StatusMetric, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
+            Text(metric.label(language: language))
                 .font(.system(size: metrics.caption, weight: .medium))
                 .foregroundStyle(.secondary)
-            Text(value)
+            Text(metric.value(for: state, language: language))
                 .font(.system(size: metrics.badge, weight: .semibold, design: .monospaced))
                 .foregroundStyle(color)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func metricToggle(_ metric: StatusMetric) -> some View {
+        let isEnabled = store.isStatusMetricEnabled(metric)
+        return Button {
+            store.setStatusMetric(metric, enabled: !isEnabled)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: isEnabled ? "checkmark.circle.fill" : "circle")
+                Text(metric.label(language: language))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .font(.system(size: metrics.caption, weight: .medium))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 6)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isEnabled ? Color.accentColor : Color.secondary)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+        .help(metric.label(language: language))
     }
 
     private func quotaTile(title: String, value: String, subtitle: String) -> some View {
@@ -334,19 +417,43 @@ struct DashboardMenuView: View {
 
     private func probability(_ value: Double?) -> String {
         guard let value else {
-            return "unknown"
+            return text("未知", "unknown")
         }
         return "\(Int(round(value * 100)))%"
     }
 
-    private var signalLabel: String {
+    private func predictionLevelText(_ level: String?) -> String {
+        switch level?.lowercased() {
+        case "high":
+            return text("高", "high")
+        case "medium":
+            return text("中", "medium")
+        case "low":
+            return text("低", "low")
+        default:
+            return text("未知", "unknown")
+        }
+    }
+
+    private func text(_ zhHans: String, _ en: String) -> String {
+        language.text(zhHans, en)
+    }
+
+    private var actionText: String {
         if state.current?.windowOpen == true {
-            return "速蹬"
+            return text("速蹬窗口开启", "Speed window open")
         }
         if state.rateLimits?.isBlocked == true {
-            return "限额"
+            return text("本机限额中", "Local limit reached")
         }
-        return state.predictionLevelLabel ?? "-"
+        if state.recentResetClosed {
+            return text("limit reset 已确认", "limit reset confirmed")
+        }
+        return text("等待", "Waiting")
+    }
+
+    private var signalLabel: String {
+        StatusMetric.signal.value(for: state, language: language)
     }
 
     private var headerSymbol: String {
@@ -397,11 +504,11 @@ struct DashboardMenuView: View {
 
     private var signalColor: Color {
         switch signalLabel {
-        case "速蹬", "高":
+        case "速蹬", "high", "高":
             return .red
-        case "限额", "中":
+        case "限额", "med", "medium", "中":
             return .orange
-        case "低":
+        case "低", "low":
             return .teal
         default:
             return .secondary

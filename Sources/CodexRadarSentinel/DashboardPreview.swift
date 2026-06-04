@@ -11,16 +11,16 @@ enum DashboardPreview: String, CaseIterable, Identifiable {
         rawValue
     }
 
-    var label: String {
+    func label(language: AppLanguage) -> String {
         switch self {
         case .live:
             return "Live"
         case .speedWindow:
-            return "速蹬"
+            return language.text("速蹬", "Speed")
         case .resetConfirmed:
-            return "Reset"
+            return language.text("Reset", "Reset")
         case .blocked:
-            return "Limit"
+            return language.text("限额", "Limit")
         }
     }
 }

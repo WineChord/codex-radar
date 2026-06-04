@@ -14,11 +14,11 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    func deliver(_ event: NotificationEvent) {
+    func deliver(_ event: NotificationEvent, soundEnabled: Bool) {
         let content = UNMutableNotificationContent()
         content.title = event.title
         content.body = event.body
-        content.sound = event.severity == .passive ? nil : .default
+        content.sound = soundEnabled && event.severity != .passive ? .default : nil
         if #available(macOS 12.0, *) {
             switch event.severity {
             case .passive:
@@ -41,6 +41,9 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
+        if notification.request.content.sound == nil {
+            return [.banner]
+        }
         return [.banner, .sound]
     }
 }
