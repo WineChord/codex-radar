@@ -14,28 +14,29 @@
 从这条规则开始，后续每个由用户 prompt 驱动的仓库变更都要维护两件事：
 
 - 在 `PROMPTS.md` 追加对应的用户 prompt，继续遵守上面的脱敏规则。
-- 在下面的映射表里记录 prompt 和实际 commit 的关系；功能或文档 commit 的 commit message 应该带上 `Prompt-Id: N` trailer，方便从 `git log` 反查。
+- 在下面的映射表里记录 prompt 和实际 commit 的关系；commit 必须写成可点击的 GitHub commit 链接。功能或文档 commit 的 commit message 应该带上 `Prompt-Id: N` trailer，方便从 `git log` 反查。
 
-Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己的文件内容里稳定写入自己的最终 hash。遇到“新增 prompt log 本身”这种提交时，用 commit message 的 `Prompt-Id` 先建立关联，并在下一次 prompt log 维护时把已经确定的短 hash 补进表里。
+Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己的文件内容里稳定写入自己的最终 hash。遇到“新增 prompt log 本身”这种提交时，用 commit message 的 `Prompt-Id` 先建立关联，也可以先放一个可点击的 `Prompt-Id` commit search 链接，并在下一次 prompt log 维护时把已经确定的 commit 直链补进表里。
 
 ## Prompt To Commit Map
 
 | Prompt | Commit(s) | Notes |
 | --- | --- | --- |
-| 1-4 | `27677cc` | 初版 macOS 菜单栏 app。 |
-| 5 | `e832074` | release 包和安装能力。 |
-| 6 | `ae5eed9` | 紧凑状态栏。 |
-| 7 | `7e08bf2` | 速蹬预览、强调样式和 app branding。 |
-| 8 | `69e55fd` | 双语、按钮说明、可配置项。 |
-| 9 | `72ecc5a` | 自动更新和更紧凑的文档展示。 |
-| 10 | `b0fff69` | 中英文 README 和安装 prompt。 |
-| 11 | `5c5aecf` | README 开头 CodexRadar credit。 |
-| 12 | `c8b5f7a` | 中英文完整菜单截图。 |
-| 13 | `2a0e886` | GitHub API 403 fallback、高清菜单截图、更新验证。 |
-| 14 | `bf85a69` | reset 绝对时间、手动更新测试、更新循环修复。 |
-| 15 | `d2e2a09` | 更新安装失败 fallback。 |
-| 16 | `b82b960` | prompt log 开源。 |
-| 17 | `c299a80` | prompt/commit 映射维护规则；commit message 带 `Prompt-Id: 17`。 |
+| 1-4 | [27677cc](https://github.com/WineChord/codex-radar/commit/27677cc) | 初版 macOS 菜单栏 app。 |
+| 5 | [e832074](https://github.com/WineChord/codex-radar/commit/e832074) | release 包和安装能力。 |
+| 6 | [ae5eed9](https://github.com/WineChord/codex-radar/commit/ae5eed9) | 紧凑状态栏。 |
+| 7 | [7e08bf2](https://github.com/WineChord/codex-radar/commit/7e08bf2) | 速蹬预览、强调样式和 app branding。 |
+| 8 | [69e55fd](https://github.com/WineChord/codex-radar/commit/69e55fd) | 双语、按钮说明、可配置项。 |
+| 9 | [72ecc5a](https://github.com/WineChord/codex-radar/commit/72ecc5a) | 自动更新和更紧凑的文档展示。 |
+| 10 | [b0fff69](https://github.com/WineChord/codex-radar/commit/b0fff69) | 中英文 README 和安装 prompt。 |
+| 11 | [5c5aecf](https://github.com/WineChord/codex-radar/commit/5c5aecf) | README 开头 CodexRadar credit。 |
+| 12 | [c8b5f7a](https://github.com/WineChord/codex-radar/commit/c8b5f7a) | 中英文完整菜单截图。 |
+| 13 | [2a0e886](https://github.com/WineChord/codex-radar/commit/2a0e886) | GitHub API 403 fallback、高清菜单截图、更新验证。 |
+| 14 | [bf85a69](https://github.com/WineChord/codex-radar/commit/bf85a69) | reset 绝对时间、手动更新测试、更新循环修复。 |
+| 15 | [d2e2a09](https://github.com/WineChord/codex-radar/commit/d2e2a09) | 更新安装失败 fallback。 |
+| 16 | [b82b960](https://github.com/WineChord/codex-radar/commit/b82b960) | prompt log 开源。 |
+| 17 | [c299a80](https://github.com/WineChord/codex-radar/commit/c299a80), [c9941ea](https://github.com/WineChord/codex-radar/commit/c9941ea) | prompt/commit 映射维护规则；commit message 带 `Prompt-Id: 17`。 |
+| 18 | [`Prompt-Id: 18 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+18%22&type=commits) | commit 链接要求；自引用维护提交用可点击 search 链接兜底。 |
 
 ## Prompts
 
@@ -157,4 +158,10 @@ github 上搞成中英文 readme，点击可以切换，默认中文。对了，
 
 ```text
 对了，还要记上这样一个点，以后每个 commit 或者啥东西，也都把对应的 prompt 给带到仓库那个记录 prompt 的地方（并和实际的 commit 做一一映射）
+```
+
+### 18. Commit 映射要可点击
+
+```text
+commit 要求是可以点击的链接
 ```
