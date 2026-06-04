@@ -76,6 +76,14 @@ final class AppUpdater {
             throw AppUpdaterError.invalidCurrentVersion(currentVersion)
         }
 
+        do {
+            return try await latestUpdateFromAPI(current: current)
+        } catch {
+            return try await latestUpdateFromRedirect(current: current)
+        }
+    }
+
+    private func latestUpdateFromAPI(current: SemanticVersion) async throws -> AppUpdateInfo? {
         let release: GitHubRelease = try await requestJSON(AppConstants.githubLatestReleaseAPIURL)
         guard !release.draft, !release.prerelease else {
             return nil
@@ -98,6 +106,34 @@ final class AppUpdater {
             changelog: release.body,
             zipAsset: zipAsset,
             checksumAsset: checksumAsset
+        )
+    }
+
+    private func latestUpdateFromRedirect(current: SemanticVersion) async throws -> AppUpdateInfo? {
+        let releaseURL = try await latestReleaseRedirectURL()
+        let tag = try releaseTag(from: releaseURL)
+        guard let latest = SemanticVersion(tag), latest > current else {
+            return nil
+        }
+
+        let archiveName = "CodexRadarSentinel-\(latest.description)-macOS"
+        let downloadBaseURL = AppConstants.githubRepositoryURL
+            .appendingPathComponent("releases")
+            .appendingPathComponent("download")
+            .appendingPathComponent(tag)
+
+        return AppUpdateInfo(
+            version: latest.description,
+            releaseURL: releaseURL,
+            changelog: nil,
+            zipAsset: ReleaseAsset(
+                name: "\(archiveName).zip",
+                browserDownloadURL: downloadBaseURL.appendingPathComponent("\(archiveName).zip")
+            ),
+            checksumAsset: ReleaseAsset(
+                name: "\(archiveName).sha256",
+                browserDownloadURL: downloadBaseURL.appendingPathComponent("\(archiveName).sha256")
+            )
         )
     }
 
@@ -148,6 +184,28 @@ final class AppUpdater {
         let (data, response) = try await session.data(for: request)
         try validate(response)
         return data
+    }
+
+    private func latestReleaseRedirectURL() async throws -> URL {
+        var request = URLRequest(url: AppConstants.githubLatestReleaseURL)
+        request.setValue("text/html", forHTTPHeaderField: "Accept")
+        request.setValue("\(AppConstants.clientName)/\(AppConstants.appVersion)", forHTTPHeaderField: "User-Agent")
+
+        let (_, response) = try await session.data(for: request)
+        try validate(response)
+        guard let finalURL = response.url else {
+            throw AppUpdaterError.missingLatestReleaseRedirect
+        }
+        return finalURL
+    }
+
+    private func releaseTag(from url: URL) throws -> String {
+        let components = url.pathComponents
+        guard let tagIndex = components.lastIndex(of: "tag"),
+              components.indices.contains(tagIndex + 1) else {
+            throw AppUpdaterError.invalidLatestReleaseRedirect(url)
+        }
+        return components[tagIndex + 1]
     }
 
     private func download(_ url: URL, to directory: URL) async throws -> URL {
@@ -303,6 +361,8 @@ private enum AppUpdaterError: LocalizedError {
     case httpStatus(Int)
     case missingZipAsset
     case missingChecksumAsset
+    case missingLatestReleaseRedirect
+    case invalidLatestReleaseRedirect(URL)
     case invalidChecksumFile
     case checksumNotFound(String)
     case checksumMismatch
@@ -315,11 +375,18 @@ private enum AppUpdaterError: LocalizedError {
         case .invalidCurrentVersion(let version):
             return "Invalid current version \(version)"
         case .httpStatus(let status):
+            if status == 403 {
+                return "HTTP 403 (GitHub API rate limit or access denied)"
+            }
             return "HTTP \(status)"
         case .missingZipAsset:
             return "Release zip asset not found"
         case .missingChecksumAsset:
             return "Release checksum asset not found"
+        case .missingLatestReleaseRedirect:
+            return "Latest release redirect not found"
+        case .invalidLatestReleaseRedirect(let url):
+            return "Latest release redirect is not a tag URL: \(url.absoluteString)"
         case .invalidChecksumFile:
             return "Checksum file is not UTF-8"
         case .checksumNotFound(let assetName):

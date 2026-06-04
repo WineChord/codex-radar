@@ -476,7 +476,7 @@ final class SentinelStore: NSObject, ObservableObject {
         }
         automaticUpdateTask?.cancel()
         automaticUpdateTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            try? await Task.sleep(nanoseconds: AppConstants.initialUpdateCheckDelaySeconds * 1_000_000_000)
             await self?.checkForUpdates(automatic: true)
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: AppConstants.updateCheckIntervalSeconds * 1_000_000_000)
@@ -494,7 +494,7 @@ final class SentinelStore: NSObject, ObservableObject {
         }
         updatePhase = .checking
         do {
-            guard let update = try await appUpdater.latestUpdate(currentVersion: AppConstants.appVersion) else {
+            guard let update = try await appUpdater.latestUpdate(currentVersion: updaterCurrentVersion) else {
                 latestUpdate = nil
                 updatePhase = .upToDate(Date())
                 return
@@ -512,6 +512,11 @@ final class SentinelStore: NSObject, ObservableObject {
         } catch {
             updatePhase = .failed(error.localizedDescription)
         }
+    }
+
+    private var updaterCurrentVersion: String {
+        ProcessInfo.processInfo.environment[AppConstants.updateCurrentVersionEnvironmentKey]
+            ?? AppConstants.appVersion
     }
 
     private static func loadSelectedStatusMetrics(defaults: UserDefaults) -> [StatusMetric] {

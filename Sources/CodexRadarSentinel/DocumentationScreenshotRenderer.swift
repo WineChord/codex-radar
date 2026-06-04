@@ -6,6 +6,9 @@ import SwiftUI
 enum DocumentationScreenshotRenderer {
     private static let renderEnvironmentKey = "CODEX_RADAR_RENDER_DOC_SCREENSHOTS"
     private static let defaultsSuitePrefix = "com.codexradar.sentinel.docs"
+    private static let layoutProbeHeight: CGFloat = 10
+    private static let captureSettleSeconds: TimeInterval = 0.2
+    private static let captureWindowMargin: CGFloat = 40
 
     static func runIfRequested() -> Bool {
         guard let outputPath = ProcessInfo.processInfo.environment[renderEnvironmentKey],
@@ -13,7 +16,7 @@ enum DocumentationScreenshotRenderer {
             return false
         }
 
-        NSApplication.shared.setActivationPolicy(.prohibited)
+        NSApplication.shared.setActivationPolicy(.accessory)
         let outputDirectory = URL(fileURLWithPath: outputPath, isDirectory: true)
         do {
             try FileManager.default.createDirectory(
@@ -65,7 +68,7 @@ enum DocumentationScreenshotRenderer {
         width: CGFloat
     ) throws -> NSImage {
         let hostingView = NSHostingView(rootView: view)
-        hostingView.frame = NSRect(x: 0, y: 0, width: width, height: 10)
+        hostingView.frame = NSRect(x: 0, y: 0, width: width, height: layoutProbeHeight)
         hostingView.layoutSubtreeIfNeeded()
 
         let fittingSize = hostingView.fittingSize
@@ -76,15 +79,63 @@ enum DocumentationScreenshotRenderer {
         hostingView.frame = NSRect(origin: .zero, size: renderSize)
         hostingView.layoutSubtreeIfNeeded()
 
-        guard let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) else {
-            throw DocumentationScreenshotError.bitmapCreationFailed
-        }
-        bitmap.size = renderSize
-        hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
+        return try captureWindowImage(hostingView: hostingView, size: renderSize)
+    }
 
-        let image = NSImage(size: renderSize)
+    private static func captureWindowImage(
+        hostingView: NSHostingView<some View>,
+        size: NSSize
+    ) throws -> NSImage {
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false,
+            screen: screenshotScreen
+        )
+        window.isReleasedWhenClosed = false
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
+        window.contentView = hostingView
+        window.setFrameOrigin(windowOrigin(for: size))
+        window.orderFrontRegardless()
+        window.displayIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(captureSettleSeconds))
+
+        guard let cgImage = CGWindowListCreateImage(
+            .null,
+            .optionIncludingWindow,
+            CGWindowID(window.windowNumber),
+            [.bestResolution, .boundsIgnoreFraming]
+        ) else {
+            window.close()
+            throw DocumentationScreenshotError.windowCaptureFailed
+        }
+        window.close()
+
+        let bitmap = NSBitmapImageRep(cgImage: cgImage)
+        let image = NSImage(size: NSSize(width: cgImage.width, height: cgImage.height))
         image.addRepresentation(bitmap)
         return image
+    }
+
+    private static var screenshotScreen: NSScreen? {
+        NSScreen.screens.max { lhs, rhs in
+            let left = (lhs.backingScaleFactor, lhs.frame.height)
+            let right = (rhs.backingScaleFactor, rhs.frame.height)
+            return left < right
+        }
+    }
+
+    private static func windowOrigin(for size: NSSize) -> NSPoint {
+        guard let screen = screenshotScreen else {
+            return .zero
+        }
+        let frame = screen.visibleFrame
+        return NSPoint(
+            x: frame.minX + captureWindowMargin,
+            y: max(frame.minY + captureWindowMargin, frame.maxY - size.height - captureWindowMargin)
+        )
     }
 
     private static func writePNG(_ image: NSImage, to destination: URL) throws {
@@ -111,15 +162,15 @@ enum DocumentationScreenshotRenderer {
 
 private enum DocumentationScreenshotError: LocalizedError {
     case defaultsCreationFailed
-    case bitmapCreationFailed
+    case windowCaptureFailed
     case pngEncodingFailed
 
     var errorDescription: String? {
         switch self {
         case .defaultsCreationFailed:
             return "Could not create documentation screenshot defaults"
-        case .bitmapCreationFailed:
-            return "Could not create a bitmap for the menu view"
+        case .windowCaptureFailed:
+            return "Could not capture the menu screenshot window"
         case .pngEncodingFailed:
             return "Could not encode the menu view as PNG"
         }

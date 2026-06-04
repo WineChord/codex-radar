@@ -53,7 +53,7 @@
 
 ## 完整菜单界面
 
-这张图由 app 自己渲染真实 SwiftUI 菜单视图生成，和状态栏截图一起由 `./scripts/update_readme_screenshots.sh` 维护。原图是 2x Retina 截图，README 里按 390pt 菜单宽度展示，避免尺寸过大。
+这张图由 app 自己在高清屏上截取真实 SwiftUI 菜单窗口生成，和状态栏截图一起由 `./scripts/update_readme_screenshots.sh` 维护。README 里按 390px 宽度展示，避免尺寸过大；点开原图可以看到高清细节。
 
 <img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 中文完整菜单界面">
 
@@ -83,7 +83,7 @@
 
 ## 更新
 
-自动更新默认开启。应用会检查最新 GitHub Release，下载 ZIP，校验 release 里的 SHA256，然后替换已安装的 app bundle 并自动重开。
+自动更新默认开启。应用启动 5 秒后会先检查一次，之后每 6 小时检查一次最新 GitHub Release，下载 ZIP，校验 release 里的 SHA256，然后替换已安装的 app bundle 并自动重开。
 
 下拉菜单还提供：
 
@@ -170,7 +170,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.4
+./scripts/package_release.sh 0.1.5
 ```
 
 更新 README 状态栏和菜单截图：

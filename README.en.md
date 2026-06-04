@@ -53,7 +53,7 @@ You can choose which values appear in the menu bar. For example, if you do not c
 
 ## Full Menu
 
-This image is rendered by the app itself from the real SwiftUI menu view, and it is maintained together with the menu bar screenshots by `./scripts/update_readme_screenshots.sh`. The source image is a 2x Retina capture; the README displays it at the app's 390pt menu width so it stays readable without taking over the page.
+This image is captured by the app itself from the real SwiftUI menu window on a high-resolution screen, and it is maintained together with the menu bar screenshots by `./scripts/update_readme_screenshots.sh`. The README displays it at 390px wide so it stays readable without taking over the page; open the source image for the full-resolution view.
 
 <img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel full English menu">
 
@@ -83,7 +83,7 @@ Notification sound is off by default and can be enabled in the dropdown. Histori
 
 ## Updates
 
-Automatic updates are on by default. The app checks the latest GitHub Release, downloads the ZIP, verifies the release SHA256, replaces the installed app bundle, and reopens itself.
+Automatic updates are on by default. The app checks once 5 seconds after launch, then every 6 hours checks the latest GitHub Release, downloads the ZIP, verifies the release SHA256, replaces the installed app bundle, and reopens itself.
 
 The dropdown also includes:
 
@@ -170,7 +170,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.4
+./scripts/package_release.sh 0.1.5
 ```
 
 Update README menu bar and menu screenshots:
