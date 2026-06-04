@@ -65,6 +65,22 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var automaticUpdatesEnabled: Bool {
+        didSet {
+            defaults.set(automaticUpdatesEnabled, forKey: DefaultsKey.automaticUpdatesEnabled)
+            if automaticUpdatesEnabled {
+                startAutomaticUpdateChecks()
+                checkForUpdatesNow(automatic: true)
+            } else {
+                automaticUpdateTask?.cancel()
+                automaticUpdateTask = nil
+            }
+        }
+    }
+
+    @Published private(set) var updatePhase: AppUpdatePhase = .idle
+    @Published private(set) var latestUpdate: AppUpdateInfo?
+
     @Published var launchAtLoginEnabled: Bool {
         didSet {
             LaunchAtLoginController.setEnabled(launchAtLoginEnabled)
@@ -79,6 +95,7 @@ final class SentinelStore: NSObject, ObservableObject {
         static let predictionNotificationsEnabled = "predictionNotificationsEnabled"
         static let iqNotificationsEnabled = "iqNotificationsEnabled"
         static let notificationSoundEnabled = "notificationSoundEnabled"
+        static let automaticUpdatesEnabled = "automaticUpdatesEnabled"
         static let launchAtLoginEnabled = "launchAtLoginEnabled"
         static let notificationMemory = "notificationMemory"
         static let dismissedSpeedAlertKey = "dismissedSpeedAlertKey"
@@ -87,21 +104,26 @@ final class SentinelStore: NSObject, ObservableObject {
     private let defaults: UserDefaults
     private let radarClient: CodexRadarClient
     private let appServerClient: CodexAppServerClient
+    private let appUpdater: AppUpdater
     private let notificationPolicy = NotificationPolicy()
     private var notificationMemory: NotificationMemory
     private var pollingTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
+    private var updateTask: Task<Void, Never>?
+    private var automaticUpdateTask: Task<Void, Never>?
     private var emphasizedSpeedAlertKey: String?
     private var speedAlertFirstSeenAt: Date?
 
     init(
         defaults: UserDefaults = .standard,
         radarClient: CodexRadarClient = CodexRadarClient(),
-        appServerClient: CodexAppServerClient = CodexAppServerClient()
+        appServerClient: CodexAppServerClient = CodexAppServerClient(),
+        appUpdater: AppUpdater = AppUpdater()
     ) {
         self.defaults = defaults
         self.radarClient = radarClient
         self.appServerClient = appServerClient
+        self.appUpdater = appUpdater
         let rawLanguage = defaults.string(forKey: DefaultsKey.appLanguage)
         self.appLanguage = rawLanguage.flatMap(AppLanguage.init(rawValue:)) ?? .zhHans
         let rawTextSize = defaults.string(forKey: DefaultsKey.menuTextSize)
@@ -112,6 +134,7 @@ final class SentinelStore: NSObject, ObservableObject {
         self.predictionNotificationsEnabled = defaults.object(forKey: DefaultsKey.predictionNotificationsEnabled) as? Bool ?? true
         self.iqNotificationsEnabled = defaults.object(forKey: DefaultsKey.iqNotificationsEnabled) as? Bool ?? true
         self.notificationSoundEnabled = defaults.object(forKey: DefaultsKey.notificationSoundEnabled) as? Bool ?? false
+        self.automaticUpdatesEnabled = defaults.object(forKey: DefaultsKey.automaticUpdatesEnabled) as? Bool ?? true
         self.launchAtLoginEnabled = defaults.object(forKey: DefaultsKey.launchAtLoginEnabled) as? Bool ?? LaunchAtLoginController.isEnabled
         self.dismissedSpeedAlertKey = defaults.string(forKey: DefaultsKey.dismissedSpeedAlertKey)
         self.notificationMemory = Self.loadNotificationMemory(defaults: defaults)
@@ -168,6 +191,7 @@ final class SentinelStore: NSObject, ObservableObject {
 
     func start() {
         refreshNow()
+        startAutomaticUpdateChecks()
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: AppConstants.defaultPollIntervalSeconds * 1_000_000_000)
@@ -179,6 +203,8 @@ final class SentinelStore: NSObject, ObservableObject {
     func stop() {
         pollingTask?.cancel()
         refreshTask?.cancel()
+        updateTask?.cancel()
+        automaticUpdateTask?.cancel()
         Task {
             await appServerClient.shutdown()
         }
@@ -195,12 +221,30 @@ final class SentinelStore: NSObject, ObservableObject {
         NSWorkspace.shared.open(AppConstants.codexRadarBaseURL)
     }
 
+    func openLatestReleaseNotes() {
+        NSWorkspace.shared.open(latestUpdate?.releaseURL ?? AppConstants.githubReleasesURL)
+    }
+
+    func openGitHubRepository() {
+        NSWorkspace.shared.open(AppConstants.githubRepositoryURL)
+    }
+
     func openCodexApp() {
         NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/Applications/Codex.app"), configuration: NSWorkspace.OpenConfiguration())
     }
 
     func quit() {
         NSApplication.shared.terminate(nil)
+    }
+
+    func checkForUpdatesNow(automatic: Bool = false) {
+        guard !updatePhase.isActive else {
+            return
+        }
+        updateTask?.cancel()
+        updateTask = Task { [weak self] in
+            await self?.checkForUpdates(automatic: automatic)
+        }
     }
 
     private func updateTitleForStatusItem() {
@@ -318,6 +362,50 @@ final class SentinelStore: NSObject, ObservableObject {
         }
         for event in filtered {
             NotificationService.shared.deliver(event, soundEnabled: notificationSoundEnabled)
+        }
+    }
+
+    private func startAutomaticUpdateChecks() {
+        guard automaticUpdatesEnabled else {
+            return
+        }
+        automaticUpdateTask?.cancel()
+        automaticUpdateTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            await self?.checkForUpdates(automatic: true)
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: AppConstants.updateCheckIntervalSeconds * 1_000_000_000)
+                await self?.checkForUpdates(automatic: true)
+            }
+        }
+    }
+
+    private func checkForUpdates(automatic: Bool) async {
+        guard !automatic || automaticUpdatesEnabled else {
+            return
+        }
+        guard !updatePhase.isActive else {
+            return
+        }
+        updatePhase = .checking
+        do {
+            guard let update = try await appUpdater.latestUpdate(currentVersion: AppConstants.appVersion) else {
+                latestUpdate = nil
+                updatePhase = .upToDate(Date())
+                return
+            }
+            latestUpdate = update
+            updatePhase = .available(update.version)
+            updatePhase = .downloading(update.version)
+            try await appUpdater.install(update)
+            updatePhase = .installing(update.version)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                NSApplication.shared.terminate(nil)
+            }
+        } catch is CancellationError {
+            updatePhase = .idle
+        } catch {
+            updatePhase = .failed(error.localizedDescription)
         }
     }
 

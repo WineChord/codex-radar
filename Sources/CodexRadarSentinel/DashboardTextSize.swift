@@ -25,8 +25,8 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
         switch self {
         case .medium:
             return Metrics(
-                width: 350,
-                height: 440,
+                width: 370,
+                height: 470,
                 headerIcon: 18,
                 headerTitle: 14,
                 body: 13,
@@ -36,12 +36,13 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
                 badge: 12,
                 tileValue: 20,
                 quotaTileHeight: 68,
-                toolbarButtonSize: 28
+                toolbarHeight: 48,
+                settingLabelWidth: 72
             )
         case .large:
             return Metrics(
-                width: 360,
-                height: 460,
+                width: 390,
+                height: 510,
                 headerIcon: 19,
                 headerTitle: 15,
                 body: 14,
@@ -51,12 +52,13 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
                 badge: 13,
                 tileValue: 22,
                 quotaTileHeight: 74,
-                toolbarButtonSize: 30
+                toolbarHeight: 50,
+                settingLabelWidth: 78
             )
         case .extraLarge:
             return Metrics(
-                width: 380,
-                height: 500,
+                width: 430,
+                height: 560,
                 headerIcon: 20,
                 headerTitle: 16,
                 body: 15,
@@ -66,7 +68,8 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
                 badge: 14,
                 tileValue: 24,
                 quotaTileHeight: 80,
-                toolbarButtonSize: 32
+                toolbarHeight: 54,
+                settingLabelWidth: 86
             )
         }
     }
@@ -83,6 +86,7 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
         let badge: CGFloat
         let tileValue: CGFloat
         let quotaTileHeight: CGFloat
-        let toolbarButtonSize: CGFloat
+        let toolbarHeight: CGFloat
+        let settingLabelWidth: CGFloat
     }
 }

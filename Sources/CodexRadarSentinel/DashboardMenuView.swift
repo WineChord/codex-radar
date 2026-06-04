@@ -8,7 +8,6 @@ struct DashboardMenuView: View {
         static let contentPadding: CGFloat = 12
         static let sectionSpacing: CGFloat = 12
         static let tileSpacing: CGFloat = 8
-        static let toolbarHeight: CGFloat = 48
         static let toolbarCornerRadius: CGFloat = 8
     }
 
@@ -52,6 +51,7 @@ struct DashboardMenuView: View {
                     }
                     Divider()
                     settingsSection
+                    updateSection
                     previewSection
                 }
                 .padding(.horizontal, Layout.contentPadding)
@@ -228,9 +228,9 @@ struct DashboardMenuView: View {
     }
 
     private var settingsSection: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 10) {
             sectionTitle(text("显示与提醒", "Display & Alerts"), systemImage: "slider.horizontal.3")
-            pickerRow(title: text("语言", "Language")) {
+            settingRow(title: text("语言", "Language")) {
                 Picker(text("语言", "Language"), selection: $store.appLanguage) {
                     ForEach(AppLanguage.allCases) { language in
                         Text(language.label).tag(language)
@@ -238,7 +238,7 @@ struct DashboardMenuView: View {
                 }
                 .pickerStyle(.segmented)
             }
-            pickerRow(title: text("字号", "Text size")) {
+            settingRow(title: text("字号", "Text size")) {
                 Picker(text("字号", "Text size"), selection: $store.menuTextSize) {
                     ForEach(DashboardTextSize.allCases) { size in
                         Text(size.label).tag(size)
@@ -246,23 +246,62 @@ struct DashboardMenuView: View {
                 }
                 .pickerStyle(.segmented)
             }
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 7) {
                 Text(text("状态栏显示", "Menu bar segments"))
                     .font(.system(size: metrics.caption, weight: .medium))
                     .foregroundStyle(.secondary)
-                HStack(spacing: 6) {
+                HStack(spacing: Layout.tileSpacing) {
                     metricToggle(.weeklyQuota)
                     metricToggle(.codexIQ)
                     metricToggle(.signal)
                 }
             }
-            Toggle(text("Prediction 提醒", "Prediction alerts"), isOn: $store.predictionNotificationsEnabled)
-            Toggle(text("IQ 提醒", "IQ alerts"), isOn: $store.iqNotificationsEnabled)
-            Toggle(text("通知声音", "Notification sound"), isOn: $store.notificationSoundEnabled)
-            Toggle(text("登录时启动", "Launch at login"), isOn: $store.launchAtLoginEnabled)
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: Layout.tileSpacing),
+                    GridItem(.flexible(), spacing: Layout.tileSpacing),
+                ],
+                alignment: .leading,
+                spacing: 7
+            ) {
+                Toggle(text("Prediction 提醒", "Prediction alerts"), isOn: $store.predictionNotificationsEnabled)
+                Toggle(text("IQ 提醒", "IQ alerts"), isOn: $store.iqNotificationsEnabled)
+                Toggle(text("通知声音", "Notification sound"), isOn: $store.notificationSoundEnabled)
+                Toggle(text("登录时启动", "Launch at login"), isOn: $store.launchAtLoginEnabled)
+            }
         }
         .toggleStyle(.checkbox)
         .font(.system(size: metrics.label))
+    }
+
+    private var updateSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle(text("版本更新", "Updates"), systemImage: "arrow.down.app")
+            HStack(alignment: .center, spacing: Layout.tileSpacing) {
+                Toggle(text("自动更新", "Auto update"), isOn: $store.automaticUpdatesEnabled)
+                    .toggleStyle(.checkbox)
+                    .font(.system(size: metrics.label))
+                Spacer()
+                Text("v\(AppConstants.appVersion)")
+                    .font(.system(size: metrics.caption, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            Text(updateStatusText)
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(updateStatusColor)
+                .lineLimit(2)
+            HStack(spacing: Layout.tileSpacing) {
+                compactActionButton(title: text("检查更新", "Check"), systemImage: "arrow.clockwise") {
+                    store.checkForUpdatesNow()
+                }
+                compactActionButton(title: "Changelog", systemImage: "doc.text") {
+                    store.openLatestReleaseNotes()
+                }
+                compactActionButton(title: "GitHub ★", systemImage: "star") {
+                    store.openGitHubRepository()
+                }
+            }
+        }
     }
 
     private var previewSection: some View {
@@ -316,7 +355,7 @@ struct DashboardMenuView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
-            .frame(maxWidth: .infinity, minHeight: Layout.toolbarHeight)
+            .frame(maxWidth: .infinity, minHeight: metrics.toolbarHeight)
             .contentShape(RoundedRectangle(cornerRadius: Layout.toolbarCornerRadius))
         }
         .buttonStyle(.plain)
@@ -325,16 +364,43 @@ struct DashboardMenuView: View {
         .help(title)
     }
 
-    private func pickerRow<Content: View>(
+    private func compactActionButton(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .font(.system(size: metrics.caption, weight: .semibold))
+                Text(title)
+                    .font(.system(size: metrics.caption, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 7)
+            .contentShape(RoundedRectangle(cornerRadius: 7))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 7))
+        .help(title)
+    }
+
+    private func settingRow<Content: View>(
         title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .center, spacing: 10) {
             Text(title)
                 .font(.system(size: metrics.caption, weight: .medium))
                 .foregroundStyle(.secondary)
+                .frame(width: metrics.settingLabelWidth, alignment: .leading)
             content()
                 .font(.system(size: metrics.label))
+                .frame(maxWidth: .infinity)
         }
     }
 
@@ -378,8 +444,8 @@ struct DashboardMenuView: View {
             }
             .font(.system(size: metrics.caption, weight: .medium))
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
+            .padding(.horizontal, 5)
         }
         .buttonStyle(.plain)
         .foregroundStyle(isEnabled ? Color.accentColor : Color.secondary)
@@ -510,6 +576,29 @@ struct DashboardMenuView: View {
             return .orange
         case "低", "low":
             return .teal
+        default:
+            return .secondary
+        }
+    }
+
+    private var updateStatusText: String {
+        switch store.updatePhase {
+        case .idle:
+            return text(
+                "默认自动检查 GitHub Release；发现新版会校验并安装。",
+                "Auto-checks GitHub Releases by default; verified updates install automatically."
+            )
+        default:
+            return store.updatePhase.label(language: language)
+        }
+    }
+
+    private var updateStatusColor: Color {
+        switch store.updatePhase {
+        case .failed:
+            return .red
+        case .downloading, .installing, .available:
+            return .accentColor
         default:
             return .secondary
         }

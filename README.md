@@ -2,7 +2,7 @@
 
 Codex Radar Sentinel is a local macOS menu bar app for Codex usage timing. It keeps the most important signal visible without opening [CodexRadar](https://codexradar.com/) or checking the Codex usage page.
 
-![Codex Radar Sentinel normal status](docs/assets/readme-status-normal.png)
+![Codex Radar Sentinel compact menu bar status](docs/assets/readme-statusline-normal.png)
 
 ![Codex Radar Sentinel dropdown](docs/assets/readme-menu.png)
 
@@ -24,9 +24,11 @@ The app defaults to Chinese. English can be selected from the dropdown. Technica
 
 ## Status States
 
+These screenshots are drawn at menu-bar scale with neighboring icons for context, so the status item size is easier to judge.
+
 | Normal | Speed window | Limit reached | Custom |
 | --- | --- | --- | --- |
-| ![Normal status](docs/assets/readme-status-normal.png) | ![Speed status](docs/assets/readme-status-speed.png) | ![Limit status](docs/assets/readme-status-limit.png) | ![Custom status](docs/assets/readme-status-custom.png) |
+| ![Normal compact menu bar status](docs/assets/readme-statusline-normal.png) | ![Speed compact menu bar status](docs/assets/readme-statusline-speed.png) | ![Limit compact menu bar status](docs/assets/readme-statusline-limit.png) | ![Custom compact menu bar status](docs/assets/readme-statusline-custom.png) |
 
 The menu bar can show any combination of the three segments. For example, users who do not care about IQ can show only `97%/低`.
 
@@ -55,6 +57,18 @@ The app sends macOS notifications for events that should not require manual chec
 Notification sound is off by default. It can be enabled in the dropdown when audible alerts are useful.
 
 Historical reset windows are seeded on first launch, so starting the app after a reset does not replay old reset notifications. If the first launch happens during an active speed window, it still notifies.
+
+## Updates
+
+Automatic updates are on by default. The app checks the latest GitHub Release, verifies the release checksum, replaces the installed app bundle, and reopens itself when a newer version is available.
+
+The dropdown also includes:
+
+- `检查更新`: manually checks and installs a newer release.
+- `Changelog`: opens the latest release notes on GitHub.
+- `GitHub ★`: opens the repository page.
+
+Turn off `自动更新` in the dropdown if you prefer manual updates only.
 
 ## Preview Mode
 
@@ -140,7 +154,7 @@ swift build -c release
 Build release packages:
 
 ```bash
-./scripts/package_release.sh 0.1.3
+./scripts/package_release.sh 0.1.4
 ```
 
 Update README screenshots after UI changes:
