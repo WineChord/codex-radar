@@ -172,12 +172,12 @@ struct DashboardMenuView: View {
                 quotaTile(
                     title: text("周额度", "Weekly"),
                     value: DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent),
-                    subtitle: "\(text("重置", "reset")) \(DisplayFormatters.relativeReset(state.rateLimits?.weeklyBucket?.resetsAt))"
+                    resetAt: state.rateLimits?.weeklyBucket?.resetsAt
                 )
                 quotaTile(
                     title: text("短窗", "Short"),
                     value: DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent),
-                    subtitle: "\(text("重置", "reset")) \(DisplayFormatters.relativeReset(state.rateLimits?.shortBucket?.resetsAt))"
+                    resetAt: state.rateLimits?.shortBucket?.resetsAt
                 )
             }
             if let planType = state.rateLimits?.snapshot.planType {
@@ -480,16 +480,21 @@ struct DashboardMenuView: View {
         .help(metric.label(language: language))
     }
 
-    private func quotaTile(title: String, value: String, subtitle: String) -> some View {
+    private func quotaTile(title: String, value: String, resetAt: Int?) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.system(size: metrics.caption))
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.system(size: metrics.tileValue, weight: .semibold, design: .monospaced))
-            Text(subtitle)
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(text("重置", "reset")) \(DisplayFormatters.relativeReset(resetAt))")
+                Text(DisplayFormatters.compactEpochDateTime(resetAt))
+            }
+            .font(.system(size: metrics.caption))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
         }
         .padding(8)
         .frame(height: metrics.quotaTileHeight)

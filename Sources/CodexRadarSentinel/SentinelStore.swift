@@ -494,7 +494,7 @@ final class SentinelStore: NSObject, ObservableObject {
         }
         updatePhase = .checking
         do {
-            guard let update = try await appUpdater.latestUpdate(currentVersion: updaterCurrentVersion) else {
+            guard let update = try await appUpdater.latestUpdate(currentVersion: AppConstants.appVersion) else {
                 latestUpdate = nil
                 updatePhase = .upToDate(Date())
                 return
@@ -512,11 +512,6 @@ final class SentinelStore: NSObject, ObservableObject {
         } catch {
             updatePhase = .failed(error.localizedDescription)
         }
-    }
-
-    private var updaterCurrentVersion: String {
-        ProcessInfo.processInfo.environment[AppConstants.updateCurrentVersionEnvironmentKey]
-            ?? AppConstants.appVersion
     }
 
     private static func loadSelectedStatusMetrics(defaults: UserDefaults) -> [StatusMetric] {

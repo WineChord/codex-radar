@@ -170,7 +170,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.5
+./scripts/package_release.sh 0.1.6
 ```
 
 Update README menu bar and menu screenshots:

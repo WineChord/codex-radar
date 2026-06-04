@@ -170,7 +170,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.5
+./scripts/package_release.sh 0.1.6
 ```
 
 更新 README 状态栏和菜单截图：

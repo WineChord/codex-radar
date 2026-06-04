@@ -35,7 +35,7 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
                 section: 12,
                 badge: 12,
                 tileValue: 20,
-                quotaTileHeight: 68,
+                quotaTileHeight: 82,
                 toolbarHeight: 48,
                 settingLabelWidth: 72
             )
@@ -51,7 +51,7 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
                 section: 13,
                 badge: 13,
                 tileValue: 22,
-                quotaTileHeight: 74,
+                quotaTileHeight: 88,
                 toolbarHeight: 50,
                 settingLabelWidth: 78
             )
@@ -67,7 +67,7 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
                 section: 14,
                 badge: 14,
                 tileValue: 24,
-                quotaTileHeight: 80,
+                quotaTileHeight: 96,
                 toolbarHeight: 54,
                 settingLabelWidth: 86
             )

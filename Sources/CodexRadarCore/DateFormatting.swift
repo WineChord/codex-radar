@@ -40,6 +40,13 @@ public enum DisplayFormatters {
         return formatter.string(from: date)
     }
 
+    public static func compactEpochDateTime(_ epochSeconds: Int?) -> String {
+        guard let epochSeconds else {
+            return "unknown"
+        }
+        return compactDateTime(Date(timeIntervalSince1970: TimeInterval(epochSeconds)))
+    }
+
     public static func relativeReset(_ epochSeconds: Int?) -> String {
         guard let epochSeconds else {
             return "unknown"
