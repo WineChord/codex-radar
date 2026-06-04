@@ -9,6 +9,34 @@
 - 只保留用户直接写给 Codex 的产品需求、设计反馈、验证要求和开源要求。
 - 截图只用文字说明代替，不在这里复刻原始图片路径。
 
+## Maintenance Rule
+
+从这条规则开始，后续每个由用户 prompt 驱动的仓库变更都要维护两件事：
+
+- 在 `PROMPTS.md` 追加对应的用户 prompt，继续遵守上面的脱敏规则。
+- 在下面的映射表里记录 prompt 和实际 commit 的关系；功能或文档 commit 的 commit message 应该带上 `Prompt-Id: N` trailer，方便从 `git log` 反查。
+
+Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己的文件内容里稳定写入自己的最终 hash。遇到“新增 prompt log 本身”这种提交时，用 commit message 的 `Prompt-Id` 先建立关联，并在下一次 prompt log 维护时把已经确定的短 hash 补进表里。
+
+## Prompt To Commit Map
+
+| Prompt | Commit(s) | Notes |
+| --- | --- | --- |
+| 1-4 | `27677cc` | 初版 macOS 菜单栏 app。 |
+| 5 | `e832074` | release 包和安装能力。 |
+| 6 | `ae5eed9` | 紧凑状态栏。 |
+| 7 | `7e08bf2` | 速蹬预览、强调样式和 app branding。 |
+| 8 | `69e55fd` | 双语、按钮说明、可配置项。 |
+| 9 | `72ecc5a` | 自动更新和更紧凑的文档展示。 |
+| 10 | `b0fff69` | 中英文 README 和安装 prompt。 |
+| 11 | `5c5aecf` | README 开头 CodexRadar credit。 |
+| 12 | `c8b5f7a` | 中英文完整菜单截图。 |
+| 13 | `2a0e886` | GitHub API 403 fallback、高清菜单截图、更新验证。 |
+| 14 | `bf85a69` | reset 绝对时间、手动更新测试、更新循环修复。 |
+| 15 | `d2e2a09` | 更新安装失败 fallback。 |
+| 16 | `b82b960` | prompt log 开源。 |
+| 17 | pending | 本条维护规则；最终 hash 在提交后确定，后续维护时补齐。 |
+
 ## Prompts
 
 ### 1. 初始想法
@@ -123,4 +151,10 @@ github 上搞成中英文 readme，点击可以切换，默认中文。对了，
 
 ```text
 现在我决定做非常彻底的开源，那就是把我们造这个项目我写给你的所有 prompt（包括我现在写的这条），也全部开源到这个仓库，并且要在 readme 里面给个显眼的引用位置，标注一下算是博大家一个开心哈哈哈，你懂我意思？懂？好好揣摩我想要干什么，好好干！直接 push to main！对了，要注意隐去一些可能导致安全问题的一些东西，并且只记录包含我直接给你发的给你写的 prompt。对了，时间信息可以隐去不要带（你懂吗？你懂的）。
+```
+
+### 17. Prompt 和 commit 一一映射
+
+```text
+对了，还要记上这样一个点，以后每个 commit 或者啥东西，也都把对应的 prompt 给带到仓库那个记录 prompt 的地方（并和实际的 commit 做一一映射）
 ```
