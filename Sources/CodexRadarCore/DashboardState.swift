@@ -69,4 +69,14 @@ public struct DashboardState: Equatable {
         current?.lastWindow?.status?.lowercased() == "closed"
             && current?.lastWindow?.closedAt != nil
     }
+
+    public var speedAlertKey: String? {
+        guard current?.windowOpen == true else {
+            return nil
+        }
+        guard let window = current?.lastWindow else {
+            return "unknown-open"
+        }
+        return "\(window.id ?? "unknown"):\(window.openedAt ?? "unknown")"
+    }
 }

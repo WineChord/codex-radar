@@ -8,7 +8,28 @@ final class SentinelStore: NSObject, ObservableObject {
 
     @Published private(set) var state = DashboardState() {
         didSet {
-            titleForStatusItem = state.statusTitle
+            updateTitleForStatusItem()
+        }
+    }
+
+    @Published var menuTextSize: DashboardTextSize {
+        didSet {
+            defaults.set(menuTextSize.rawValue, forKey: DefaultsKey.menuTextSize)
+        }
+    }
+
+    @Published var debugPreview: DashboardPreview = .live {
+        didSet {
+            if debugPreview != .live {
+                resetSpeedAlertDismissal()
+            }
+            updateTitleForStatusItem()
+        }
+    }
+
+    @Published private(set) var dismissedSpeedAlertKey: String? {
+        didSet {
+            defaults.set(dismissedSpeedAlertKey, forKey: DefaultsKey.dismissedSpeedAlertKey)
         }
     }
 
@@ -32,10 +53,12 @@ final class SentinelStore: NSObject, ObservableObject {
     }
 
     private enum DefaultsKey {
+        static let menuTextSize = "menuTextSize"
         static let predictionNotificationsEnabled = "predictionNotificationsEnabled"
         static let iqNotificationsEnabled = "iqNotificationsEnabled"
         static let launchAtLoginEnabled = "launchAtLoginEnabled"
         static let notificationMemory = "notificationMemory"
+        static let dismissedSpeedAlertKey = "dismissedSpeedAlertKey"
     }
 
     private let defaults: UserDefaults
@@ -45,6 +68,8 @@ final class SentinelStore: NSObject, ObservableObject {
     private var notificationMemory: NotificationMemory
     private var pollingTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
+    private var emphasizedSpeedAlertKey: String?
+    private var speedAlertFirstSeenAt: Date?
 
     init(
         defaults: UserDefaults = .standard,
@@ -54,11 +79,47 @@ final class SentinelStore: NSObject, ObservableObject {
         self.defaults = defaults
         self.radarClient = radarClient
         self.appServerClient = appServerClient
+        let rawTextSize = defaults.string(forKey: DefaultsKey.menuTextSize)
+        self.menuTextSize = rawTextSize.flatMap(DashboardTextSize.init(rawValue:)) ?? .large
+        let rawPreview = ProcessInfo.processInfo.environment[AppConstants.debugPreviewEnvironmentKey]
+        self.debugPreview = rawPreview.flatMap(DashboardPreview.init(rawValue:)) ?? .live
         self.predictionNotificationsEnabled = defaults.object(forKey: DefaultsKey.predictionNotificationsEnabled) as? Bool ?? true
         self.iqNotificationsEnabled = defaults.object(forKey: DefaultsKey.iqNotificationsEnabled) as? Bool ?? true
         self.launchAtLoginEnabled = defaults.object(forKey: DefaultsKey.launchAtLoginEnabled) as? Bool ?? LaunchAtLoginController.isEnabled
+        self.dismissedSpeedAlertKey = defaults.string(forKey: DefaultsKey.dismissedSpeedAlertKey)
         self.notificationMemory = Self.loadNotificationMemory(defaults: defaults)
         super.init()
+    }
+
+    var dashboardState: DashboardState {
+        DashboardPreviewFactory.state(for: debugPreview, live: state)
+    }
+
+    var shouldEmphasizeSpeedAlert: Bool {
+        guard let key = dashboardState.speedAlertKey else {
+            return false
+        }
+        guard dismissedSpeedAlertKey != key else {
+            return false
+        }
+        guard emphasizedSpeedAlertKey == key,
+              let speedAlertFirstSeenAt else {
+            return true
+        }
+        return Date().timeIntervalSince(speedAlertFirstSeenAt) <= AppConstants.speedAlertEmphasisSeconds
+    }
+
+    func dismissCurrentSpeedAlert() {
+        guard let key = dashboardState.speedAlertKey else {
+            return
+        }
+        dismissedSpeedAlertKey = key
+        updateTitleForStatusItem()
+    }
+
+    func resetSpeedAlertDismissal() {
+        dismissedSpeedAlertKey = nil
+        updateTitleForStatusItem()
     }
 
     func start() {
@@ -96,6 +157,24 @@ final class SentinelStore: NSObject, ObservableObject {
 
     func quit() {
         NSApplication.shared.terminate(nil)
+    }
+
+    private func updateTitleForStatusItem() {
+        updateSpeedAlertLifetime()
+        titleForStatusItem = dashboardState.statusTitle
+    }
+
+    private func updateSpeedAlertLifetime() {
+        guard let key = dashboardState.speedAlertKey else {
+            emphasizedSpeedAlertKey = nil
+            speedAlertFirstSeenAt = nil
+            return
+        }
+        guard emphasizedSpeedAlertKey != key else {
+            return
+        }
+        emphasizedSpeedAlertKey = key
+        speedAlertFirstSeenAt = Date()
     }
 
     private func refresh() async {

@@ -2,17 +2,23 @@
 
 Codex Radar Sentinel is a local macOS menu bar app for Codex usage timing. It keeps the most important signal visible without opening [CodexRadar](https://codexradar.com/) or checking the Codex usage page.
 
+![Codex Radar Sentinel menu bar](docs/assets/readme-statusbar.png)
+
+![Codex Radar Sentinel dropdown](docs/assets/readme-menu.png)
+
 The menu bar title is intentionally compact:
 
 ```text
-WK 98% · IQ75 · 低
+97%/75/低
 ```
 
-When [CodexRadar](https://codexradar.com/) reports an active speed window, the title switches to:
+The three segments are:
 
-```text
-速蹬 · WK 98%
-```
+- `97%`: weekly Codex quota remaining.
+- `75`: Codex IQ score from the daily probe.
+- `低`: reset/speed-window signal from CodexRadar.
+
+When [CodexRadar](https://codexradar.com/) reports an active speed window, the menu bar item turns red until the current alert is dismissed, the window is no longer active, or the 30-minute emphasis window expires.
 
 ## What It Shows
 
@@ -21,6 +27,8 @@ When [CodexRadar](https://codexradar.com/) reports an active speed window, the t
 - [CodexRadar](https://codexradar.com/) current speed-window and reset status.
 - [CodexRadar](https://codexradar.com/) 24h and 48h reset prediction.
 - Codex model IQ score from the daily probe.
+
+The dropdown starts with a small legend for `Weekly / IQ / Signal`, then shows the detailed quota, radar, prediction, and IQ sections. Text size can be changed in the dropdown with `M`, `L`, or `XL`.
 
 ## Notifications
 
@@ -35,6 +43,25 @@ The app sends macOS notifications for events that should not require manual chec
 - Codex IQ falls into a red or sub-80 state.
 
 Historical reset windows are seeded on first launch, so starting the app after a reset does not replay old reset notifications. If the first launch happens during an active speed window, it still notifies.
+
+## Preview Mode
+
+Use the `Preview` segmented control in the dropdown to inspect local UI states:
+
+- `Live`: real data.
+- `速蹬`: urgent speed-window UI, including the red menu bar item and dismissible red banner.
+- `Reset`: confirmed reset UI.
+- `Limit`: local quota-limit UI.
+
+Preview mode only changes what the app displays. Notifications and persisted event memory still use live data.
+
+For scripted UI checks, launch the executable with:
+
+```bash
+CODEX_RADAR_PREVIEW=speedWindow swift run CodexRadarSentinel
+```
+
+Accepted values are `live`, `speedWindow`, `resetConfirmed`, and `blocked`.
 
 ## Data Sources
 
@@ -101,7 +128,19 @@ swift build -c release
 Build release packages:
 
 ```bash
-./scripts/package_release.sh 0.1.1
+./scripts/package_release.sh 0.1.2
+```
+
+Update README screenshots after UI changes:
+
+```bash
+./scripts/update_readme_screenshots.sh
+```
+
+Regenerate the macOS icon from the source image:
+
+```bash
+./scripts/generate_app_icon.sh
 ```
 
 ## Credits

@@ -4,7 +4,7 @@ public enum AppConstants {
     public static let appName = "Codex Radar Sentinel"
     public static let clientName = "codex-radar-sentinel"
     public static let bundleIdentifier = "com.codexradar.sentinel"
-    public static let appVersion = "0.1.1"
+    public static let appVersion = "0.1.2"
 
     public static let codexLimitID = "codex"
     public static let weeklyWindowMinutes = 10_080.0
@@ -18,6 +18,7 @@ public enum AppConstants {
 
     public static let defaultPollIntervalSeconds: UInt64 = 60
     public static let requestTimeoutSeconds: UInt64 = 15
+    public static let speedAlertEmphasisSeconds: TimeInterval = 1_800
 
     public static let codexRadarBaseURL = URL(string: "https://codexradar.com")!
     public static let currentPath = "current.json"
@@ -27,4 +28,5 @@ public enum AppConstants {
 
     public static let codexAppBinaryPath = "/Applications/Codex.app/Contents/Resources/codex"
     public static let codexPathEnvironmentKey = "CODEX_RADAR_CODEX_PATH"
+    public static let debugPreviewEnvironmentKey = "CODEX_RADAR_PREVIEW"
 }

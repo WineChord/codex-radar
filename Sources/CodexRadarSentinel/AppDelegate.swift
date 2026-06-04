@@ -7,8 +7,7 @@ import UserNotifications
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private enum MenuMetrics {
-        static let width: CGFloat = 340
-        static let height: CGFloat = 430
+        static let urgentCornerRadius: CGFloat = 5
     }
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -26,15 +25,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func configureStatusItem() {
-        updateStatusButton(for: store.state)
+        updateStatusButton()
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
 
-        store.$state
+        store.$state.combineLatest(store.$debugPreview, store.$dismissedSpeedAlertKey)
             .receive(on: RunLoop.main)
-            .sink { [weak self] state in
-                self?.updateStatusButton(for: state)
+            .sink { [weak self] _, _, _ in
+                self?.updateStatusButton()
             }
             .store(in: &cancellables)
         rebuildMenu(menu)
@@ -48,18 +47,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
         let root = DashboardMenuView(store: store)
         let hostingView = NSHostingView(rootView: root)
-        hostingView.frame = NSRect(x: 0, y: 0, width: MenuMetrics.width, height: MenuMetrics.height)
+        let metrics = store.menuTextSize.metrics
+        hostingView.frame = NSRect(x: 0, y: 0, width: metrics.width, height: metrics.height)
         let item = NSMenuItem()
         item.view = hostingView
         menu.addItem(item)
     }
 
-    private func updateStatusButton(for state: DashboardState) {
+    private func updateStatusButton() {
         guard let button = statusItem.button else {
             return
         }
-        button.attributedTitle = StatusTitleFormatter.attributedTitle(for: state)
+        let state = store.dashboardState
+        let emphasized = store.shouldEmphasizeSpeedAlert
+        button.attributedTitle = StatusTitleFormatter.attributedTitle(for: state, emphasized: emphasized)
         button.toolTip = "\(AppConstants.appName) \(state.statusTitle)"
         button.setAccessibilityTitle(state.statusTitle)
+        button.wantsLayer = true
+        if emphasized {
+            button.layer?.backgroundColor = NSColor.systemRed.cgColor
+            button.layer?.cornerRadius = MenuMetrics.urgentCornerRadius
+        } else {
+            button.layer?.backgroundColor = NSColor.clear.cgColor
+            button.layer?.cornerRadius = 0
+        }
     }
 }
