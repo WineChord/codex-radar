@@ -1,176 +1,188 @@
 # Codex Radar Sentinel
 
-Codex Radar Sentinel is a local macOS menu bar app for Codex usage timing. It keeps the most important signal visible without opening [CodexRadar](https://codexradar.com/) or checking the Codex usage page.
+中文 | [English](README.en.md)
 
-![Codex Radar Sentinel compact menu bar status](docs/assets/readme-statusline-normal.png)
+Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，用来把 Codex 使用时机、周额度剩余、速蹬窗口、reset 信号和 Codex IQ 放在状态栏里。你不用打开 [CodexRadar](https://codexradar.com/)，也不用自己去看 Codex 当前剩余额度。
 
-![Codex Radar Sentinel dropdown](docs/assets/readme-menu.png)
+![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
-The menu bar title is intentionally compact:
+## 让 Codex 帮你安装
+
+如果你正在用 Codex 桌面版，可以直接复制下面这段 prompt 给 Codex。需要允许 Codex 访问网络、执行 shell 命令、写入 `/Applications`；如果 macOS 弹出通知权限，点允许即可。
 
 ```text
-97%/75/低
+请直接帮我在这台 Mac 上安装 Codex Radar Sentinel。
+
+要求：
+1. 打开 https://github.com/WineChord/codex-radar/releases/latest
+2. 下载最新的 CodexRadarSentinel-*-macOS.dmg
+3. 挂载 DMG
+4. 把 "Codex Radar Sentinel.app" 复制到 /Applications
+5. 启动应用
+6. 如果系统询问通知权限，提醒我点允许
+7. 启动后读取菜单栏状态，确认它显示类似 96%/75/低、97%/75/低 或 96%/低
+
+请直接执行安装和验证，不要只给我步骤。
 ```
 
-The three segments are:
+## 状态栏含义
 
-- `97%`: weekly Codex quota remaining.
-- `75`: Codex IQ score from the daily probe.
-- `低`: reset/speed-window signal from CodexRadar.
+状态栏标题刻意保持很短：
 
-When [CodexRadar](https://codexradar.com/) reports an active speed window, the menu bar item turns red until the current alert is dismissed, the window is no longer active, or the 30-minute emphasis window expires.
+```text
+96%/75/低
+```
 
-The app defaults to Chinese. English can be selected from the dropdown. Technical terms such as Codex, IQ, Reset, Prediction, and Radar are kept where they are clearer than translation.
+三个值分别是：
 
-## Status States
+- `96%`：Codex 周额度剩余百分比。
+- `75`：Codex IQ 分数。
+- `低`：CodexRadar 的 reset / 速蹬信号。
 
-These screenshots are drawn at menu-bar scale with neighboring icons for context, so the status item size is easier to judge.
+当 [CodexRadar](https://codexradar.com/) 报告速蹬窗口开启时，状态栏 item 会变成红底白字。红色强调可以手动关闭；窗口结束或 30 分钟强调时间到后会自动退场。
 
-| Normal | Speed window | Limit reached | Custom |
+## 状态展示
+
+这些截图来自真实 macOS 状态栏：脚本会启动真实 app，切换预览状态，然后裁剪本 app 的状态栏 item。不是手绘 mock，也不包含右侧其他菜单栏图标。
+
+| 正常 | 速蹬窗口 | 本机限额 | 自定义 |
 | --- | --- | --- | --- |
-| ![Normal compact menu bar status](docs/assets/readme-statusline-normal.png) | ![Speed compact menu bar status](docs/assets/readme-statusline-speed.png) | ![Limit compact menu bar status](docs/assets/readme-statusline-limit.png) | ![Custom compact menu bar status](docs/assets/readme-statusline-custom.png) |
+| ![正常状态](docs/assets/zh/status-normal.png) | ![速蹬状态](docs/assets/zh/status-speed.png) | ![限额状态](docs/assets/zh/status-limit.png) | ![自定义状态](docs/assets/zh/status-custom.png) |
 
-The menu bar can show any combination of the three segments. For example, users who do not care about IQ can show only `97%/低`.
+可以在下拉菜单里选择状态栏显示哪些值。例如不关心 IQ 时，可以只显示 `96%/低`。
 
-## What It Shows
+## 它会显示什么
 
-- Weekly Codex quota remaining, read from the local Codex app-server.
-- Short-window quota remaining, also from the local Codex app-server.
-- [CodexRadar](https://codexradar.com/) current speed-window and reset status.
-- [CodexRadar](https://codexradar.com/) 24h and 48h reset prediction.
-- Codex model IQ score from the daily probe.
+- Codex 周额度剩余，来自本机 Codex app-server。
+- Codex 短窗额度剩余，也来自本机 Codex app-server。
+- [CodexRadar](https://codexradar.com/) 当前速蹬窗口和 reset 状态。
+- [CodexRadar](https://codexradar.com/) 24h / 48h reset 预测。
+- Codex IQ 每日探针结果。
 
-The dropdown starts with a small legend for `周额度 / IQ / 信号`, then shows the detailed quota, radar, prediction, and IQ sections. Text size can be changed in the dropdown with `M`, `L`, or `XL`.
+应用默认中文；下拉菜单里可以切换 English。Codex、IQ、Reset、Prediction、Radar 这类英文术语会保留，因为它们在产品里更清楚。
 
-## Notifications
+## 通知
 
-The app sends macOS notifications for events that should not require manual checking:
+应用会在这些情况发送 macOS 通知：
 
-- Speed window opened.
-- Codex limit reset confirmed.
-- Weekly quota falls below 30%.
-- Weekly quota falls below 15%.
-- Weekly quota recovers after a low-remaining state.
-- Prediction rises to high, or CodexRadar explicitly marks it as notify-worthy.
-- Codex IQ falls into a red or sub-80 state.
+- 速蹬窗口开启。
+- Codex limit reset 已确认。
+- 周额度低于 30%。
+- 周额度低于 15%。
+- 周额度从低位恢复。
+- Prediction 升到 high，或 CodexRadar 明确标记 should_notify。
+- Codex IQ 进入 red 或低于 80。
 
-Notification sound is off by default. It can be enabled in the dropdown when audible alerts are useful.
+通知声音默认关闭，可以在下拉菜单里打开。首次启动会把历史 reset 窗口记为已见过，避免补发旧通知；如果首次启动时正好处在速蹬窗口中，仍然会提醒。
 
-Historical reset windows are seeded on first launch, so starting the app after a reset does not replay old reset notifications. If the first launch happens during an active speed window, it still notifies.
+## 更新
 
-## Updates
+自动更新默认开启。应用会检查最新 GitHub Release，下载 ZIP，校验 release 里的 SHA256，然后替换已安装的 app bundle 并自动重开。
 
-Automatic updates are on by default. The app checks the latest GitHub Release, verifies the release checksum, replaces the installed app bundle, and reopens itself when a newer version is available.
+下拉菜单还提供：
 
-The dropdown also includes:
+- `检查更新`：立刻检查并安装新版本。
+- `Changelog`：打开最新 release notes。
+- `GitHub ★`：打开仓库页面。
 
-- `检查更新`: manually checks and installs a newer release.
-- `Changelog`: opens the latest release notes on GitHub.
-- `GitHub ★`: opens the repository page.
+如果只想手动更新，可以在下拉菜单关闭 `自动更新`。
 
-Turn off `自动更新` in the dropdown if you prefer manual updates only.
+## 调试预览
 
-## Preview Mode
+下拉菜单里有 `预览` 分段控件，可以本地查看不同状态：
 
-Use the `Preview` segmented control in the dropdown to inspect local UI states:
+- `Live`：真实数据。
+- `速蹬`：速蹬窗口 UI，包括红色状态栏和红色提示。
+- `Reset`：已确认 reset UI。
+- `限额`：本机限额 UI。
 
-- `Live`: real data.
-- `速蹬`: urgent speed-window UI, including the red menu bar item and dismissible red banner.
-- `Reset`: confirmed reset UI.
-- `Limit`: local quota-limit UI.
+预览只影响 UI 展示；真实通知和去重仍使用 live 数据。
 
-Preview mode only changes what the app displays. Notifications and persisted event memory still use live data.
-
-For scripted UI checks, launch the executable with:
+也可以用环境变量启动：
 
 ```bash
 CODEX_RADAR_PREVIEW=speedWindow swift run CodexRadarSentinel
 ```
 
-Accepted values are `live`, `speedWindow`, `resetConfirmed`, and `blocked`.
+可选值是 `live`、`speedWindow`、`resetConfirmed`、`blocked`。
 
-## Data Sources
+## 数据来源
 
-CodexRadar Sentinel reads these public CodexRadar endpoints:
+Codex Radar Sentinel 读取这些公开 CodexRadar 入口：
 
 - [CodexRadar homepage](https://codexradar.com/)
 - [current.json](https://codexradar.com/current.json)
 - [prediction.json](https://codexradar.com/prediction.json)
 - [model-iq.json](https://codexradar.com/model-iq.json)
-- [feed.xml](https://codexradar.com/feed.xml), referenced as the event-feed counterpart to the JSON state.
+- [feed.xml](https://codexradar.com/feed.xml)
 
-For local quota, it starts a long-lived Codex app-server process and sends:
+本机额度读取 Codex app-server：
 
 ```json
 {"method":"account/rateLimits/read"}
 ```
 
-It selects the `rateLimitsByLimitId.codex` bucket when present. The 5-hour bucket is shown as `Short`; the 10,080-minute bucket is shown as `Weekly`.
+当响应里存在 `rateLimitsByLimitId.codex` 时，优先使用这个 bucket。5 小时窗口显示为 `短窗`，10,080 分钟窗口显示为 `周额度`。
 
-## Install
+## 手动安装
 
-Download the latest `.dmg` from the GitHub release, open it, and drag `Codex Radar Sentinel.app` into `Applications`.
+从最新 GitHub Release 下载 `.dmg`，打开后把 `Codex Radar Sentinel.app` 拖到 `Applications`。
 
-The `.zip` asset contains the same app bundle for users who prefer to install manually.
+`.zip` 里包含同一个 app bundle，适合喜欢手动复制的用户。
 
-## Run Locally
+## 本地运行
 
-Build a normal macOS `.app` bundle:
+构建普通 macOS `.app`：
 
 ```bash
 ./scripts/build_app.sh
 open ".build/Codex Radar Sentinel.app"
 ```
 
-You can also run the executable directly during development:
+开发时也可以直接运行：
 
 ```bash
 swift run CodexRadarSentinel
 ```
 
-The bundled app is local-only. It does not need App Store publishing.
-
-If Codex is installed somewhere other than the default app path, set:
+如果 Codex 不在默认路径，可以设置：
 
 ```bash
 CODEX_RADAR_CODEX_PATH=/path/to/codex
 ```
 
-## Development
+## 开发
 
-Run the test suite:
+运行测试：
 
 ```bash
 swift test
 ```
 
-Build release artifacts:
+构建 release 包：
 
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-```
-
-Build release packages:
-
-```bash
 ./scripts/package_release.sh 0.1.4
 ```
 
-Update README screenshots after UI changes:
+更新 README 状态栏截图：
 
 ```bash
 ./scripts/update_readme_screenshots.sh
 ```
 
-Regenerate the macOS icon from the source image:
+这个脚本会启动真实 app 并裁剪 macOS 状态栏 item，因此需要本机允许 System Events 读取辅助功能信息，并允许屏幕截图。
+
+重新生成 macOS 图标：
 
 ```bash
 ./scripts/generate_app_icon.sh
 ```
 
-## Credits
+## 鸣谢
 
-Codex Radar Sentinel exists because [CodexRadar](https://codexradar.com/) publishes a clear public signal for Codex speed windows, resets, reset prediction, RSS events, and model IQ. This app is a local macOS wrapper around those public signals plus the user's local Codex quota state.
+Codex Radar Sentinel 之所以能成立，是因为 [CodexRadar](https://codexradar.com/) 提供了清晰的公开信号，包括 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ。本应用只是把这些公开信号和用户本机 Codex 额度状态整合成一个 macOS 菜单栏工具。
 
-Codex Radar Sentinel is not affiliated with CodexRadar or OpenAI.
+Codex Radar Sentinel 与 CodexRadar 或 OpenAI 没有关联。
