@@ -2,7 +2,7 @@
 
 [中文](README.md) | English
 
-Codex Radar Sentinel is a local macOS menu bar app for Codex timing and quota awareness. It keeps weekly quota, speed-window/reset signals, and Codex IQ visible without opening [CodexRadar](https://codexradar.com/) or manually checking Codex usage.
+Full credit to [CodexRadar](https://codexradar.com/): this project depends on CodexRadar's public signals for Codex speed windows, resets, reset prediction, RSS events, and model IQ. Codex Radar Sentinel is a local macOS menu bar app that brings those public CodexRadar signals together with the user's local Codex quota state.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 

@@ -2,7 +2,7 @@
 
 中文 | [English](README.en.md)
 
-Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，用来把 Codex 使用时机、周额度剩余、速蹬窗口、reset 信号和 Codex IQ 放在状态栏里。你不用打开 [CodexRadar](https://codexradar.com/)，也不用自己去看 Codex 当前剩余额度。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目依赖 CodexRadar 提供的公开信号，包括 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，把 CodexRadar 的公开信号与本机 Codex 额度状态整合到状态栏里。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
