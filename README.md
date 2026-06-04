@@ -1,6 +1,6 @@
 # Codex Radar Sentinel
 
-Codex Radar Sentinel is a local macOS menu bar app for Codex usage timing. It keeps the most important signal visible without opening CodexRadar or checking the Codex usage page.
+Codex Radar Sentinel is a local macOS menu bar app for Codex usage timing. It keeps the most important signal visible without opening [CodexRadar](https://codexradar.com/) or checking the Codex usage page.
 
 The menu bar title is intentionally compact:
 
@@ -8,7 +8,7 @@ The menu bar title is intentionally compact:
 WK 98% · IQ75 · 低
 ```
 
-When CodexRadar reports an active speed window, the title switches to:
+When [CodexRadar](https://codexradar.com/) reports an active speed window, the title switches to:
 
 ```text
 速蹬 · WK 98%
@@ -18,8 +18,8 @@ When CodexRadar reports an active speed window, the title switches to:
 
 - Weekly Codex quota remaining, read from the local Codex app-server.
 - Short-window quota remaining, also from the local Codex app-server.
-- CodexRadar current speed-window and reset status.
-- CodexRadar 24h and 48h reset prediction.
+- [CodexRadar](https://codexradar.com/) current speed-window and reset status.
+- [CodexRadar](https://codexradar.com/) 24h and 48h reset prediction.
 - Codex model IQ score from the daily probe.
 
 ## Notifications
@@ -38,11 +38,13 @@ Historical reset windows are seeded on first launch, so starting the app after a
 
 ## Data Sources
 
-CodexRadar Sentinel reads:
+CodexRadar Sentinel reads these public CodexRadar endpoints:
 
-- `https://codexradar.com/current.json`
-- `https://codexradar.com/prediction.json`
-- `https://codexradar.com/model-iq.json`
+- [CodexRadar homepage](https://codexradar.com/)
+- [current.json](https://codexradar.com/current.json)
+- [prediction.json](https://codexradar.com/prediction.json)
+- [model-iq.json](https://codexradar.com/model-iq.json)
+- [feed.xml](https://codexradar.com/feed.xml), referenced as the event-feed counterpart to the JSON state.
 
 For local quota, it starts a long-lived Codex app-server process and sends:
 
@@ -51,6 +53,12 @@ For local quota, it starts a long-lived Codex app-server process and sends:
 ```
 
 It selects the `rateLimitsByLimitId.codex` bucket when present. The 5-hour bucket is shown as `Short`; the 10,080-minute bucket is shown as `Weekly`.
+
+## Install
+
+Download the latest `.dmg` from the GitHub release, open it, and drag `Codex Radar Sentinel.app` into `Applications`.
+
+The `.zip` asset contains the same app bundle for users who prefer to install manually.
 
 ## Run Locally
 
@@ -89,3 +97,15 @@ Build release artifacts:
 swift build -c release
 ./scripts/build_app.sh
 ```
+
+Build release packages:
+
+```bash
+./scripts/package_release.sh 0.1.0
+```
+
+## Credits
+
+Codex Radar Sentinel exists because [CodexRadar](https://codexradar.com/) publishes a clear public signal for Codex speed windows, resets, reset prediction, RSS events, and model IQ. This app is a local macOS wrapper around those public signals plus the user's local Codex quota state.
+
+Codex Radar Sentinel is not affiliated with CodexRadar or OpenAI.
