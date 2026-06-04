@@ -247,6 +247,111 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    func configureForDocumentation(language: AppLanguage) {
+        appLanguage = language
+        menuTextSize = .large
+        selectedStatusMetrics = StatusMetric.allCases
+        debugPreview = .live
+        predictionNotificationsEnabled = true
+        iqNotificationsEnabled = true
+        notificationSoundEnabled = false
+        updatePhase = .upToDate(Date())
+
+        var documentationState = DashboardPreviewFactory.state(
+            for: .resetConfirmed,
+            live: DashboardState()
+        )
+        documentationState.rateLimits = Self.documentationRateLimits()
+        documentationState.current = Self.documentationCurrent(language: language)
+        documentationState.prediction = Self.documentationPrediction(language: language)
+        documentationState.lastUpdatedAt = Self.documentationUpdatedAt
+        state = documentationState
+    }
+
+    private static let documentationUpdatedAt = Date(timeIntervalSince1970: 1_780_573_080)
+
+    private static func documentationRateLimits() -> RateLimitDashboard? {
+        let now = Int(Date().timeIntervalSince1970)
+        let shortReset = now + 16_740
+        let weeklyReset = now + 565_200
+        guard let response: RateLimitResponse = decodeDocumentationJSON("""
+        {
+          "rateLimits": {
+            "limitId": "codex",
+            "limitName": null,
+            "primary": { "usedPercent": 1, "windowDurationMins": 300, "resetsAt": \(shortReset) },
+            "secondary": { "usedPercent": 4, "windowDurationMins": 10080, "resetsAt": \(weeklyReset) },
+            "credits": null,
+            "planType": "pro",
+            "rateLimitReachedType": null
+          },
+          "rateLimitsByLimitId": null
+        }
+        """) else {
+            return nil
+        }
+        return RateLimitDashboard(response: response)
+    }
+
+    private static func documentationCurrent(language: AppLanguage) -> RadarCurrent? {
+        let title = language.text(
+            "Codex 可靠性事故补偿重置",
+            "Codex reliability incident compensation reset"
+        )
+        let window = language.text("无窗", "none")
+        let scope = language.text("所有付费计划", "all paid plans")
+        let summary = language.text(
+            "Tibo 表示过去 24 小时内有三次影响 Codex 可靠性的小事故，并已为所有付费计划重置 Codex 使用限制。",
+            "Tibo reported three minor Codex reliability incidents in the past 24 hours, and Codex usage limits were reset for all paid plans."
+        )
+        return decodeDocumentationJSON("""
+        {
+          "checked_at": "2026-06-04T19:38:00+08:00",
+          "status": "none",
+          "window_open": false,
+          "recommended_action": "wait",
+          "last_window": {
+            "id": "documentation-reset-window",
+            "title": "\(title)",
+            "status": "closed",
+            "opened_at": "2026-06-04T18:00:00+08:00",
+            "closed_at": "2026-06-04T19:38:00+08:00",
+            "window_minutes": 98,
+            "window_human": "\(window)",
+            "scope": "\(scope)",
+            "summary": "\(summary)"
+          },
+          "prediction": {
+            "level": "low",
+            "probability_24h": 0.11,
+            "probability_48h": 0.20,
+            "should_notify": false
+          }
+        }
+        """)
+    }
+
+    private static func documentationPrediction(language: AppLanguage) -> RadarPrediction? {
+        let summary = language.text(
+            "当前无官方开启窗口。Tibo 已在 2026-06-04 08:25:58 +0800 为过去 24 小时三次 Codex 可靠性小事故完成一次全付费计划限额重置。",
+            "No official window is open. Tibo completed one all-paid-plan Codex limit reset at 2026-06-04 08:25:58 +0800 after three minor Codex reliability incidents in the prior 24 hours."
+        )
+        return decodeDocumentationJSON("""
+        {
+          "level": "low",
+          "probability_24h": 0.11,
+          "probability_48h": 0.20,
+          "should_notify": false,
+          "reasoning_summary": "\(summary)",
+          "updated_at": "2026-06-04T19:38:00+08:00"
+        }
+        """)
+    }
+
+    private static func decodeDocumentationJSON<T: Decodable>(_ json: String) -> T? {
+        try? JSONDecoder().decode(T.self, from: Data(json.utf8))
+    }
+
     private func updateTitleForStatusItem() {
         updateSpeedAlertLifetime()
         titleForStatusItem = StatusTitleFormatter.plainTitle(

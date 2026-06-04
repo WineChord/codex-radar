@@ -51,6 +51,12 @@ These screenshots are real macOS menu bar captures. The script launches the real
 
 You can choose which values appear in the menu bar. For example, if you do not care about IQ, show only `96%/low`.
 
+## Full Menu
+
+This image is rendered by the app itself from the real SwiftUI menu view, and it is maintained together with the menu bar screenshots by `./scripts/update_readme_screenshots.sh`. The source image is a 2x Retina capture; the README displays it at the app's 390pt menu width so it stays readable without taking over the page.
+
+<img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel full English menu">
+
 ## What It Shows
 
 - Weekly Codex quota remaining, read from the local Codex app-server.
@@ -167,13 +173,13 @@ swift build -c release
 ./scripts/package_release.sh 0.1.4
 ```
 
-Update README menu bar screenshots:
+Update README menu bar and menu screenshots:
 
 ```bash
 ./scripts/update_readme_screenshots.sh
 ```
 
-This script launches the real app and crops the macOS menu bar item, so the Mac must allow System Events accessibility access and screen capture.
+This script launches the real app and crops the macOS menu bar item. It also asks the app to render the full menu from its real SwiftUI view. The Mac must allow System Events accessibility access and screen capture.
 
 Regenerate the macOS icon:
 

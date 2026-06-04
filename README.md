@@ -51,6 +51,12 @@
 
 可以在下拉菜单里选择状态栏显示哪些值。例如不关心 IQ 时，可以只显示 `96%/低`。
 
+## 完整菜单界面
+
+这张图由 app 自己渲染真实 SwiftUI 菜单视图生成，和状态栏截图一起由 `./scripts/update_readme_screenshots.sh` 维护。原图是 2x Retina 截图，README 里按 390pt 菜单宽度展示，避免尺寸过大。
+
+<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 中文完整菜单界面">
+
 ## 它会显示什么
 
 - Codex 周额度剩余，来自本机 Codex app-server。
@@ -167,13 +173,13 @@ swift build -c release
 ./scripts/package_release.sh 0.1.4
 ```
 
-更新 README 状态栏截图：
+更新 README 状态栏和菜单截图：
 
 ```bash
 ./scripts/update_readme_screenshots.sh
 ```
 
-这个脚本会启动真实 app 并裁剪 macOS 状态栏 item，因此需要本机允许 System Events 读取辅助功能信息，并允许屏幕截图。
+这个脚本会启动真实 app 并裁剪 macOS 状态栏 item，也会调用 app 自己的文档截图模式渲染完整菜单界面。因此需要本机允许 System Events 读取辅助功能信息，并允许屏幕截图。
 
 重新生成 macOS 图标：
 

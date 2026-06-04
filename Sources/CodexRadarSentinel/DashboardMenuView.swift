@@ -3,6 +3,7 @@ import SwiftUI
 
 struct DashboardMenuView: View {
     @ObservedObject var store: SentinelStore
+    var scrolling: Bool = true
 
     private enum Layout {
         static let contentPadding: CGFloat = 12
@@ -32,38 +33,64 @@ struct DashboardMenuView: View {
     }
 
     var body: some View {
+        if scrolling {
+            scrollingBody
+        } else {
+            fullBody
+        }
+    }
+
+    private var scrollingBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
-                    if store.shouldEmphasizeSpeedAlert {
-                        speedAlertBanner
-                    }
-                    header
-                    statusLegend
-                    Divider()
-                    quotaSection
-                    Divider()
-                    radarSection
-                    predictionSection
-                    iqSection
-                    if let error = state.lastError {
-                        errorSection(error)
-                    }
-                    Divider()
-                    settingsSection
-                    updateSection
-                    previewSection
-                }
-                .padding(.horizontal, Layout.contentPadding)
-                .padding(.top, Layout.contentPadding)
-                .padding(.bottom, 8)
+                menuContent
             }
             Divider()
-            actionButtons
-                .padding(.horizontal, Layout.contentPadding)
-                .padding(.vertical, 8)
+            toolbarContent
         }
         .frame(width: metrics.width, height: metrics.height, alignment: .leading)
+    }
+
+    private var fullBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            menuContent
+            Divider()
+            toolbarContent
+        }
+        .frame(width: metrics.width, alignment: .leading)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var menuContent: some View {
+        VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
+            if store.shouldEmphasizeSpeedAlert {
+                speedAlertBanner
+            }
+            header
+            statusLegend
+            Divider()
+            quotaSection
+            Divider()
+            radarSection
+            predictionSection
+            iqSection
+            if let error = state.lastError {
+                errorSection(error)
+            }
+            Divider()
+            settingsSection
+            updateSection
+            previewSection
+        }
+        .padding(.horizontal, Layout.contentPadding)
+        .padding(.top, Layout.contentPadding)
+        .padding(.bottom, 8)
+    }
+
+    private var toolbarContent: some View {
+        actionButtons
+            .padding(.horizontal, Layout.contentPadding)
+            .padding(.vertical, 8)
     }
 
     private var speedAlertBanner: some View {
