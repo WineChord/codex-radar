@@ -15,7 +15,7 @@
 如果你正在用 Codex 桌面版，可以直接复制下面这段 prompt 给 Codex。需要允许 Codex 访问网络、执行 shell 命令、写入 `/Applications`；如果 macOS 弹出通知权限，点允许即可。
 
 ```text
-请直接在这台 Mac 安装 Codex Radar Sentinel：从 https://github.com/WineChord/codex-radar/releases/latest 下载最新 macOS 安装包，安装到 /Applications，启动应用，并确认菜单栏显示类似 96%/62/低。需要权限时提醒我授权；不要只给步骤。
+直接安装 Codex Radar Sentinel：下载 https://github.com/WineChord/codex-radar/releases/latest 的最新 macOS 包，装进 /Applications，启动并确认菜单栏；需权限问我。
 ```
 
 ## 状态栏含义

@@ -15,7 +15,7 @@ We also open-sourced the product prompts behind this app: [Prompt Log](PROMPTS.m
 If you use the Codex desktop app, you can copy this prompt into Codex. Grant Codex network access, shell execution, and permission to write to `/Applications`; if macOS asks for notification permission, allow it.
 
 ```text
-Install Codex Radar Sentinel on this Mac: download the latest macOS package from https://github.com/WineChord/codex-radar/releases/latest, install it into /Applications, launch it, and confirm the menu bar shows a status like 96%/62/low. Ask me for permissions when needed; do not only give instructions.
+Directly install Codex Radar Sentinel: download latest macOS package from https://github.com/WineChord/codex-radar/releases/latest, install to /Applications, launch, confirm menu bar; ask for permissions if needed.
 ```
 
 ## Menu Bar Meaning
