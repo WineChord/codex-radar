@@ -268,6 +268,7 @@ final class SentinelStore: NSObject, ObservableObject {
         documentationState.rateLimits = Self.documentationRateLimits()
         documentationState.current = Self.documentationCurrent(language: language)
         documentationState.prediction = Self.documentationPrediction(language: language)
+        documentationState.modelIQ = Self.documentationModelIQ()
         documentationState.lastUpdatedAt = Self.documentationUpdatedAt
         state = documentationState
     }
@@ -295,6 +296,21 @@ final class SentinelStore: NSObject, ObservableObject {
             return nil
         }
         return RateLimitDashboard(response: response)
+    }
+
+    private static func documentationModelIQ() -> ModelIQEnvelope? {
+        decodeDocumentationJSON("""
+        {
+          "updated_at": "2026-06-05T09:33:54+08:00",
+          "latest": {
+            "date": "2026-06-05",
+            "tasks": 12,
+            "passed": 5,
+            "iq_score": 62.5,
+            "status": "red"
+          }
+        }
+        """)
     }
 
     private static func documentationCurrent(language: AppLanguage) -> RadarCurrent? {

@@ -38,7 +38,7 @@ final class RateLimitDashboardTests: XCTestCase {
         let response = try JSONDecoder().decode(RateLimitResponse.self, from: sampleRateLimitData)
         let dashboard = RateLimitDashboard(response: response)
         let prediction = try JSONDecoder().decode(RadarPrediction.self, from: Data(#"{ "level": "low" }"#.utf8))
-        let iq = try JSONDecoder().decode(ModelIQEnvelope.self, from: Data(#"{ "latest": { "iq_score": 75, "status": "red" } }"#.utf8))
+        let iq = try JSONDecoder().decode(ModelIQEnvelope.self, from: Data(#"{ "latest": { "iq_score": 62.5, "status": "red" } }"#.utf8))
         let state = DashboardState(
             rateLimits: dashboard,
             current: nil,
@@ -46,7 +46,7 @@ final class RateLimitDashboardTests: XCTestCase {
             modelIQ: iq
         )
 
-        XCTAssertEqual(state.statusTitle, "98%/75/低")
+        XCTAssertEqual(state.statusTitle, "98%/62.5/低")
 
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(#"{ "window_open": true }"#.utf8))
         let speedState = DashboardState(
@@ -56,7 +56,7 @@ final class RateLimitDashboardTests: XCTestCase {
             modelIQ: iq
         )
 
-        XCTAssertEqual(speedState.statusTitle, "98%/75/速蹬")
+        XCTAssertEqual(speedState.statusTitle, "98%/62.5/速蹬")
     }
 }
 

@@ -95,9 +95,14 @@ The dropdown also includes:
 
 - `Check`: manually checks and installs a newer release.
 - `Changelog`: opens the latest release notes.
+- `Prompts`: opens the open-source prompt log.
 - `GitHub ★`: opens the repository page.
 
 Turn off `Auto update` in the dropdown if you prefer manual updates only.
+
+## Codex Skill
+
+This repository includes a repo-managed skill: [CodexRadar Sync](skills/codex-radar-sync/SKILL.md). When the CodexRadar page or JSON payload shape changes, ask Codex to run this skill. It checks the latest CodexRadar homepage and public endpoints, compares field changes, updates Swift decoding and macOS menu mappings, and runs the full UI/data release check before shipping.
 
 ## Preview Mode
 
@@ -171,12 +176,18 @@ Run the test suite:
 swift test
 ```
 
+Run live data and UI checks before a release:
+
+```bash
+./scripts/check_release_readiness.sh 0.1.9
+```
+
 Build release packages:
 
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.8
+./scripts/package_release.sh 0.1.9
 ```
 
 Update README menu bar and menu screenshots:

@@ -256,10 +256,11 @@ public struct NotificationPolicy {
         memory.lastIQKey = key
         let passed = latest.passed.map(String.init) ?? "?"
         let tasks = latest.tasks.map(String.init) ?? "?"
+        let scoreText = DisplayFormatters.iqScore(score)
         events.append(NotificationEvent(
             identifier: "model-iq-\(key)",
             title: "Codex IQ 偏低",
-            body: "IQ \(score)，\(passed)/\(tasks) tasks 通过。",
+            body: "IQ \(scoreText)，\(passed)/\(tasks) tasks 通过。",
             severity: .passive
         ))
     }
@@ -291,6 +292,6 @@ public struct NotificationPolicy {
         guard let latest = current.modelIQ?.latest else {
             return nil
         }
-        return "\(latest.date ?? "unknown"):\(latest.iqScore ?? -1):\(latest.status ?? "unknown")"
+        return "\(latest.date ?? "unknown"):\(DisplayFormatters.iqScore(latest.iqScore)):\(latest.status ?? "unknown")"
     }
 }

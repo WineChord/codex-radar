@@ -122,7 +122,7 @@ public struct ModelIQSnapshot: Decodable, Equatable {
     public let failed: Int?
     public let passRate: Double?
     public let baselinePassRate: Double?
-    public let iqScore: Int?
+    public let iqScore: Double?
     public let status: String?
     public let wallSeconds: Int?
 

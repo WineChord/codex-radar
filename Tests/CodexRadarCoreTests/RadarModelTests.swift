@@ -16,7 +16,7 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(prediction.probability24h, 0.11)
 
         let iq = try decoder.decode(ModelIQEnvelope.self, from: Data(modelIQJSON.utf8))
-        XCTAssertEqual(iq.latest?.iqScore, 75)
+        XCTAssertEqual(iq.latest?.iqScore, 62.5)
         XCTAssertEqual(iq.latest?.passed, 6)
         XCTAssertEqual(iq.latest?.tasks, 12)
     }
@@ -78,7 +78,7 @@ private let modelIQJSON = """
     "failed": 6,
     "pass_rate": 0.5,
     "baseline_pass_rate": 0.666667,
-    "iq_score": 75,
+    "iq_score": 62.5,
     "status": "red",
     "wall_seconds": 2818
   }

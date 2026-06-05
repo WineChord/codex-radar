@@ -233,7 +233,7 @@ struct DashboardMenuView: View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle("Codex IQ", systemImage: "brain.head.profile")
             HStack {
-                labelPair("IQ", state.modelIQ?.latest?.iqScore.map(String.init) ?? text("未知", "unknown"))
+                labelPair("IQ", DisplayFormatters.iqScore(state.modelIQ?.latest?.iqScore))
                 Spacer()
                 let passed = state.modelIQ?.latest?.passed.map(String.init) ?? "?"
                 let tasks = state.modelIQ?.latest?.tasks.map(String.init) ?? "?"

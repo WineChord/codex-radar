@@ -100,7 +100,10 @@ def wait_for_title(preview, metrics):
                     time.sleep(0.5)
                     continue
                 if preview != "live" or "?" not in title:
-                    return x, y, width, height, title
+                    time.sleep(0.35)
+                    stable_item = menu_bar_item()
+                    if stable_item[2] == width and stable_item[4] == title:
+                        return stable_item
         except Exception as exc:
             last_error = exc
         time.sleep(0.5)
@@ -112,8 +115,9 @@ def wait_for_title(preview, metrics):
 def capture(destination, item):
     x, y, width, height, _ = item
     regions = [
-        (x - 6, y - 3, width + 12, height + 6),
-        (x, y, width, height),
+        (x - 30, y - 3, width + 120, height + 6),
+        (x - 15, y - 3, width + 90, height + 6),
+        (x - 5, y - 3, width + 70, height + 6),
     ]
     last_error = None
     for region in regions:
@@ -153,7 +157,7 @@ def trim_to_status_item(path):
         changed_count = 0
         for y in range(image.height):
             r, g, b, a = pixels[x, y]
-            if a > 0 and color_distance((r, g, b), background) > 35:
+            if a > 0 and is_status_pixel((r, g, b), background):
                 changed_count += 1
         if changed_count >= 2:
             changed_columns.append(x)
@@ -162,18 +166,20 @@ def trim_to_status_item(path):
         return
 
     max_gap = 16
+    groups = []
     start = changed_columns[0]
-    end = changed_columns[0]
     previous = changed_columns[0]
     for x in changed_columns[1:]:
         if x - previous > max_gap:
-            break
-        end = x
+            groups.append((start, previous))
+            start = x
         previous = x
+    groups.append((start, previous))
 
-    left = max(0, start - 6)
-    right = min(image.width, end + 7)
-    if right - left >= 20 and right < image.width:
+    start, end = max(groups, key=lambda group: group[1] - group[0])
+    left = max(0, start - 10)
+    right = min(image.width, end + 11)
+    if right - left >= 20:
         image.crop((left, 0, right, image.height)).save(path)
 
 
@@ -190,6 +196,14 @@ def background_color(image):
 
 def color_distance(lhs, rhs):
     return sum((left - right) ** 2 for left, right in zip(lhs, rhs)) ** 0.5
+
+
+def is_status_pixel(rgb, background):
+    if color_distance(rgb, background) <= 35:
+        return False
+    saturation = max(rgb) - min(rgb)
+    brightness = sum(rgb) / len(rgb)
+    return saturation >= 45 or brightness < 180
 
 
 def capture_case(language_dir, language, name, preview, metrics):

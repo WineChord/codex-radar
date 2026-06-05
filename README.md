@@ -95,9 +95,14 @@
 
 - `检查更新`：立刻检查并安装新版本。
 - `Changelog`：打开最新 release notes。
+- `Prompts`：打开开源的 prompt log。
 - `GitHub ★`：打开仓库页面。
 
 如果只想手动更新，可以在下拉菜单关闭 `自动更新`。
+
+## Codex Skill
+
+仓库里带了一个 repo 内 skill：[CodexRadar Sync](skills/codex-radar-sync/SKILL.md)。当 CodexRadar 页面或 JSON 数据格式变化时，可以让 Codex 执行这个 skill：它会检查 CodexRadar 最新主页和公开端点，比较字段变化，更新 Swift 解码和 macOS 菜单映射，并在发版前跑完整 UI/数据检查。
 
 ## 调试预览
 
@@ -171,12 +176,18 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex
 swift test
 ```
 
+发版前做 live 数据和 UI 检查：
+
+```bash
+./scripts/check_release_readiness.sh 0.1.9
+```
+
 构建 release 包：
 
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.8
+./scripts/package_release.sh 0.1.9
 ```
 
 更新 README 状态栏和菜单截图：

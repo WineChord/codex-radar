@@ -165,7 +165,7 @@ enum DashboardPreviewFactory {
                 "date": "2026-06-04",
                 "tasks": 12,
                 "passed": 6,
-                "iq_score": 75,
+                "iq_score": 62.5,
                 "status": "red"
               }
             }

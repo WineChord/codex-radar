@@ -26,7 +26,7 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         case .weeklyQuota:
             return DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)
         case .codexIQ:
-            return state.modelIQ?.latest?.iqScore.map(String.init) ?? DisplayFormatters.percentPlaceholder
+            return DisplayFormatters.iqScore(state.modelIQ?.latest?.iqScore)
         case .signal:
             return Self.signalValue(for: state, language: language)
         }
