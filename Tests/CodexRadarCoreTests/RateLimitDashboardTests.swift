@@ -46,7 +46,7 @@ final class RateLimitDashboardTests: XCTestCase {
             modelIQ: iq
         )
 
-        XCTAssertEqual(state.statusTitle, "98%/62.5/低")
+        XCTAssertEqual(state.statusTitle, "98%/62/低")
 
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(#"{ "window_open": true }"#.utf8))
         let speedState = DashboardState(
@@ -56,7 +56,14 @@ final class RateLimitDashboardTests: XCTestCase {
             modelIQ: iq
         )
 
-        XCTAssertEqual(speedState.statusTitle, "98%/62.5/速蹬")
+        XCTAssertEqual(speedState.statusTitle, "98%/62/速蹬")
+    }
+
+    func testIQDisplayFormattersSupportCompactAndPreciseOutput() {
+        XCTAssertEqual(DisplayFormatters.compactIQScore(62.5), "62")
+        XCTAssertEqual(DisplayFormatters.iqScore(62.5), "62.5")
+        XCTAssertEqual(DisplayFormatters.compactIQScore(75), "75")
+        XCTAssertEqual(DisplayFormatters.iqScore(75), "75")
     }
 }
 

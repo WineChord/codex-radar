@@ -24,7 +24,7 @@
 4. 把 "Codex Radar Sentinel.app" 复制到 /Applications
 5. 启动应用
 6. 如果系统询问通知权限，提醒我点允许
-7. 启动后读取菜单栏状态，确认它显示类似 96%/75/低、97%/75/低 或 96%/低
+7. 启动后读取菜单栏状态，确认它显示类似 96%/62/低、97%/62/低 或 96%/低
 
 请直接执行安装和验证，不要只给我步骤。
 ```
@@ -34,13 +34,13 @@
 状态栏标题刻意保持很短：
 
 ```text
-96%/75/低
+96%/62/低
 ```
 
 三个值分别是：
 
 - `96%`：Codex 周额度剩余百分比。
-- `75`：Codex IQ 分数。
+- `62`：Codex IQ 分数。状态栏默认截断为整数以节省空间；下拉菜单里的 Codex IQ 区块会显示精确值，例如 `62.5`。
 - `低`：CodexRadar 的 reset / 速蹬信号。
 
 当 [CodexRadar](https://codexradar.com/) 报告速蹬窗口开启时，状态栏 item 会变成红底白字。红色强调可以手动关闭；窗口结束或 30 分钟强调时间到后会自动退场。
@@ -54,6 +54,7 @@
 | ![正常状态](docs/assets/zh/status-normal.png) | ![速蹬状态](docs/assets/zh/status-speed.png) | ![限额状态](docs/assets/zh/status-limit.png) | ![自定义状态](docs/assets/zh/status-custom.png) |
 
 可以在下拉菜单里选择状态栏显示哪些值。例如不关心 IQ 时，可以只显示 `96%/低`。
+如果想让状态栏也显示精确 IQ 小数，可以打开 `状态栏 IQ 小数`。
 
 ## 完整菜单界面
 
@@ -179,7 +180,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.9
+./scripts/check_release_readiness.sh 0.1.10
 ```
 
 构建 release 包：
@@ -187,7 +188,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.9
+./scripts/package_release.sh 0.1.10
 ```
 
 更新 README 状态栏和菜单截图：

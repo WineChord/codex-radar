@@ -42,6 +42,13 @@ public enum DisplayFormatters {
         return String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), rounded)
     }
 
+    public static func compactIQScore(_ value: Double?) -> String {
+        guard let value, value.isFinite else {
+            return percentPlaceholder
+        }
+        return "\(Int(value))"
+    }
+
     public static func compactDateTime(_ date: Date?) -> String {
         guard let date else {
             return "unknown"

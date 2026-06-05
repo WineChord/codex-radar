@@ -65,13 +65,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let title = StatusTitleFormatter.plainTitle(
             for: state,
             metrics: store.selectedStatusMetrics,
-            language: store.appLanguage
+            language: store.appLanguage,
+            preciseIQ: store.statusBarPreciseIQEnabled
         )
         button.attributedTitle = StatusTitleFormatter.attributedTitle(
             for: state,
             emphasized: emphasized,
             metrics: store.selectedStatusMetrics,
-            language: store.appLanguage
+            language: store.appLanguage,
+            preciseIQ: store.statusBarPreciseIQEnabled
         )
         button.toolTip = "\(AppConstants.appName) \(title)"
         button.setAccessibilityTitle(title)

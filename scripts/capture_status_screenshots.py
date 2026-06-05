@@ -50,6 +50,7 @@ def kill_app():
 def write_defaults(language, metrics):
     run(["defaults", "write", BUNDLE_ID, "appLanguage", "-string", language])
     run(["defaults", "write", BUNDLE_ID, "menuTextSize", "-string", "large"])
+    run(["defaults", "write", BUNDLE_ID, "statusBarPreciseIQEnabled", "-bool", "false"])
     run(["defaults", "write", BUNDLE_ID, "selectedStatusMetrics", "-array", *metrics])
 
 

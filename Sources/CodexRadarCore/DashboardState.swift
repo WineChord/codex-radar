@@ -26,7 +26,7 @@ public struct DashboardState: Equatable {
 
     public var statusTitle: String {
         let quota = DisplayFormatters.percent(rateLimits?.weeklyRemainingPercent)
-        let iq = DisplayFormatters.iqScore(modelIQ?.latest?.iqScore)
+        let iq = DisplayFormatters.compactIQScore(modelIQ?.latest?.iqScore)
         let signal: String
         if current?.windowOpen == true {
             signal = "速蹬"

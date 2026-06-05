@@ -7,17 +7,21 @@ enum StatusTitleFormatter {
     static func plainTitle(
         for state: DashboardState,
         metrics: [StatusMetric],
-        language: AppLanguage
+        language: AppLanguage,
+        preciseIQ: Bool
     ) -> String {
         let activeMetrics = normalizedMetrics(metrics)
-        return activeMetrics.map { $0.value(for: state, language: language) }.joined(separator: separator)
+        return activeMetrics.map {
+            $0.statusBarValue(for: state, language: language, preciseIQ: preciseIQ)
+        }.joined(separator: separator)
     }
 
     static func attributedTitle(
         for state: DashboardState,
         emphasized: Bool,
         metrics: [StatusMetric],
-        language: AppLanguage
+        language: AppLanguage,
+        preciseIQ: Bool
     ) -> NSAttributedString {
         let font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
         let title = NSMutableAttributedString()
@@ -29,7 +33,12 @@ enum StatusTitleFormatter {
                 appendSeparator(color: color, font: font, to: title)
             }
             let color = emphasized ? .white : metricColor(for: metric, state: state, language: language)
-            append(metric.value(for: state, language: language), color: color, font: font, to: title)
+            append(
+                metric.statusBarValue(for: state, language: language, preciseIQ: preciseIQ),
+                color: color,
+                font: font,
+                to: title
+            )
         }
 
         return title

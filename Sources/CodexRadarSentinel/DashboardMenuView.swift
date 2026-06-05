@@ -28,7 +28,8 @@ struct DashboardMenuView: View {
         StatusTitleFormatter.plainTitle(
             for: state,
             metrics: store.selectedStatusMetrics,
-            language: language
+            language: language,
+            preciseIQ: store.statusBarPreciseIQEnabled
         )
     }
 
@@ -282,6 +283,11 @@ struct DashboardMenuView: View {
                     metricToggle(.codexIQ)
                     metricToggle(.signal)
                 }
+                Toggle(
+                    text("状态栏 IQ 小数", "Decimal IQ in menu bar"),
+                    isOn: $store.statusBarPreciseIQEnabled
+                )
+                .toggleStyle(.checkbox)
             }
             LazyVGrid(
                 columns: [

@@ -32,6 +32,19 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         }
     }
 
+    func statusBarValue(
+        for state: DashboardState,
+        language: AppLanguage,
+        preciseIQ: Bool
+    ) -> String {
+        switch self {
+        case .codexIQ where !preciseIQ:
+            return DisplayFormatters.compactIQScore(state.modelIQ?.latest?.iqScore)
+        default:
+            return value(for: state, language: language)
+        }
+    }
+
     static func signalValue(for state: DashboardState, language: AppLanguage) -> String {
         if state.current?.windowOpen == true {
             return language.text("速蹬", "speed")

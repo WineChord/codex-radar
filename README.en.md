@@ -24,7 +24,7 @@ Requirements:
 4. Copy "Codex Radar Sentinel.app" into /Applications
 5. Launch the app
 6. If macOS asks for notification permission, tell me to allow it
-7. After launch, read the menu bar status and confirm it shows something like 96%/75/low, 97%/75/low, or 96%/low
+7. After launch, read the menu bar status and confirm it shows something like 96%/62/low, 97%/62/low, or 96%/low
 
 Please perform the installation and verification directly instead of only giving me instructions.
 ```
@@ -34,13 +34,13 @@ Please perform the installation and verification directly instead of only giving
 The menu bar title is intentionally compact:
 
 ```text
-96%/75/low
+96%/62/low
 ```
 
 The three values are:
 
 - `96%`: weekly Codex quota remaining.
-- `75`: Codex IQ score.
+- `62`: Codex IQ score. The menu bar truncates it to a whole number by default to save space; the Codex IQ section in the dropdown shows the precise value, such as `62.5`.
 - `low`: reset / speed-window signal from CodexRadar.
 
 When [CodexRadar](https://codexradar.com/) reports an active speed window, the menu bar item turns red with white text. The red emphasis can be dismissed manually; it also clears when the window closes or after the 30-minute emphasis window expires.
@@ -54,6 +54,7 @@ These screenshots are real macOS menu bar captures. The script launches the real
 | ![Normal status](docs/assets/en/status-normal.png) | ![Speed window status](docs/assets/en/status-speed.png) | ![Limit reached status](docs/assets/en/status-limit.png) | ![Custom status](docs/assets/en/status-custom.png) |
 
 You can choose which values appear in the menu bar. For example, if you do not care about IQ, show only `96%/low`.
+Turn on `Decimal IQ in menu bar` if you want the menu bar itself to show the precise IQ value.
 
 ## Full Menu
 
@@ -179,7 +180,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.9
+./scripts/check_release_readiness.sh 0.1.10
 ```
 
 Build release packages:
@@ -187,7 +188,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.9
+./scripts/package_release.sh 0.1.10
 ```
 
 Update README menu bar and menu screenshots:

@@ -25,6 +25,13 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var statusBarPreciseIQEnabled: Bool {
+        didSet {
+            defaults.set(statusBarPreciseIQEnabled, forKey: DefaultsKey.statusBarPreciseIQEnabled)
+            updateTitleForStatusItem()
+        }
+    }
+
     @Published private(set) var selectedStatusMetrics: [StatusMetric] {
         didSet {
             defaults.set(selectedStatusMetrics.map(\.rawValue), forKey: DefaultsKey.selectedStatusMetrics)
@@ -91,6 +98,7 @@ final class SentinelStore: NSObject, ObservableObject {
     private enum DefaultsKey {
         static let appLanguage = "appLanguage"
         static let menuTextSize = "menuTextSize"
+        static let statusBarPreciseIQEnabled = "statusBarPreciseIQEnabled"
         static let selectedStatusMetrics = "selectedStatusMetrics"
         static let predictionNotificationsEnabled = "predictionNotificationsEnabled"
         static let iqNotificationsEnabled = "iqNotificationsEnabled"
@@ -128,6 +136,7 @@ final class SentinelStore: NSObject, ObservableObject {
         self.appLanguage = rawLanguage.flatMap(AppLanguage.init(rawValue:)) ?? .zhHans
         let rawTextSize = defaults.string(forKey: DefaultsKey.menuTextSize)
         self.menuTextSize = rawTextSize.flatMap(DashboardTextSize.init(rawValue:)) ?? .large
+        self.statusBarPreciseIQEnabled = defaults.object(forKey: DefaultsKey.statusBarPreciseIQEnabled) as? Bool ?? false
         self.selectedStatusMetrics = Self.loadSelectedStatusMetrics(defaults: defaults)
         let rawPreview = ProcessInfo.processInfo.environment[AppConstants.debugPreviewEnvironmentKey]
         self.debugPreview = rawPreview.flatMap(DashboardPreview.init(rawValue:)) ?? .live
@@ -254,6 +263,7 @@ final class SentinelStore: NSObject, ObservableObject {
     func configureForDocumentation(language: AppLanguage) {
         appLanguage = language
         menuTextSize = .large
+        statusBarPreciseIQEnabled = false
         selectedStatusMetrics = StatusMetric.allCases
         debugPreview = .live
         predictionNotificationsEnabled = true
@@ -377,7 +387,8 @@ final class SentinelStore: NSObject, ObservableObject {
         titleForStatusItem = StatusTitleFormatter.plainTitle(
             for: dashboardState,
             metrics: selectedStatusMetrics,
-            language: appLanguage
+            language: appLanguage,
+            preciseIQ: statusBarPreciseIQEnabled
         )
     }
 
