@@ -229,6 +229,10 @@ final class SentinelStore: NSObject, ObservableObject {
         NSWorkspace.shared.open(AppConstants.githubRepositoryURL)
     }
 
+    func openPromptLog() {
+        NSWorkspace.shared.open(AppConstants.githubPromptLogURL)
+    }
+
     func openCodexApp() {
         NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/Applications/Codex.app"), configuration: NSWorkspace.OpenConfiguration())
     }

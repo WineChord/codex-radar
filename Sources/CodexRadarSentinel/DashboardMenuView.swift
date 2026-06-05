@@ -324,6 +324,13 @@ struct DashboardMenuView: View {
                 compactActionButton(title: "Changelog", systemImage: "doc.text") {
                     store.openLatestReleaseNotes()
                 }
+                compactActionButton(
+                    title: "Prompts",
+                    systemImage: "text.quote",
+                    help: text("打开 PROMPTS.md", "Open PROMPTS.md")
+                ) {
+                    store.openPromptLog()
+                }
                 compactActionButton(title: "GitHub ★", systemImage: "star") {
                     store.openGitHubRepository()
                 }
@@ -394,6 +401,7 @@ struct DashboardMenuView: View {
     private func compactActionButton(
         title: String,
         systemImage: String,
+        help: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -413,7 +421,7 @@ struct DashboardMenuView: View {
         .buttonStyle(.plain)
         .foregroundStyle(.primary)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 7))
-        .help(title)
+        .help(help ?? title)
     }
 
     private func settingRow<Content: View>(
