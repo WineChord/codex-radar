@@ -32,6 +32,8 @@
 - `62`：Codex IQ 分数。状态栏默认截断为整数以节省空间；下拉菜单里的 Codex IQ 区块会显示精确值，例如 `62.5`。
 - `低`：CodexRadar 的 reset / 速蹬信号。
 
+下拉菜单的 `状态栏显示` 里还可以手动打开 `5h`，用于把 5 小时短窗额度也放进状态栏；默认关闭，打开后会类似 `96%/99%/62/低`。
+
 当 [CodexRadar](https://codexradar.com/) 报告速蹬窗口开启时，状态栏 item 会变成红底白字。红色强调可以手动关闭；窗口结束或 30 分钟强调时间到后会自动退场。
 
 ## 状态展示
@@ -43,6 +45,7 @@
 | ![正常状态](docs/assets/zh/status-normal.png) | ![速蹬状态](docs/assets/zh/status-speed.png) | ![限额状态](docs/assets/zh/status-limit.png) | ![自定义状态](docs/assets/zh/status-custom.png) |
 
 可以在下拉菜单里选择状态栏显示哪些值。例如不关心 IQ 时，可以只显示 `96%/低`。
+如果关心 5 小时短窗，可以手动打开 `5h`，它会作为一个额外百分比插入到周额度和 IQ 之间。
 如果想让状态栏也显示精确 IQ 小数，可以打开 `状态栏 IQ 小数`。
 
 ## 完整菜单界面
@@ -169,7 +172,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.10
+./scripts/check_release_readiness.sh 0.1.11
 ```
 
 构建 release 包：
@@ -177,7 +180,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.10
+./scripts/package_release.sh 0.1.11
 ```
 
 更新 README 状态栏和菜单截图：

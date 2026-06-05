@@ -3,6 +3,7 @@ import Foundation
 
 enum StatusMetric: String, CaseIterable, Identifiable {
     case weeklyQuota
+    case shortQuota
     case codexIQ
     case signal
 
@@ -14,6 +15,8 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         switch self {
         case .weeklyQuota:
             return language.text("周额度", "Weekly")
+        case .shortQuota:
+            return "5h"
         case .codexIQ:
             return "IQ"
         case .signal:
@@ -25,6 +28,8 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         switch self {
         case .weeklyQuota:
             return DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)
+        case .shortQuota:
+            return DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent)
         case .codexIQ:
             return DisplayFormatters.iqScore(state.modelIQ?.latest?.iqScore)
         case .signal:

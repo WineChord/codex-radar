@@ -109,6 +109,12 @@ final class SentinelStore: NSObject, ObservableObject {
         static let dismissedSpeedAlertKey = "dismissedSpeedAlertKey"
     }
 
+    private static let defaultStatusMetrics: [StatusMetric] = [
+        .weeklyQuota,
+        .codexIQ,
+        .signal,
+    ]
+
     private let defaults: UserDefaults
     private let radarClient: CodexRadarClient
     private let appServerClient: CodexAppServerClient
@@ -264,7 +270,7 @@ final class SentinelStore: NSObject, ObservableObject {
         appLanguage = language
         menuTextSize = .large
         statusBarPreciseIQEnabled = false
-        selectedStatusMetrics = StatusMetric.allCases
+        selectedStatusMetrics = Self.defaultStatusMetrics
         debugPreview = .live
         predictionNotificationsEnabled = true
         iqNotificationsEnabled = true
@@ -569,11 +575,11 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private static func loadSelectedStatusMetrics(defaults: UserDefaults) -> [StatusMetric] {
         guard let rawValues = defaults.stringArray(forKey: DefaultsKey.selectedStatusMetrics) else {
-            return StatusMetric.allCases
+            return defaultStatusMetrics
         }
         let metrics = rawValues.compactMap(StatusMetric.init(rawValue:))
         if metrics.isEmpty {
-            return StatusMetric.allCases
+            return defaultStatusMetrics
         }
         return StatusMetric.allCases.filter { metrics.contains($0) }
     }

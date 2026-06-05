@@ -79,7 +79,9 @@ enum StatusTitleFormatter {
     ) -> NSColor {
         switch metric {
         case .weeklyQuota:
-            return quotaColor(for: state)
+            return quotaColor(for: state, remaining: state.rateLimits?.weeklyRemainingPercent)
+        case .shortQuota:
+            return quotaColor(for: state, remaining: state.rateLimits?.shortRemainingPercent)
         case .codexIQ:
             return iqColor(for: state)
         case .signal:
@@ -87,11 +89,11 @@ enum StatusTitleFormatter {
         }
     }
 
-    private static func quotaColor(for state: DashboardState) -> NSColor {
+    private static func quotaColor(for state: DashboardState, remaining: Int?) -> NSColor {
         if state.rateLimits?.isBlocked == true {
             return .systemRed
         }
-        guard let remaining = state.rateLimits?.weeklyRemainingPercent else {
+        guard let remaining else {
             return .secondaryLabelColor
         }
         if remaining <= AppConstants.criticalRemainingPercent {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-version="${1:-0.1.10}"
+version="${1:-0.1.11}"
 app_name="Codex Radar Sentinel"
 archive_name="CodexRadarSentinel-${version}-macOS"
 dist_dir="dist"

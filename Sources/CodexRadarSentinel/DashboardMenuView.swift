@@ -152,14 +152,15 @@ struct DashboardMenuView: View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("状态栏含义", "Menu Bar"), systemImage: "menubar.rectangle")
             Text(text(
-                "菜单栏按“周额度 / IQ / 信号”拼接；下面可以选择显示哪些项。",
-                "The menu bar joins Weekly / IQ / Signal; choose visible segments below."
+                "默认显示“周额度 / IQ / 信号”；可打开 5h 短窗。",
+                "Default: Weekly / IQ / Signal; enable 5h for the short window."
             ))
             .font(.system(size: metrics.caption))
             .foregroundStyle(.secondary)
             .lineLimit(2)
             HStack(spacing: Layout.tileSpacing) {
                 legendTile(metric: .weeklyQuota, color: quotaColor)
+                legendTile(metric: .shortQuota, color: shortQuotaColor)
                 legendTile(metric: .codexIQ, color: iqColor)
                 legendTile(metric: .signal, color: signalColor)
             }
@@ -280,6 +281,7 @@ struct DashboardMenuView: View {
                     .foregroundStyle(.secondary)
                 HStack(spacing: Layout.tileSpacing) {
                     metricToggle(.weeklyQuota)
+                    metricToggle(.shortQuota)
                     metricToggle(.codexIQ)
                     metricToggle(.signal)
                 }
@@ -590,6 +592,19 @@ struct DashboardMenuView: View {
 
     private var quotaColor: Color {
         guard let remaining = state.rateLimits?.weeklyRemainingPercent else {
+            return .secondary
+        }
+        if state.rateLimits?.isBlocked == true || remaining <= AppConstants.criticalRemainingPercent {
+            return .red
+        }
+        if remaining <= AppConstants.warningRemainingPercent {
+            return .orange
+        }
+        return .green
+    }
+
+    private var shortQuotaColor: Color {
+        guard let remaining = state.rateLimits?.shortRemainingPercent else {
             return .secondary
         }
         if state.rateLimits?.isBlocked == true || remaining <= AppConstants.criticalRemainingPercent {

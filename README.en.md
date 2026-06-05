@@ -32,6 +32,8 @@ The three values are:
 - `62`: Codex IQ score. The menu bar truncates it to a whole number by default to save space; the Codex IQ section in the dropdown shows the precise value, such as `62.5`.
 - `low`: reset / speed-window signal from CodexRadar.
 
+The `Menu bar segments` setting can also enable `5h`, which adds the 5-hour short-window quota to the menu bar. It is off by default; when enabled, the title looks like `96%/99%/62/low`.
+
 When [CodexRadar](https://codexradar.com/) reports an active speed window, the menu bar item turns red with white text. The red emphasis can be dismissed manually; it also clears when the window closes or after the 30-minute emphasis window expires.
 
 ## Status States
@@ -43,6 +45,7 @@ These screenshots are real macOS menu bar captures. The script launches the real
 | ![Normal status](docs/assets/en/status-normal.png) | ![Speed window status](docs/assets/en/status-speed.png) | ![Limit reached status](docs/assets/en/status-limit.png) | ![Custom status](docs/assets/en/status-custom.png) |
 
 You can choose which values appear in the menu bar. For example, if you do not care about IQ, show only `96%/low`.
+If you care about the 5-hour short window, enable `5h`; it appears as an extra percentage between weekly quota and IQ.
 Turn on `Decimal IQ in menu bar` if you want the menu bar itself to show the precise IQ value.
 
 ## Full Menu
@@ -169,7 +172,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.10
+./scripts/check_release_readiness.sh 0.1.11
 ```
 
 Build release packages:
@@ -177,7 +180,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.10
+./scripts/package_release.sh 0.1.11
 ```
 
 Update README menu bar and menu screenshots:
