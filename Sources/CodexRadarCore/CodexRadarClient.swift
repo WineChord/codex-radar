@@ -29,14 +29,6 @@ public struct CodexRadarClient {
         try await fetchJSON(AppConstants.currentPath, as: RadarCurrent.self)
     }
 
-    public func fetchPrediction() async throws -> RadarPrediction {
-        try await fetchJSON(AppConstants.predictionPath, as: RadarPrediction.self)
-    }
-
-    public func fetchModelIQ() async throws -> ModelIQEnvelope {
-        try await fetchJSON(AppConstants.modelIQPath, as: ModelIQEnvelope.self)
-    }
-
     private func fetchJSON<T: Decodable>(_ path: String, as type: T.Type) async throws -> T {
         let url = baseURL.appending(path: path)
         let (data, response) = try await session.data(from: url)

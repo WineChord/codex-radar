@@ -20,6 +20,23 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(iq.latest?.passed, 6)
         XCTAssertEqual(iq.latest?.tasks, 12)
     }
+
+    func testDecodesEmbeddedCurrentPayload() throws {
+        let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(currentV2JSON.utf8))
+
+        XCTAssertEqual(current.schemaVersion, "2.0")
+        XCTAssertEqual(current.checkedAt, "2026-06-08T10:52:35.324184+08:00")
+        XCTAssertFalse(current.windowOpen)
+        XCTAssertEqual(current.recommendedAction, "wait")
+        XCTAssertEqual(current.lastWindow?.id, "codex-speed-window-2026-06-04-codex")
+        XCTAssertEqual(current.lastWindow?.status, "closed")
+        XCTAssertEqual(current.prediction?.level, "low")
+        XCTAssertEqual(current.predictionDetail?.reasoningSummary, "官方关注点集中在个人 10X 用量奖励。")
+        XCTAssertEqual(current.predictionDetail?.probability24h, 0.17)
+        XCTAssertEqual(current.modelIQ?.latest?.iqScore, 62.5)
+        XCTAssertEqual(current.modelIQ?.latest?.passed, 5)
+        XCTAssertEqual(current.modelIQ?.latest?.tasks, 12)
+    }
 }
 
 private let currentJSON = """
@@ -81,6 +98,63 @@ private let modelIQJSON = """
     "iq_score": 62.5,
     "status": "red",
     "wall_seconds": 2818
+  }
+}
+"""
+
+private let currentV2JSON = """
+{
+  "schema_version": "2.0",
+  "service": "codex-reset-radar",
+  "monitored_at": "2026-06-08T10:52:35.324184+08:00",
+  "window_open": false,
+  "status": "none",
+  "recommended_action": "wait",
+  "window": {
+    "open": false,
+    "status": "none",
+    "action": "wait",
+    "message": "当前没有开启的速蹬窗口",
+    "title": "Codex 可靠性事故补偿重置",
+    "scope": "所有付费计划",
+    "opened_at": null,
+    "closed_at": "2026-06-04T08:25:58+08:00",
+    "source_url": "https://x.com/thsottiaux/status/2062329981548802523"
+  },
+  "prediction": {
+    "level": "low",
+    "probability_24h": 0.17,
+    "probability_48h": 0.27,
+    "expected_window": "未来 24-48 小时",
+    "summary": "官方关注点集中在个人 10X 用量奖励。",
+    "updated_at": "2026-06-08T10:52:35.082583+08:00"
+  },
+  "recent_windows": [
+    {
+      "id": "codex-speed-window-2026-06-04-codex",
+      "title": "Codex 可靠性事故补偿重置",
+      "status": "closed",
+      "opened_at": "2026-06-04T08:25:00+08:00",
+      "closed_at": "2026-06-04T08:25:00+08:00",
+      "window_minutes": 0,
+      "window_human": "无窗",
+      "scope": "所有付费计划",
+      "summary": "Tibo 表示过去 24 小时内有三次影响 Codex 可靠性的小事故。",
+      "source_url": "https://x.com/thsottiaux/status/2062329981548802523"
+    }
+  ],
+  "model_iq": {
+    "latest": {
+      "date": "2026-06-08",
+      "score": 62.5,
+      "status": "red",
+      "passed": 5,
+      "tasks": 12,
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "valid_tasks": 12,
+      "wall_seconds": 2605
+    }
   }
 }
 """

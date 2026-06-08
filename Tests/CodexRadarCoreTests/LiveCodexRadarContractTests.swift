@@ -9,18 +9,16 @@ final class LiveCodexRadarContractTests: XCTestCase {
         }
 
         let currentData = try await data(from: "https://codexradar.com/current.json")
-        let predictionData = try await data(from: "https://codexradar.com/prediction.json")
-        let modelIQData = try await data(from: "https://codexradar.com/model-iq.json")
+        let feedData = try await data(from: "https://codexradar.com/feed.xml")
         let decoder = JSONDecoder()
 
         let current = try decoder.decode(RadarCurrent.self, from: currentData)
-        let prediction = try decoder.decode(RadarPrediction.self, from: predictionData)
-        let modelIQ = try decoder.decode(ModelIQEnvelope.self, from: modelIQData)
 
         XCTAssertNotNil(current.checkedAt)
-        XCTAssertNotNil(prediction.level)
-        XCTAssertNotNil(modelIQ.latest?.iqScore)
-        XCTAssertNotEqual(DisplayFormatters.iqScore(modelIQ.latest?.iqScore), DisplayFormatters.percentPlaceholder)
+        XCTAssertNotNil(current.predictionDetail?.level)
+        XCTAssertNotNil(current.modelIQ?.latest?.iqScore)
+        XCTAssertNotEqual(DisplayFormatters.iqScore(current.modelIQ?.latest?.iqScore), DisplayFormatters.percentPlaceholder)
+        XCTAssertFalse(feedData.isEmpty)
     }
 
     private func data(from urlString: String) async throws -> Data {

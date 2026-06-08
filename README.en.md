@@ -121,9 +121,7 @@ Accepted values are `live`, `speedWindow`, `resetConfirmed`, and `blocked`.
 Codex Radar Sentinel reads these public CodexRadar endpoints:
 
 - [CodexRadar homepage](https://codexradar.com/)
-- [current.json](https://codexradar.com/current.json)
-- [prediction.json](https://codexradar.com/prediction.json)
-- [model-iq.json](https://codexradar.com/model-iq.json)
+- [current.json](https://codexradar.com/current.json): speed-window, reset, Prediction, and model IQ data.
 - [feed.xml](https://codexradar.com/feed.xml)
 
 For local quota, it reads the Codex app-server:
@@ -172,7 +170,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.11
+./scripts/check_release_readiness.sh 0.1.12
 ```
 
 Build release packages:
@@ -180,7 +178,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.11
+./scripts/package_release.sh 0.1.12
 ```
 
 Update README menu bar and menu screenshots:

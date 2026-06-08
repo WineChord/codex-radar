@@ -121,9 +121,7 @@ CODEX_RADAR_PREVIEW=speedWindow swift run CodexRadarSentinel
 Codex Radar Sentinel 读取这些公开 CodexRadar 入口：
 
 - [CodexRadar homepage](https://codexradar.com/)
-- [current.json](https://codexradar.com/current.json)
-- [prediction.json](https://codexradar.com/prediction.json)
-- [model-iq.json](https://codexradar.com/model-iq.json)
+- [current.json](https://codexradar.com/current.json)：包含速蹬窗口、reset、Prediction 和 model IQ。
 - [feed.xml](https://codexradar.com/feed.xml)
 
 本机额度读取 Codex app-server：
@@ -172,7 +170,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.11
+./scripts/check_release_readiness.sh 0.1.12
 ```
 
 构建 release 包：
@@ -180,7 +178,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.11
+./scripts/package_release.sh 0.1.12
 ```
 
 更新 README 状态栏和菜单截图：

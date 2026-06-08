@@ -9,7 +9,7 @@ trap 'rm -rf "$tmp_dir"' EXIT
 cd "$repo_root"
 
 echo "Checking CodexRadar live endpoints..."
-for path in current.json prediction.json model-iq.json feed.xml; do
+for path in current.json feed.xml; do
   curl -fsSL "https://codexradar.com/${path}" -o "${tmp_dir}/${path}"
   bytes="$(wc -c < "${tmp_dir}/${path}" | tr -d ' ')"
   echo "  ${path}: ${bytes} bytes"

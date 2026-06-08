@@ -413,14 +413,10 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private func refresh() async {
         async let currentResult = fetchCurrentResult()
-        async let predictionResult = fetchPredictionResult()
-        async let modelIQResult = fetchModelIQResult()
         async let rateLimitResult = fetchRateLimitResult()
 
         let results = await (
             current: currentResult,
-            prediction: predictionResult,
-            modelIQ: modelIQResult,
             rateLimits: rateLimitResult
         )
 
@@ -428,9 +424,7 @@ final class SentinelStore: NSObject, ObservableObject {
         var next = previous
         var errors: [String] = []
 
-        apply(results.current, to: &next.current, errors: &errors)
-        apply(results.prediction, to: &next.prediction, errors: &errors)
-        apply(results.modelIQ, to: &next.modelIQ, errors: &errors)
+        applyCurrent(results.current, to: &next, errors: &errors)
         apply(results.rateLimits, to: &next.rateLimits, errors: &errors)
 
         next.lastUpdatedAt = Date()
@@ -448,18 +442,6 @@ final class SentinelStore: NSObject, ObservableObject {
     private func fetchCurrentResult() async -> Result<RadarCurrent, Error> {
         await capture {
             try await radarClient.fetchCurrent()
-        }
-    }
-
-    private func fetchPredictionResult() async -> Result<RadarPrediction, Error> {
-        await capture {
-            try await radarClient.fetchPrediction()
-        }
-    }
-
-    private func fetchModelIQResult() async -> Result<ModelIQEnvelope, Error> {
-        await capture {
-            try await radarClient.fetchModelIQ()
         }
     }
 
@@ -486,6 +468,25 @@ final class SentinelStore: NSObject, ObservableObject {
         switch result {
         case .success(let newValue):
             value = newValue
+        case .failure(let error):
+            errors.append(error.localizedDescription)
+        }
+    }
+
+    private func applyCurrent(
+        _ result: Result<RadarCurrent, Error>,
+        to state: inout DashboardState,
+        errors: inout [String]
+    ) {
+        switch result {
+        case .success(let current):
+            state.current = current
+            if let prediction = current.predictionDetail {
+                state.prediction = prediction
+            }
+            if let modelIQ = current.modelIQ {
+                state.modelIQ = modelIQ
+            }
         case .failure(let error):
             errors.append(error.localizedDescription)
         }

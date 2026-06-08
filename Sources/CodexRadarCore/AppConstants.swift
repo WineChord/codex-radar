@@ -4,7 +4,7 @@ public enum AppConstants {
     public static let appName = "Codex Radar Sentinel"
     public static let clientName = "codex-radar-sentinel"
     public static let bundleIdentifier = "com.codexradar.sentinel"
-    public static let appVersion = "0.1.11"
+    public static let appVersion = "0.1.12"
 
     public static let codexLimitID = "codex"
     public static let weeklyWindowMinutes = 10_080.0
@@ -25,8 +25,6 @@ public enum AppConstants {
 
     public static let codexRadarBaseURL = URL(string: "https://codexradar.com")!
     public static let currentPath = "current.json"
-    public static let predictionPath = "prediction.json"
-    public static let modelIQPath = "model-iq.json"
     public static let feedPath = "feed.xml"
 
     public static let codexAppBinaryPath = "/Applications/Codex.app/Contents/Resources/codex"
