@@ -380,6 +380,9 @@ struct DashboardMenuView: View {
             toolbarButton(title: "Codex", systemImage: "terminal") {
                 store.openCodexApp()
             }
+            toolbarButton(title: "GitHub", systemImage: "star") {
+                store.openGitHubRepository()
+            }
             toolbarButton(title: text("退出", "Quit"), systemImage: "power") {
                 store.quit()
             }

@@ -84,7 +84,9 @@
 
 如果下载、校验或安装失败，应用会保留当前版本并在菜单里显示失败原因。安装脚本也会先备份旧版；如果替换失败，会恢复并重新打开旧版。对同一个刚刚安装失败的版本，自动更新会暂停短期重试，手动 `检查更新` 仍可立即重试。
 
-下拉菜单还提供：
+底部工具栏固定提供 `刷新`、`Radar`、`Codex`、`GitHub` 和 `退出`，方便常用跳转不用滚动菜单。
+
+版本更新区还提供：
 
 - `检查更新`：立刻检查并安装新版本。
 - `Changelog`：打开最新 release notes。
@@ -170,7 +172,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.15
+./scripts/check_release_readiness.sh 0.1.16
 ```
 
 构建 release 包：
@@ -178,7 +180,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.15
+./scripts/package_release.sh 0.1.16
 ```
 
 更新 README 状态栏和菜单截图：
