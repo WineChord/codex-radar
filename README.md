@@ -69,7 +69,7 @@
 应用会在这些情况发送 macOS 通知：
 
 - 速蹬窗口开启。
-- Codex limit reset 已确认。
+- CodexRadar 记录到 reset 完成。
 - 周额度低于 30%。
 - 周额度低于 15%。
 - 周额度从低位恢复。
@@ -103,7 +103,7 @@
 
 - `Live`：真实数据。
 - `速蹬`：速蹬窗口 UI，包括红色状态栏和红色提示。
-- `Reset`：已确认 reset UI。
+- `Reset`：CodexRadar 记录到 reset 的 UI。
 - `限额`：本机限额 UI。
 
 预览只影响 UI 展示；真实通知和去重仍使用 live 数据。
@@ -170,7 +170,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.12
+./scripts/check_release_readiness.sh 0.1.13
 ```
 
 构建 release 包：
@@ -178,7 +178,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.12
+./scripts/package_release.sh 0.1.13
 ```
 
 更新 README 状态栏和菜单截图：

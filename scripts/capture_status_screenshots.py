@@ -116,9 +116,9 @@ def wait_for_title(preview, metrics):
 def capture(destination, item):
     x, y, width, height, _ = item
     regions = [
-        (x - 30, y - 3, width + 120, height + 6),
-        (x - 15, y - 3, width + 90, height + 6),
-        (x - 5, y - 3, width + 70, height + 6),
+        (x - 2, y - 3, width + 4, height + 6),
+        (x - 4, y - 3, width + 8, height + 6),
+        (x, y, width, height),
     ]
     last_error = None
     for region in regions:

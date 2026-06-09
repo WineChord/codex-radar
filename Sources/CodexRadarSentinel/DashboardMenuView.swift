@@ -132,6 +132,7 @@ struct DashboardMenuView: View {
                 Text(actionText)
                     .font(.system(size: metrics.headerTitle, weight: .semibold))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.82)
                 Text("\(text("更新", "Updated")) \(DisplayFormatters.compactDateTime(state.lastUpdatedAt))")
                     .font(.system(size: metrics.caption))
                     .foregroundStyle(.secondary)
@@ -561,7 +562,7 @@ struct DashboardMenuView: View {
             return text("本机限额中", "Local limit reached")
         }
         if state.recentResetClosed {
-            return text("limit reset 已确认", "limit reset confirmed")
+            return text("CodexRadar 已记录 reset", "CodexRadar reset recorded")
         }
         return text("等待", "Waiting")
     }

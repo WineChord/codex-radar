@@ -149,7 +149,7 @@ public struct NotificationPolicy {
         let title = current.current?.lastWindow?.title ?? "Codex limit reset"
         events.append(NotificationEvent(
             identifier: "reset-close-\(key)",
-            title: "Codex limit 已确认 reset",
+            title: "CodexRadar 记录到 reset",
             body: title,
             severity: .urgent
         ))

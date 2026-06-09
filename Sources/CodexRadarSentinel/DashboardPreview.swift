@@ -90,14 +90,14 @@ enum DashboardPreviewFactory {
           "recommended_action": "wait",
           "last_window": {
             "id": "debug-reset-window",
-            "title": "Preview: Codex limit 已确认 reset",
+            "title": "Preview: CodexRadar recorded reset",
             "status": "closed",
             "opened_at": "2026-06-04T18:00:00+08:00",
             "closed_at": "2026-06-04T18:20:00+08:00",
             "window_minutes": 20,
             "window_human": "20 min",
             "scope": "debug preview",
-            "summary": "This local preview shows the confirmed reset state."
+            "summary": "This local preview shows a reset event recorded by CodexRadar."
           },
           "prediction": {
             "level": "low",
