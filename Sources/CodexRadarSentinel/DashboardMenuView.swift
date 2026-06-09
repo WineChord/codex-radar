@@ -564,7 +564,10 @@ struct DashboardMenuView: View {
             return text("本机限额中", "Local limit reached")
         }
         if state.recentResetClosed {
-            return text("CodexRadar 记录到 reset", "CodexRadar recorded reset")
+            return text(
+                "上次 reset 时间是 \(DisplayFormatters.compactDateTime(lastResetAt))",
+                "Last reset was \(DisplayFormatters.compactDateTime(lastResetAt))"
+            )
         }
         return text("等待", "Waiting")
     }
@@ -580,18 +583,18 @@ struct DashboardMenuView: View {
             return text("本机 Codex 返回限额状态", "Local Codex reports a limit")
         }
         if state.recentResetClosed {
-            let completedAt = state.current?.lastWindow?.closedDate
-                ?? state.current?.checkedDate
-                ?? state.lastUpdatedAt
-            return text(
-                "完成 \(DisplayFormatters.compactDateTime(completedAt)) · 本机额度见下方",
-                "Completed \(DisplayFormatters.compactDateTime(completedAt)) · local quota below"
-            )
+            return text("本机额度见下方 · 来源 CodexRadar", "Local quota below · source CodexRadar")
         }
         return text(
             "数据获取 \(DisplayFormatters.compactDateTime(state.lastUpdatedAt))",
             "Fetched \(DisplayFormatters.compactDateTime(state.lastUpdatedAt))"
         )
+    }
+
+    private var lastResetAt: Date? {
+        state.current?.lastWindow?.closedDate
+            ?? state.current?.checkedDate
+            ?? state.lastUpdatedAt
     }
 
     private var signalLabel: String {

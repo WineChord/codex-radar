@@ -7,14 +7,20 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
     private override init() {
         super.init()
-        UNUserNotificationCenter.current().delegate = self
     }
 
     func requestAuthorization() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        guard let center = notificationCenter else {
+            return
+        }
+        center.delegate = self
+        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     func deliver(_ event: NotificationEvent, soundEnabled: Bool) {
+        guard let center = notificationCenter else {
+            return
+        }
         let content = UNMutableNotificationContent()
         content.title = event.title
         content.body = event.body
@@ -34,7 +40,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
             content: content,
             trigger: nil
         )
-        UNUserNotificationCenter.current().add(request)
+        center.add(request)
     }
 
     func userNotificationCenter(
@@ -45,5 +51,12 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
             return [.banner]
         }
         return [.banner, .sound]
+    }
+
+    private var notificationCenter: UNUserNotificationCenter? {
+        guard Bundle.main.bundleURL.pathExtension == "app" else {
+            return nil
+        }
+        return UNUserNotificationCenter.current()
     }
 }
