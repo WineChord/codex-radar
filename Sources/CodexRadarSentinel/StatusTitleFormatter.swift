@@ -2,18 +2,16 @@ import AppKit
 import CodexRadarCore
 
 enum StatusTitleFormatter {
-    private static let separator = "/"
-
     static func plainTitle(
         for state: DashboardState,
         metrics: [StatusMetric],
         language: AppLanguage,
-        preciseIQ: Bool
+        options: StatusBarDisplayOptions
     ) -> String {
         let activeMetrics = normalizedMetrics(metrics)
         return activeMetrics.map {
-            $0.statusBarValue(for: state, language: language, preciseIQ: preciseIQ)
-        }.joined(separator: separator)
+            $0.statusBarValue(for: state, language: language, options: options)
+        }.joined(separator: options.separator.text)
     }
 
     static func attributedTitle(
@@ -21,20 +19,21 @@ enum StatusTitleFormatter {
         emphasized: Bool,
         metrics: [StatusMetric],
         language: AppLanguage,
-        preciseIQ: Bool
+        options: StatusBarDisplayOptions
     ) -> NSAttributedString {
-        let font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+        let fontSize = NSFont.systemFontSize * options.fontScale.multiplier
+        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .semibold)
         let title = NSMutableAttributedString()
         let activeMetrics = normalizedMetrics(metrics)
 
         for (index, metric) in activeMetrics.enumerated() {
             if index > 0 {
                 let color = emphasized ? NSColor.white.withAlphaComponent(0.75) : .secondaryLabelColor
-                appendSeparator(color: color, font: font, to: title)
+                append(options.separator.text, color: color, font: font, to: title)
             }
             let color = emphasized ? .white : metricColor(for: metric, state: state, language: language)
             append(
-                metric.statusBarValue(for: state, language: language, preciseIQ: preciseIQ),
+                metric.statusBarValue(for: state, language: language, options: options),
                 color: color,
                 font: font,
                 to: title
@@ -59,10 +58,6 @@ enum StatusTitleFormatter {
                 ]
             )
         )
-    }
-
-    private static func appendSeparator(color: NSColor, font: NSFont, to title: NSMutableAttributedString) {
-        append(separator, color: color, font: font, to: title)
     }
 
     private static func normalizedMetrics(_ metrics: [StatusMetric]) -> [StatusMetric] {

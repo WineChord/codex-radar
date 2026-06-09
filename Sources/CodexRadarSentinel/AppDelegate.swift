@@ -62,19 +62,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let state = store.dashboardState
         let emphasized = store.shouldEmphasizeSpeedAlert
+        let options = store.statusBarDisplayOptions
         let title = StatusTitleFormatter.plainTitle(
             for: state,
             metrics: store.selectedStatusMetrics,
             language: store.appLanguage,
-            preciseIQ: store.statusBarPreciseIQEnabled
+            options: options
         )
-        button.attributedTitle = StatusTitleFormatter.attributedTitle(
+        let attributedTitle = StatusTitleFormatter.attributedTitle(
             for: state,
             emphasized: emphasized,
             metrics: store.selectedStatusMetrics,
             language: store.appLanguage,
-            preciseIQ: store.statusBarPreciseIQEnabled
+            options: options
         )
+        button.attributedTitle = attributedTitle
+        updateStatusItemLength(title: attributedTitle, options: options)
         button.toolTip = "\(AppConstants.appName) \(title)"
         button.setAccessibilityTitle(title)
         button.wantsLayer = true
@@ -85,5 +88,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             button.layer?.backgroundColor = NSColor.clear.cgColor
             button.layer?.cornerRadius = 0
         }
+    }
+
+    private func updateStatusItemLength(title: NSAttributedString, options: StatusBarDisplayOptions) {
+        guard let extraWidth = options.horizontalPadding.fixedExtraWidth else {
+            statusItem.length = NSStatusItem.variableLength
+            return
+        }
+        statusItem.length = ceil(title.size().width + extraWidth)
     }
 }

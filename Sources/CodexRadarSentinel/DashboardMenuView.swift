@@ -29,7 +29,7 @@ struct DashboardMenuView: View {
             for: state,
             metrics: store.selectedStatusMetrics,
             language: language,
-            preciseIQ: store.statusBarPreciseIQEnabled
+            options: store.statusBarDisplayOptions
         )
     }
 
@@ -293,6 +293,7 @@ struct DashboardMenuView: View {
                     isOn: $store.statusBarPreciseIQEnabled
                 )
                 .toggleStyle(.checkbox)
+                statusBarAdvancedOptions
             }
             LazyVGrid(
                 columns: [
@@ -310,6 +311,72 @@ struct DashboardMenuView: View {
         }
         .toggleStyle(.checkbox)
         .font(.system(size: metrics.label))
+    }
+
+    private var statusBarAdvancedOptions: some View {
+        DisclosureGroup(isExpanded: $store.statusBarAdvancedOptionsExpanded) {
+            VStack(alignment: .leading, spacing: 8) {
+                settingRow(title: text("分隔符", "Separator")) {
+                    Picker(text("分隔符", "Separator"), selection: $store.statusBarSeparator) {
+                        ForEach(StatusBarSeparator.allCases) { separator in
+                            Text(separator.label(language: language)).tag(separator)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                settingRow(title: text("左右留白", "Side padding")) {
+                    Picker(text("左右留白", "Side padding"), selection: $store.statusBarHorizontalPadding) {
+                        ForEach(StatusBarHorizontalPadding.allCases) { padding in
+                            Text(padding.label(language: language)).tag(padding)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                settingRow(title: text("字体", "Font")) {
+                    Picker(text("字体", "Font"), selection: $store.statusBarFontScale) {
+                        ForEach(StatusBarFontScale.allCases) { scale in
+                            Text(scale.label(language: language)).tag(scale)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                settingRow(title: text("IQ 显示", "IQ display")) {
+                    Picker(text("IQ 显示", "IQ display"), selection: $store.statusBarIQDisplayMode) {
+                        ForEach(StatusBarIQDisplayMode.allCases) { mode in
+                            Text(iqDisplayModeLabel(mode)).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Toggle(
+                    text("状态栏显示 %", "Show % in menu bar"),
+                    isOn: percentSymbolBinding
+                )
+                .toggleStyle(.checkbox)
+                HStack(alignment: .center, spacing: Layout.tileSpacing) {
+                    labelPair(text("预览", "Preview"), menuBarTitle)
+                    Spacer()
+                    Button(text("恢复默认", "Reset")) {
+                        store.resetStatusBarAdvancedOptions()
+                    }
+                    .font(.system(size: metrics.caption, weight: .medium))
+                }
+                Text(text(
+                    "高级选项只影响菜单栏标题；下拉菜单里的精确数值保持完整。",
+                    "Advanced options only change the menu bar title; dropdown values stay complete."
+                ))
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            .padding(.top, 6)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "wrench.adjustable")
+                Text(text("状态栏高级", "Menu bar advanced"))
+            }
+            .font(.system(size: metrics.caption, weight: .semibold))
+        }
     }
 
     private var updateSection: some View {
@@ -552,6 +619,24 @@ struct DashboardMenuView: View {
             return text("低", "low")
         default:
             return text("未知", "unknown")
+        }
+    }
+
+    private var percentSymbolBinding: Binding<Bool> {
+        Binding(
+            get: { store.statusBarPercentDisplayMode == .symbol },
+            set: { store.statusBarPercentDisplayMode = $0 ? .symbol : .numberOnly }
+        )
+    }
+
+    private func iqDisplayModeLabel(_ mode: StatusBarIQDisplayMode) -> String {
+        switch mode {
+        case .raw:
+            return text("原值", "Raw")
+        case .dividedBy10Integer:
+            return text("/10 整数", "/10 int")
+        case .dividedBy10Decimal:
+            return text("/10 小数", "/10 dec")
         }
     }
 

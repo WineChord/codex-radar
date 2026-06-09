@@ -34,6 +34,8 @@ The three values are:
 
 The `Menu bar segments` setting can also enable `5h`, which adds the 5-hour short-window quota to the menu bar. It is off by default; when enabled, the title looks like `96%/99%/62/low`.
 
+`Menu bar advanced` is collapsed by default. When expanded, it can tune the separator, side padding, font scale, IQ `/10` display, and whether `%` is kept in the menu bar. These settings only affect the menu bar title; dropdown values stay complete.
+
 When [CodexRadar](https://codexradar.com/) reports an active speed window, the menu bar item turns red with white text. The red emphasis can be dismissed manually; it also clears when the window closes or after the 30-minute emphasis window expires.
 
 ## Status States
@@ -172,7 +174,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.16
+./scripts/check_release_readiness.sh 0.1.17
 ```
 
 Build release packages:
@@ -180,7 +182,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.16
+./scripts/package_release.sh 0.1.17
 ```
 
 Update README menu bar and menu screenshots:

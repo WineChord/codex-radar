@@ -24,11 +24,11 @@ public enum RadarDateParser {
 public enum DisplayFormatters {
     public static let percentPlaceholder = "--"
 
-    public static func percent(_ value: Int?) -> String {
+    public static func percent(_ value: Int?, includesSymbol: Bool = true) -> String {
         guard let value else {
             return percentPlaceholder
         }
-        return "\(value)%"
+        return includesSymbol ? "\(value)%" : "\(value)"
     }
 
     public static func iqScore(_ value: Double?) -> String {

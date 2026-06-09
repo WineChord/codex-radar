@@ -32,6 +32,47 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var statusBarAdvancedOptionsExpanded: Bool {
+        didSet {
+            defaults.set(statusBarAdvancedOptionsExpanded, forKey: DefaultsKey.statusBarAdvancedOptionsExpanded)
+        }
+    }
+
+    @Published var statusBarIQDisplayMode: StatusBarIQDisplayMode {
+        didSet {
+            defaults.set(statusBarIQDisplayMode.rawValue, forKey: DefaultsKey.statusBarIQDisplayMode)
+            updateTitleForStatusItem()
+        }
+    }
+
+    @Published var statusBarPercentDisplayMode: StatusBarPercentDisplayMode {
+        didSet {
+            defaults.set(statusBarPercentDisplayMode.rawValue, forKey: DefaultsKey.statusBarPercentDisplayMode)
+            updateTitleForStatusItem()
+        }
+    }
+
+    @Published var statusBarSeparator: StatusBarSeparator {
+        didSet {
+            defaults.set(statusBarSeparator.rawValue, forKey: DefaultsKey.statusBarSeparator)
+            updateTitleForStatusItem()
+        }
+    }
+
+    @Published var statusBarHorizontalPadding: StatusBarHorizontalPadding {
+        didSet {
+            defaults.set(statusBarHorizontalPadding.rawValue, forKey: DefaultsKey.statusBarHorizontalPadding)
+            updateTitleForStatusItem()
+        }
+    }
+
+    @Published var statusBarFontScale: StatusBarFontScale {
+        didSet {
+            defaults.set(statusBarFontScale.rawValue, forKey: DefaultsKey.statusBarFontScale)
+            updateTitleForStatusItem()
+        }
+    }
+
     @Published private(set) var selectedStatusMetrics: [StatusMetric] {
         didSet {
             defaults.set(selectedStatusMetrics.map(\.rawValue), forKey: DefaultsKey.selectedStatusMetrics)
@@ -99,6 +140,12 @@ final class SentinelStore: NSObject, ObservableObject {
         static let appLanguage = "appLanguage"
         static let menuTextSize = "menuTextSize"
         static let statusBarPreciseIQEnabled = "statusBarPreciseIQEnabled"
+        static let statusBarAdvancedOptionsExpanded = "statusBarAdvancedOptionsExpanded"
+        static let statusBarIQDisplayMode = "statusBarIQDisplayMode"
+        static let statusBarPercentDisplayMode = "statusBarPercentDisplayMode"
+        static let statusBarSeparator = "statusBarSeparator"
+        static let statusBarHorizontalPadding = "statusBarHorizontalPadding"
+        static let statusBarFontScale = "statusBarFontScale"
         static let selectedStatusMetrics = "selectedStatusMetrics"
         static let predictionNotificationsEnabled = "predictionNotificationsEnabled"
         static let iqNotificationsEnabled = "iqNotificationsEnabled"
@@ -143,6 +190,17 @@ final class SentinelStore: NSObject, ObservableObject {
         let rawTextSize = defaults.string(forKey: DefaultsKey.menuTextSize)
         self.menuTextSize = rawTextSize.flatMap(DashboardTextSize.init(rawValue:)) ?? .large
         self.statusBarPreciseIQEnabled = defaults.object(forKey: DefaultsKey.statusBarPreciseIQEnabled) as? Bool ?? false
+        self.statusBarAdvancedOptionsExpanded = defaults.object(forKey: DefaultsKey.statusBarAdvancedOptionsExpanded) as? Bool ?? false
+        self.statusBarIQDisplayMode = defaults.string(forKey: DefaultsKey.statusBarIQDisplayMode)
+            .flatMap(StatusBarIQDisplayMode.init(rawValue:)) ?? .raw
+        self.statusBarPercentDisplayMode = defaults.string(forKey: DefaultsKey.statusBarPercentDisplayMode)
+            .flatMap(StatusBarPercentDisplayMode.init(rawValue:)) ?? .symbol
+        self.statusBarSeparator = defaults.string(forKey: DefaultsKey.statusBarSeparator)
+            .flatMap(StatusBarSeparator.init(rawValue:)) ?? .slash
+        self.statusBarHorizontalPadding = defaults.string(forKey: DefaultsKey.statusBarHorizontalPadding)
+            .flatMap(StatusBarHorizontalPadding.init(rawValue:)) ?? .system
+        self.statusBarFontScale = defaults.string(forKey: DefaultsKey.statusBarFontScale)
+            .flatMap(StatusBarFontScale.init(rawValue:)) ?? .normal
         self.selectedStatusMetrics = Self.loadSelectedStatusMetrics(defaults: defaults)
         let rawPreview = ProcessInfo.processInfo.environment[AppConstants.debugPreviewEnvironmentKey]
         self.debugPreview = rawPreview.flatMap(DashboardPreview.init(rawValue:)) ?? .live
@@ -158,6 +216,17 @@ final class SentinelStore: NSObject, ObservableObject {
 
     var dashboardState: DashboardState {
         DashboardPreviewFactory.state(for: debugPreview, live: state)
+    }
+
+    var statusBarDisplayOptions: StatusBarDisplayOptions {
+        StatusBarDisplayOptions(
+            preciseIQ: statusBarPreciseIQEnabled,
+            iqDisplayMode: statusBarIQDisplayMode,
+            percentDisplayMode: statusBarPercentDisplayMode,
+            separator: statusBarSeparator,
+            horizontalPadding: statusBarHorizontalPadding,
+            fontScale: statusBarFontScale
+        )
     }
 
     var shouldEmphasizeSpeedAlert: Bool {
@@ -202,6 +271,16 @@ final class SentinelStore: NSObject, ObservableObject {
             return
         }
         selectedStatusMetrics = StatusMetric.allCases.filter { next.contains($0) }
+    }
+
+    func resetStatusBarAdvancedOptions() {
+        let defaults = StatusBarDisplayOptions.defaultOptions
+        statusBarPreciseIQEnabled = defaults.preciseIQ
+        statusBarIQDisplayMode = defaults.iqDisplayMode
+        statusBarPercentDisplayMode = defaults.percentDisplayMode
+        statusBarSeparator = defaults.separator
+        statusBarHorizontalPadding = defaults.horizontalPadding
+        statusBarFontScale = defaults.fontScale
     }
 
     func start() {
@@ -269,7 +348,8 @@ final class SentinelStore: NSObject, ObservableObject {
     func configureForDocumentation(language: AppLanguage) {
         appLanguage = language
         menuTextSize = .large
-        statusBarPreciseIQEnabled = false
+        resetStatusBarAdvancedOptions()
+        statusBarAdvancedOptionsExpanded = false
         selectedStatusMetrics = Self.defaultStatusMetrics
         debugPreview = .live
         predictionNotificationsEnabled = true
@@ -394,7 +474,7 @@ final class SentinelStore: NSObject, ObservableObject {
             for: dashboardState,
             metrics: selectedStatusMetrics,
             language: appLanguage,
-            preciseIQ: statusBarPreciseIQEnabled
+            options: statusBarDisplayOptions
         )
     }
 

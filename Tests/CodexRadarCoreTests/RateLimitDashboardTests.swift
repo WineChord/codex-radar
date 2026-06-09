@@ -65,6 +65,15 @@ final class RateLimitDashboardTests: XCTestCase {
         XCTAssertEqual(DisplayFormatters.compactIQScore(75), "75")
         XCTAssertEqual(DisplayFormatters.iqScore(75), "75")
     }
+
+    func testStatusBarAdvancedFormattersSupportCompactOutput() {
+        XCTAssertEqual(DisplayFormatters.percent(69), "69%")
+        XCTAssertEqual(DisplayFormatters.percent(69, includesSymbol: false), "69")
+        XCTAssertEqual(StatusBarIQDisplayMode.raw.format(100, preciseRaw: false), "100")
+        XCTAssertEqual(StatusBarIQDisplayMode.dividedBy10Integer.format(100, preciseRaw: false), "10")
+        XCTAssertEqual(StatusBarIQDisplayMode.dividedBy10Integer.format(62.5, preciseRaw: false), "6")
+        XCTAssertEqual(StatusBarIQDisplayMode.dividedBy10Decimal.format(62.5, preciseRaw: false), "6.3")
+    }
 }
 
 private let sampleRateLimitData = Data("""

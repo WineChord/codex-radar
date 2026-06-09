@@ -40,11 +40,24 @@ enum StatusMetric: String, CaseIterable, Identifiable {
     func statusBarValue(
         for state: DashboardState,
         language: AppLanguage,
-        preciseIQ: Bool
+        options: StatusBarDisplayOptions
     ) -> String {
         switch self {
-        case .codexIQ where !preciseIQ:
-            return DisplayFormatters.compactIQScore(state.modelIQ?.latest?.iqScore)
+        case .weeklyQuota:
+            return DisplayFormatters.percent(
+                state.rateLimits?.weeklyRemainingPercent,
+                includesSymbol: options.percentDisplayMode.includesSymbol
+            )
+        case .shortQuota:
+            return DisplayFormatters.percent(
+                state.rateLimits?.shortRemainingPercent,
+                includesSymbol: options.percentDisplayMode.includesSymbol
+            )
+        case .codexIQ:
+            return options.iqDisplayMode.format(
+                state.modelIQ?.latest?.iqScore,
+                preciseRaw: options.preciseIQ
+            )
         default:
             return value(for: state, language: language)
         }

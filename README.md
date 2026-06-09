@@ -34,6 +34,8 @@
 
 下拉菜单的 `状态栏显示` 里还可以手动打开 `5h`，用于把 5 小时短窗额度也放进状态栏；默认关闭，打开后会类似 `96%/99%/62/低`。
 
+`状态栏高级` 默认收起；展开后可以调分隔符、左右留白、字体比例、IQ 是否按 `/10` 显示，以及状态栏里是否保留 `%`。这些设置只影响状态栏标题，下拉菜单里的完整数值不变。
+
 当 [CodexRadar](https://codexradar.com/) 报告速蹬窗口开启时，状态栏 item 会变成红底白字。红色强调可以手动关闭；窗口结束或 30 分钟强调时间到后会自动退场。
 
 ## 状态展示
@@ -172,7 +174,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.16
+./scripts/check_release_readiness.sh 0.1.17
 ```
 
 构建 release 包：
@@ -180,7 +182,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.16
+./scripts/package_release.sh 0.1.17
 ```
 
 更新 README 状态栏和菜单截图：
