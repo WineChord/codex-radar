@@ -46,7 +46,7 @@ public struct DashboardState: Equatable {
             return "本机限额中"
         }
         if recentResetClosed {
-            return "CodexRadar 已记录 reset"
+            return "CodexRadar 记录到 reset"
         }
         return "等待"
     }

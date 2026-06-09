@@ -69,7 +69,7 @@ The app defaults to Chinese. English can be selected in the dropdown. Technical 
 The app sends macOS notifications for:
 
 - Speed window opened.
-- CodexRadar records a completed reset.
+- CodexRadar records a completed reset; the header shows the completion time, while local quota stays in `Codex Quota`.
 - Weekly quota falls below 30%.
 - Weekly quota falls below 15%.
 - Weekly quota recovers after a low-remaining state.
@@ -170,7 +170,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.13
+./scripts/check_release_readiness.sh 0.1.14
 ```
 
 Build release packages:
@@ -178,7 +178,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.13
+./scripts/package_release.sh 0.1.14
 ```
 
 Update README menu bar and menu screenshots:

@@ -69,7 +69,7 @@
 应用会在这些情况发送 macOS 通知：
 
 - 速蹬窗口开启。
-- CodexRadar 记录到 reset 完成。
+- CodexRadar 记录到 reset 完成；顶部会显示完成时间，本机额度仍看 `Codex 额度`。
 - 周额度低于 30%。
 - 周额度低于 15%。
 - 周额度从低位恢复。
@@ -170,7 +170,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.13
+./scripts/check_release_readiness.sh 0.1.14
 ```
 
 构建 release 包：
@@ -178,7 +178,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.13
+./scripts/package_release.sh 0.1.14
 ```
 
 更新 README 状态栏和菜单截图：

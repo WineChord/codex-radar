@@ -133,9 +133,11 @@ struct DashboardMenuView: View {
                     .font(.system(size: metrics.headerTitle, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
-                Text("\(text("更新", "Updated")) \(DisplayFormatters.compactDateTime(state.lastUpdatedAt))")
+                Text(headerDetailText)
                     .font(.system(size: metrics.caption))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
             }
             Spacer()
             Text(menuBarTitle)
@@ -562,9 +564,34 @@ struct DashboardMenuView: View {
             return text("本机限额中", "Local limit reached")
         }
         if state.recentResetClosed {
-            return text("CodexRadar 已记录 reset", "CodexRadar reset recorded")
+            return text("CodexRadar 记录到 reset", "CodexRadar recorded reset")
         }
         return text("等待", "Waiting")
+    }
+
+    private var headerDetailText: String {
+        if state.current?.windowOpen == true {
+            return text(
+                "建议尽快使用 · 周额度 \(DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent))",
+                "Use soon · weekly \(DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent))"
+            )
+        }
+        if state.rateLimits?.isBlocked == true {
+            return text("本机 Codex 返回限额状态", "Local Codex reports a limit")
+        }
+        if state.recentResetClosed {
+            let completedAt = state.current?.lastWindow?.closedDate
+                ?? state.current?.checkedDate
+                ?? state.lastUpdatedAt
+            return text(
+                "完成 \(DisplayFormatters.compactDateTime(completedAt)) · 本机额度见下方",
+                "Completed \(DisplayFormatters.compactDateTime(completedAt)) · local quota below"
+            )
+        }
+        return text(
+            "数据获取 \(DisplayFormatters.compactDateTime(state.lastUpdatedAt))",
+            "Fetched \(DisplayFormatters.compactDateTime(state.lastUpdatedAt))"
+        )
     }
 
     private var signalLabel: String {
