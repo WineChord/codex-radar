@@ -495,22 +495,28 @@ struct DashboardMenuView: View {
     }
 
     private var previewSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle(text("调试预览", "Preview"), systemImage: "eye")
-            Picker(text("预览", "Preview"), selection: $store.debugPreview) {
-                ForEach(DashboardPreview.allCases) { preview in
-                    Text(preview.label(language: language)).tag(preview)
+        collapsibleSection(
+            isExpanded: $store.debugPreviewSectionExpanded,
+            systemImage: "eye",
+            title: text("调试预览", "Preview"),
+            trailing: store.debugPreview.label(language: language)
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                Picker(text("预览", "Preview"), selection: $store.debugPreview) {
+                    ForEach(DashboardPreview.allCases) { preview in
+                        Text(preview.label(language: language)).tag(preview)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .font(.system(size: metrics.label))
+                Text(text(
+                    "只预览 UI；真实通知和去重仍使用 live 数据。",
+                    "UI preview only; notifications still use live data."
+                ))
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
             }
-            .pickerStyle(.segmented)
-            .font(.system(size: metrics.label))
-            Text(text(
-                "只预览 UI；真实通知和去重仍使用 live 数据。",
-                "UI preview only; notifications still use live data."
-            ))
-            .font(.system(size: metrics.caption))
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
         }
     }
 

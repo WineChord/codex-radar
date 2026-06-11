@@ -102,6 +102,12 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var debugPreviewSectionExpanded: Bool {
+        didSet {
+            defaults.set(debugPreviewSectionExpanded, forKey: DefaultsKey.debugPreviewSectionExpanded)
+        }
+    }
+
     @Published private(set) var dismissedSpeedAlertKey: String? {
         didSet {
             defaults.set(dismissedSpeedAlertKey, forKey: DefaultsKey.dismissedSpeedAlertKey)
@@ -169,6 +175,7 @@ final class SentinelStore: NSObject, ObservableObject {
         static let launchAtLoginEnabled = "launchAtLoginEnabled"
         static let notificationMemory = "notificationMemory"
         static let dismissedSpeedAlertKey = "dismissedSpeedAlertKey"
+        static let debugPreviewSectionExpanded = "debugPreviewSectionExpanded"
     }
 
     private static let defaultStatusMetrics: [StatusMetric] = [
@@ -222,6 +229,7 @@ final class SentinelStore: NSObject, ObservableObject {
         self.selectedStatusMetrics = Self.loadSelectedStatusMetrics(defaults: defaults)
         let rawPreview = ProcessInfo.processInfo.environment[AppConstants.debugPreviewEnvironmentKey]
         self.debugPreview = rawPreview.flatMap(DashboardPreview.init(rawValue:)) ?? .live
+        self.debugPreviewSectionExpanded = defaults.object(forKey: DefaultsKey.debugPreviewSectionExpanded) as? Bool ?? false
         self.predictionNotificationsEnabled = defaults.object(forKey: DefaultsKey.predictionNotificationsEnabled) as? Bool ?? true
         self.iqNotificationsEnabled = defaults.object(forKey: DefaultsKey.iqNotificationsEnabled) as? Bool ?? true
         self.notificationSoundEnabled = defaults.object(forKey: DefaultsKey.notificationSoundEnabled) as? Bool ?? false
@@ -371,6 +379,7 @@ final class SentinelStore: NSObject, ObservableObject {
         quotaPacingStrategy = .timeProportional
         quotaPacingOptionsExpanded = false
         statusBarAdvancedOptionsExpanded = false
+        debugPreviewSectionExpanded = false
         selectedStatusMetrics = Self.defaultStatusMetrics
         debugPreview = .live
         predictionNotificationsEnabled = true

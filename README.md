@@ -9,13 +9,13 @@
 ## News / 最新功能
 
 <details>
-<summary><strong>v0.1.25：GitHub 入口恢复文字</strong> - 不再显示 Star 数，底部按钮回到清晰的 GitHub。</summary>
+<summary><strong>v0.1.26：调试预览默认折叠</strong> - 预览入口不再常驻占高度，点整行即可展开。</summary>
 
-<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel GitHub 入口截图">
+<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 调试预览折叠截图">
 
-- 版本更新区和底部工具栏都显示 `GitHub`，不再显示 Star 数。
-- 应用不再拉取 GitHub 仓库元信息，少一个后台网络请求。
-- 点击按钮只打开仓库页面。
+- `调试预览` 默认折叠，菜单底部更短。
+- 折叠标题右侧显示当前预览状态，例如 `Live`。
+- 点标题文字、图标或右侧状态都能展开，保留原来的 `Live / 速蹬 / Reset / 限额` 切换。
 
 </details>
 
@@ -287,7 +287,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.25
+./scripts/check_release_readiness.sh 0.1.26
 ```
 
 构建 release 包：
@@ -295,7 +295,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.25
+./scripts/package_release.sh 0.1.26
 ```
 
 更新 README 状态栏和菜单截图：

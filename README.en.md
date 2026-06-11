@@ -9,13 +9,13 @@ Full credit to [CodexRadar](https://codexradar.com/): this project depends on Co
 ## News
 
 <details>
-<summary><strong>v0.1.25: GitHub label restored</strong> - Star count is no longer shown; the bottom button is back to GitHub.</summary>
+<summary><strong>v0.1.26: Preview is collapsed by default</strong> - The preview controls no longer take permanent menu height.</summary>
 
-<img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel GitHub entry screenshot">
+<img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel collapsed preview screenshot">
 
-- The update section and bottom toolbar both show `GitHub`; no star count is displayed.
-- The app no longer fetches GitHub repository metadata, removing one background network request.
-- Clicking the button only opens the repository page.
+- `Preview` is collapsed by default, keeping the bottom of the menu shorter.
+- The collapsed row shows the current preview state, such as `Live`.
+- Click the title, icon, or trailing state to expand and use the original `Live / Speed / Reset / Limit` switcher.
 
 </details>
 
@@ -287,7 +287,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.25
+./scripts/check_release_readiness.sh 0.1.26
 ```
 
 Build release packages:
@@ -295,7 +295,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.25
+./scripts/package_release.sh 0.1.26
 ```
 
 Update README menu bar and menu screenshots:
