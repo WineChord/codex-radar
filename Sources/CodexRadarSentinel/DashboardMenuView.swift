@@ -368,16 +368,11 @@ struct DashboardMenuView: View {
     private var quotaPacingOptions: some View {
         DisclosureGroup(isExpanded: $store.quotaPacingOptionsExpanded) {
             VStack(alignment: .leading, spacing: 8) {
-                settingRow(title: text("策略", "Rule")) {
-                    Picker(text("策略", "Rule"), selection: $store.quotaPacingStrategy) {
-                        ForEach(QuotaPacingStrategy.allCases) { strategy in
-                            Text(quotaPacingStrategyLabel(strategy)).tag(strategy)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                }
+                Text(text("点击下面任一策略即可切换。", "Click any rule below to switch."))
+                    .font(.system(size: metrics.caption))
+                    .foregroundStyle(.secondary)
                 ForEach(QuotaPacingStrategy.allCases) { strategy in
-                    quotaPacingStrategyCard(strategy)
+                    quotaPacingStrategyButton(strategy)
                 }
                 Text(text(
                     "这个策略会同时影响下拉菜单里的“建议剩余”和可选状态栏段“应剩”。",
@@ -711,6 +706,18 @@ struct DashboardMenuView: View {
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(selected ? Color.accentColor.opacity(0.12) : Color(nsColor: .quaternaryLabelColor).opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func quotaPacingStrategyButton(_ strategy: QuotaPacingStrategy) -> some View {
+        Button {
+            store.quotaPacingStrategy = strategy
+        } label: {
+            quotaPacingStrategyCard(strategy)
+                .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(quotaPacingStrategyLabel(strategy))
+        .accessibilityHint(text("切换应剩计算策略", "Switch pace rule"))
     }
 
     private func quotaTile(title: String, value: String, resetAt: Int?) -> some View {

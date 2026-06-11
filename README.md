@@ -13,13 +13,13 @@
 ## News / 最新功能
 
 <details>
-<summary><strong>v0.1.21：应剩策略升级</strong> - 看现在应该还剩多少额度，并按使用习惯选择节奏。</summary>
+<summary><strong>v0.1.22：应剩策略更好点了</strong> - 点击策略卡片即可切换，不再依赖菜单栏弹窗里不稳定的下拉选择。</summary>
 
 <img src="docs/assets/zh/news-pacing.png" width="390" alt="Codex Radar Sentinel 应剩策略截图">
 
 - `应剩` 会把建议剩余和实际剩余放在一起看，直接告诉你还能多用还是该放慢。
 - 新增 `按时间`、`每日`、`留余`、`工作日`、`先用` 五种策略。
-- 策略说明默认折叠，展开后可以看到公式、刷新粒度和适用场景。
+- 策略说明默认折叠，展开后点击任一策略卡片即可切换，并能看到公式、刷新粒度和适用场景。
 
 </details>
 
@@ -50,7 +50,7 @@
 - `5h`：把 5 小时短窗额度也放进状态栏；默认关闭，打开后会类似 `96%/99%/62/低`。
 - `应剩`：把“按节奏现在应该还剩多少周额度”放进状态栏；默认关闭，中文显示类似 `应80%`，英文显示类似 `R80%`。
 
-`应剩计算策略` 默认收起。展开后可以用下拉菜单切换策略，并会直接说明每个策略的公式、刷新粒度和适用场景。
+`应剩计算策略` 默认收起。展开后点击任一策略卡片即可切换，并会直接说明每个策略的公式、刷新粒度和适用场景。
 
 `状态栏高级` 默认收起；展开后可以调分隔符、左右留白、字体比例、IQ 是否按 `/10` 显示，以及状态栏里是否保留 `%`。这些设置只影响状态栏标题，下拉菜单里的完整数值不变。
 
@@ -195,7 +195,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.21
+./scripts/check_release_readiness.sh 0.1.22
 ```
 
 构建 release 包：
@@ -203,7 +203,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.21
+./scripts/package_release.sh 0.1.22
 ```
 
 更新 README 状态栏和菜单截图：
