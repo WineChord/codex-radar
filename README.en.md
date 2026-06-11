@@ -76,6 +76,15 @@ We also open-sourced the product prompts behind this app: [Prompt Log](PROMPTS.m
 </details>
 
 <details>
+<summary><strong>v0.1.7: Prompt Log is open source</strong> - The product prompts, feedback, screenshot notes, and release asks are part of the repo.</summary>
+
+- Added [Prompt Log](PROMPTS.md) for the user's direct product requests, design feedback, and verification asks.
+- Timestamps, local paths, screenshot cache paths, and security-sensitive details are removed.
+- Later prompts are mapped to the real commits that implemented them, with clickable commit links.
+
+</details>
+
+<details>
 <summary><strong>v0.1.4: Automatic updates</strong> - Download, verify, replace, and reopen from GitHub Releases.</summary>
 
 - Auto update is on by default: first check after launch, then every 6 hours.

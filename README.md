@@ -76,6 +76,15 @@
 </details>
 
 <details>
+<summary><strong>v0.1.7：Prompt Log 开源</strong> - 把产品从想法、吐槽、截图反馈到发布验证的 prompt 一起放进仓库。</summary>
+
+- 新增 [Prompt Log](PROMPTS.md)，记录用户直接给 Codex 的产品需求、设计反馈和验证要求。
+- 去掉时间戳、本地路径、截图缓存路径和安全敏感信息，只保留可公开的产品上下文。
+- 后续每条 prompt 都维护到实际 commit 的映射，commit 链接可点击。
+
+</details>
+
+<details>
 <summary><strong>v0.1.4：自动更新</strong> - 新版本可以静默下载、校验、替换并重开。</summary>
 
 - 默认开启自动更新，启动后会检查 GitHub Release，之后每 6 小时检查一次。
