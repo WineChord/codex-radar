@@ -112,6 +112,74 @@ final class RateLimitDashboardTests: XCTestCase {
         XCTAssertEqual(pacing.roundedRemainingDeltaPercent, 41)
         XCTAssertEqual(pacing.status, .underTarget)
     }
+
+    func testReserveQuotaPacingKeepsTwentyPercentBufferUntilFinalDay() throws {
+        let response = try JSONDecoder().decode(RateLimitResponse.self, from: sampleRateLimitData)
+        let dashboard = RateLimitDashboard(response: response)
+        let resetAt = 1_781_140_743
+        let windowSeconds = 10_080 * 60
+        let startAt = resetAt - windowSeconds
+        let thirdDay = Date(timeIntervalSince1970: TimeInterval(startAt + 3 * 86_400))
+
+        let pacing = try XCTUnwrap(dashboard.quotaPacing(strategy: .reserveTwenty, now: thirdDay))
+
+        XCTAssertEqual(pacing.roundedTargetUsedPercent, 40)
+        XCTAssertEqual(pacing.roundedTargetRemainingPercent, 60)
+        XCTAssertEqual(pacing.status, .underTarget)
+    }
+
+    func testFrontLoadedQuotaPacingEncouragesEarlierUsage() throws {
+        let response = try JSONDecoder().decode(RateLimitResponse.self, from: sampleRateLimitData)
+        let dashboard = RateLimitDashboard(response: response)
+        let resetAt = 1_781_140_743
+        let windowSeconds = 10_080 * 60
+        let halfway = Date(timeIntervalSince1970: TimeInterval(resetAt - windowSeconds / 2))
+
+        let pacing = try XCTUnwrap(dashboard.quotaPacing(strategy: .frontLoaded, now: halfway))
+
+        XCTAssertEqual(pacing.roundedTargetUsedPercent, 70)
+        XCTAssertEqual(pacing.roundedTargetRemainingPercent, 30)
+        XCTAssertEqual(pacing.status, .underTarget)
+    }
+
+    func testWorkdayWeightedQuotaPacingSpendsLessOnWeekends() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let start = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 6, day: 1)))
+        XCTAssertEqual(calendar.component(.weekday, from: start), 2)
+        let dashboard = try weeklyDashboard(usedPercent: 20, start: start)
+        let saturdayStart = start.addingTimeInterval(5 * 86_400)
+
+        let pacing = try XCTUnwrap(dashboard.quotaPacing(
+            strategy: .workdayWeighted,
+            now: saturdayStart,
+            calendar: calendar
+        ))
+
+        XCTAssertEqual(pacing.roundedTargetUsedPercent, 88)
+        XCTAssertEqual(pacing.roundedTargetRemainingPercent, 12)
+        XCTAssertEqual(pacing.status, .underTarget)
+    }
+}
+
+private func weeklyDashboard(usedPercent: Double, start: Date) throws -> RateLimitDashboard {
+    let resetAt = Int(start.timeIntervalSince1970) + 10_080 * 60
+    let json = """
+    {
+      "rateLimits": {
+        "limitId": "codex",
+        "limitName": null,
+        "primary": { "usedPercent": \(usedPercent), "windowDurationMins": 10080, "resetsAt": \(resetAt) },
+        "secondary": null,
+        "credits": null,
+        "planType": "pro",
+        "rateLimitReachedType": null
+      },
+      "rateLimitsByLimitId": null
+    }
+    """
+    let response = try JSONDecoder().decode(RateLimitResponse.self, from: Data(json.utf8))
+    return RateLimitDashboard(response: response)
 }
 
 private let sampleRateLimitData = Data("""

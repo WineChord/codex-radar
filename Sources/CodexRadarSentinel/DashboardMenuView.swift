@@ -374,10 +374,11 @@ struct DashboardMenuView: View {
                             Text(quotaPacingStrategyLabel(strategy)).tag(strategy)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                 }
-                quotaPacingStrategyCard(.timeProportional)
-                quotaPacingStrategyCard(.sevenDay)
+                ForEach(QuotaPacingStrategy.allCases) { strategy in
+                    quotaPacingStrategyCard(strategy)
+                }
                 Text(text(
                     "这个策略会同时影响下拉菜单里的“建议剩余”和可选状态栏段“应剩”。",
                     "This rule affects both the Target left value in the dropdown and the optional Pace menu-bar segment."
@@ -788,7 +789,13 @@ struct DashboardMenuView: View {
         case .timeProportional:
             return text("按时间", "Time")
         case .sevenDay:
-            return text("7 天均分", "7-day")
+            return text("每日", "Daily")
+        case .reserveTwenty:
+            return text("留余", "Reserve")
+        case .workdayWeighted:
+            return text("工作日", "Workdays")
+        case .frontLoaded:
+            return text("先用", "Front-load")
         }
     }
 
@@ -804,6 +811,21 @@ struct DashboardMenuView: View {
                 "按天级台阶计算：把周额度分成 7 份，进入第 N 天后显示当天结束前建议剩余。它不会按小时慢慢变，而是每天推进一格。",
                 "Daily steps: split weekly quota into seven chunks. On day N, it shows the remaining target for the end of that day. It does not drift hour by hour; it steps once per day."
             )
+        case .reserveTwenty:
+            return text(
+                "前 6 天只规划使用 80%，始终给突发任务留 20% 缓冲；最后 1 天再把这 20% 慢慢释放出来。",
+                "Plans only 80% for roughly the first six days, keeping a 20% buffer for surprises; the final day gradually releases that buffer."
+            )
+        case .workdayWeighted:
+            return text(
+                "按本机日历给工作日更高权重、周末较低权重。工作日建议用得更多，周末建议消耗更慢。",
+                "Uses the local calendar with higher weekday weight and lower weekend weight. It expects more usage on workdays and slower usage on weekends."
+            )
+        case .frontLoaded:
+            return text(
+                "前半个窗口建议用掉约 70%，后半个窗口再用剩下 30%。它会更早提醒你别把额度留到 reset 前才用。",
+                "Targets about 70% usage by the halfway point, then spends the remaining 30% later. It nudges you not to leave quota unused until right before reset."
+            )
         }
     }
 
@@ -818,6 +840,21 @@ struct DashboardMenuView: View {
             return text(
                 "适合：按每天固定预算安排使用，不想被小时级变化打扰。",
                 "Best for: planning by daily budget without hour-level movement."
+            )
+        case .reserveTwenty:
+            return text(
+                "适合：经常遇到临时大任务，宁愿保守一点也不想太早接近限额。",
+                "Best for: users who often get urgent large tasks and prefer not to approach limits too early."
+            )
+        case .workdayWeighted:
+            return text(
+                "适合：主要在工作日高强度使用，周末只是偶尔轻量使用。",
+                "Best for: heavy weekday use with lighter weekend use."
+            )
+        case .frontLoaded:
+            return text(
+                "适合：reset 后就有大任务，或者不想最后发现额度还剩很多。",
+                "Best for: large tasks soon after reset, or avoiding unused quota near the end."
             )
         }
     }
@@ -879,8 +916,23 @@ struct DashboardMenuView: View {
             )
         case .sevenDay:
             return text(
-                "\(prefix)：按 7 天均分，建议现在应剩 \(target)。\(action)",
-                "\(prefix): target remaining is \(target) by the 7-day rule. \(action)"
+                "\(prefix)：按每日预算，建议现在应剩 \(target)。\(action)",
+                "\(prefix): target remaining is \(target) by the daily rule. \(action)"
+            )
+        case .reserveTwenty:
+            return text(
+                "\(prefix)：按留余策略，建议现在应剩 \(target)。\(action)",
+                "\(prefix): target remaining is \(target) by the reserve rule. \(action)"
+            )
+        case .workdayWeighted:
+            return text(
+                "\(prefix)：按工作日权重，建议现在应剩 \(target)。\(action)",
+                "\(prefix): target remaining is \(target) by the workday-weighted rule. \(action)"
+            )
+        case .frontLoaded:
+            return text(
+                "\(prefix)：按先用策略，建议现在应剩 \(target)。\(action)",
+                "\(prefix): target remaining is \(target) by the front-loaded rule. \(action)"
             )
         }
     }
