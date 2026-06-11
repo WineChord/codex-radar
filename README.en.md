@@ -13,13 +13,14 @@ We also open-sourced the product prompts behind this app: [Prompt Log](PROMPTS.m
 ## News
 
 <details>
-<summary><strong>v0.1.22: Pace rules are easier to click</strong> - Click a rule card to switch, without relying on an unreliable menu picker inside the menu bar panel.</summary>
+<summary><strong>v0.1.23: Collapsed rows are easier to open</strong> - Click the title, icon, or trailing status to expand; no precise chevron click required.</summary>
 
 <img src="docs/assets/en/news-pacing.png" width="390" alt="Codex Radar Sentinel pace strategy screenshot">
 
 - `Pace` compares target remaining with actual weekly quota remaining, then tells you whether there is room to spend more or slow down.
 - New rules: `Time`, `Daily`, `Reserve`, `Workdays`, and `Front-load`.
-- The rule guide stays collapsed by default. Expand it, then click any rule card to switch and see its formula, refresh granularity, and best-use explanation.
+- `Pace rule` and `Menu bar advanced` stay collapsed by default. The whole header row now expands or collapses.
+- After expanding `Pace rule`, click any rule card to switch and see its formula, refresh granularity, and best-use explanation.
 
 </details>
 
@@ -50,9 +51,9 @@ The `Menu bar segments` setting can also enable:
 - `5h`: adds the 5-hour short-window quota to the menu bar. It is off by default; when enabled, the title looks like `96%/99%/62/low`.
 - `Pace`: adds the weekly quota that should remain at the current point in the reset window. It is off by default; English shows it as `R80%`.
 
-`Pace rule` is collapsed by default. Expand it, then click any rule card to switch; the app explains each rule's formula, refresh granularity, and best use case.
+`Pace rule` is collapsed by default. Click the whole header row to expand or collapse it; after expanding, click any rule card to switch. The app explains each rule's formula, refresh granularity, and best use case.
 
-`Menu bar advanced` is collapsed by default. When expanded, it can tune the separator, side padding, font scale, IQ `/10` display, and whether `%` is kept in the menu bar. These settings only affect the menu bar title; dropdown values stay complete.
+`Menu bar advanced` is collapsed by default. Click the whole header row to expand or collapse it. When expanded, it can tune the separator, side padding, font scale, IQ `/10` display, and whether `%` is kept in the menu bar. These settings only affect the menu bar title; dropdown values stay complete.
 
 When [CodexRadar](https://codexradar.com/) reports an active speed window, the menu bar item turns red with white text. The red emphasis can be dismissed manually; it also clears when the window closes or after the 30-minute emphasis window expires.
 
@@ -195,7 +196,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.22
+./scripts/check_release_readiness.sh 0.1.23
 ```
 
 Build release packages:
@@ -203,7 +204,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.22
+./scripts/package_release.sh 0.1.23
 ```
 
 Update README menu bar and menu screenshots:

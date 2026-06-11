@@ -366,7 +366,12 @@ struct DashboardMenuView: View {
     }
 
     private var quotaPacingOptions: some View {
-        DisclosureGroup(isExpanded: $store.quotaPacingOptionsExpanded) {
+        collapsibleSection(
+            isExpanded: $store.quotaPacingOptionsExpanded,
+            systemImage: "clock.arrow.circlepath",
+            title: text("应剩计算策略", "Pace rule"),
+            trailing: quotaPacingStrategyLabel(store.quotaPacingStrategy)
+        ) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(text("点击下面任一策略即可切换。", "Click any rule below to switch."))
                     .font(.system(size: metrics.caption))
@@ -382,21 +387,15 @@ struct DashboardMenuView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
             }
-            .padding(.top, 6)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "clock.arrow.circlepath")
-                Text(text("应剩计算策略", "Pace rule"))
-                Spacer(minLength: 6)
-                Text(quotaPacingStrategyLabel(store.quotaPacingStrategy))
-                    .foregroundStyle(.secondary)
-            }
-            .font(.system(size: metrics.caption, weight: .semibold))
         }
     }
 
     private var statusBarAdvancedOptions: some View {
-        DisclosureGroup(isExpanded: $store.statusBarAdvancedOptionsExpanded) {
+        collapsibleSection(
+            isExpanded: $store.statusBarAdvancedOptionsExpanded,
+            systemImage: "wrench.adjustable",
+            title: text("状态栏高级", "Menu bar advanced")
+        ) {
             VStack(alignment: .leading, spacing: 8) {
                 settingRow(title: text("分隔符", "Separator")) {
                     Picker(text("分隔符", "Separator"), selection: $store.statusBarSeparator) {
@@ -451,13 +450,6 @@ struct DashboardMenuView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
             }
-            .padding(.top, 6)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "wrench.adjustable")
-                Text(text("状态栏高级", "Menu bar advanced"))
-            }
-            .font(.system(size: metrics.caption, weight: .semibold))
         }
     }
 
@@ -599,6 +591,50 @@ struct DashboardMenuView: View {
             content()
                 .font(.system(size: metrics.label))
                 .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func collapsibleSection<Content: View>(
+        isExpanded: Binding<Bool>,
+        systemImage: String,
+        title: String,
+        trailing: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    isExpanded.wrappedValue.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: metrics.caption, weight: .semibold))
+                        .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
+                        .foregroundStyle(.secondary)
+                    Image(systemName: systemImage)
+                    Text(title)
+                    Spacer(minLength: 6)
+                    if let trailing {
+                        Text(trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.system(size: metrics.caption, weight: .semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 3)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(title)
+            .accessibilityLabel(title)
+            .accessibilityValue(isExpanded.wrappedValue ? text("已展开", "Expanded") : text("已折叠", "Collapsed"))
+            .accessibilityHint(text("点击展开或收起", "Click to expand or collapse"))
+
+            if isExpanded.wrappedValue {
+                content()
+                    .padding(.top, 6)
+            }
         }
     }
 
