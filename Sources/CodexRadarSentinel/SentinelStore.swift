@@ -141,8 +141,6 @@ final class SentinelStore: NSObject, ObservableObject {
 
     @Published private(set) var updatePhase: AppUpdatePhase = .idle
     @Published private(set) var latestUpdate: AppUpdateInfo?
-    @Published private(set) var githubStars: Int?
-    @Published private(set) var githubStarsLastUpdatedAt: Date?
 
     @Published var launchAtLoginEnabled: Bool {
         didSet {
@@ -183,31 +181,25 @@ final class SentinelStore: NSObject, ObservableObject {
     private let radarClient: CodexRadarClient
     private let appServerClient: CodexAppServerClient
     private let appUpdater: AppUpdater
-    private let githubRepositoryClient: GitHubRepositoryClient
     private let notificationPolicy = NotificationPolicy()
     private var notificationMemory: NotificationMemory
     private var pollingTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
     private var updateTask: Task<Void, Never>?
-    private var githubStarsTask: Task<Void, Never>?
     private var automaticUpdateTask: Task<Void, Never>?
     private var emphasizedSpeedAlertKey: String?
     private var speedAlertFirstSeenAt: Date?
-    private var githubStarsFetchInFlight = false
-    private var githubStarsLastAttemptAt: Date?
 
     init(
         defaults: UserDefaults = .standard,
         radarClient: CodexRadarClient = CodexRadarClient(),
         appServerClient: CodexAppServerClient = CodexAppServerClient(),
-        appUpdater: AppUpdater = AppUpdater(),
-        githubRepositoryClient: GitHubRepositoryClient = GitHubRepositoryClient()
+        appUpdater: AppUpdater = AppUpdater()
     ) {
         self.defaults = defaults
         self.radarClient = radarClient
         self.appServerClient = appServerClient
         self.appUpdater = appUpdater
-        self.githubRepositoryClient = githubRepositoryClient
         let rawLanguage = defaults.string(forKey: DefaultsKey.appLanguage)
         self.appLanguage = rawLanguage.flatMap(AppLanguage.init(rawValue:)) ?? .zhHans
         let rawTextSize = defaults.string(forKey: DefaultsKey.menuTextSize)
@@ -325,7 +317,6 @@ final class SentinelStore: NSObject, ObservableObject {
         pollingTask?.cancel()
         refreshTask?.cancel()
         updateTask?.cancel()
-        githubStarsTask?.cancel()
         automaticUpdateTask?.cancel()
         Task {
             await appServerClient.shutdown()
@@ -337,7 +328,6 @@ final class SentinelStore: NSObject, ObservableObject {
         refreshTask = Task { [weak self] in
             await self?.refresh()
         }
-        refreshGitHubStarsIfNeeded(force: true)
     }
 
     func openCodexRadar() {
@@ -387,8 +377,6 @@ final class SentinelStore: NSObject, ObservableObject {
         iqNotificationsEnabled = true
         notificationSoundEnabled = false
         updatePhase = .upToDate(Date())
-        githubStars = 10
-        githubStarsLastUpdatedAt = Self.documentationUpdatedAt
 
         var documentationState = DashboardPreviewFactory.state(
             for: .resetConfirmed,
@@ -550,39 +538,6 @@ final class SentinelStore: NSObject, ObservableObject {
         saveNotificationMemory()
         state = next
         deliver(events)
-        refreshGitHubStarsIfNeeded()
-    }
-
-    private func refreshGitHubStarsIfNeeded(force: Bool = false) {
-        guard !githubStarsFetchInFlight else {
-            return
-        }
-        if !force, let lastAttempt = githubStarsLastAttemptAt {
-            let elapsed = Date().timeIntervalSince(lastAttempt)
-            guard elapsed >= AppConstants.githubStarRefreshIntervalSeconds else {
-                return
-            }
-        }
-        githubStarsFetchInFlight = true
-        githubStarsLastAttemptAt = Date()
-        githubStarsTask = Task { [weak self] in
-            await self?.refreshGitHubStars()
-        }
-    }
-
-    private func refreshGitHubStars() async {
-        defer {
-            githubStarsFetchInFlight = false
-        }
-        do {
-            let stats = try await githubRepositoryClient.fetchStats()
-            githubStars = stats.stargazersCount
-            githubStarsLastUpdatedAt = Date()
-        } catch is CancellationError {
-            return
-        } catch {
-            return
-        }
     }
 
     private func fetchCurrentResult() async -> Result<RadarCurrent, Error> {

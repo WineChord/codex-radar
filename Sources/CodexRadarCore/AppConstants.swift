@@ -4,7 +4,7 @@ public enum AppConstants {
     public static let appName = "Codex Radar Sentinel"
     public static let clientName = "codex-radar-sentinel"
     public static let bundleIdentifier = "com.codexradar.sentinel"
-    public static let appVersion = "0.1.24"
+    public static let appVersion = "0.1.25"
 
     public static let codexLimitID = "codex"
     public static let weeklyWindowMinutes = 10_080.0
@@ -21,7 +21,6 @@ public enum AppConstants {
     public static let speedAlertEmphasisSeconds: TimeInterval = 1_800
     public static let initialUpdateCheckDelaySeconds: UInt64 = 5
     public static let updateCheckIntervalSeconds: UInt64 = 21_600
-    public static let githubStarRefreshIntervalSeconds: TimeInterval = 21_600
     public static let failedInstallerRetryDelaySeconds: TimeInterval = 21_600
 
     public static let codexRadarBaseURL = URL(string: "https://codexradar.com")!
@@ -32,7 +31,6 @@ public enum AppConstants {
     public static let codexPathEnvironmentKey = "CODEX_RADAR_CODEX_PATH"
     public static let debugPreviewEnvironmentKey = "CODEX_RADAR_PREVIEW"
     public static let githubRepositoryURL = URL(string: "https://github.com/WineChord/codex-radar")!
-    public static let githubRepositoryAPIURL = URL(string: "https://api.github.com/repos/WineChord/codex-radar")!
     public static let githubPromptLogURL = URL(string: "https://github.com/WineChord/codex-radar/blob/main/PROMPTS.md")!
     public static let githubReleasesURL = URL(string: "https://github.com/WineChord/codex-radar/releases")!
     public static let githubLatestReleaseURL = URL(string: "https://github.com/WineChord/codex-radar/releases/latest")!

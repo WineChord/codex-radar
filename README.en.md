@@ -9,13 +9,13 @@ Full credit to [CodexRadar](https://codexradar.com/): this project depends on Co
 ## News
 
 <details>
-<summary><strong>v0.1.24: GitHub star count</strong> - The bottom GitHub entry now shows the public repository star count.</summary>
+<summary><strong>v0.1.25: GitHub label restored</strong> - Star count is no longer shown; the bottom button is back to GitHub.</summary>
 
-<img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel GitHub star entry screenshot">
+<img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel GitHub entry screenshot">
 
-- The update section says `GitHub ★10` while the button itself uses a star icon plus the count to save space.
-- The count comes from public GitHub repository metadata. No auth is needed, and the app never auto-stars.
-- Clicking the button only opens the repository page; star manually on GitHub if the project helps.
+- The update section and bottom toolbar both show `GitHub`; no star count is displayed.
+- The app no longer fetches GitHub repository metadata, removing one background network request.
+- Clicking the button only opens the repository page.
 
 </details>
 
@@ -199,14 +199,14 @@ Automatic updates are on by default. The app checks once 5 seconds after launch,
 
 If download, verification, or installation fails, the app keeps the current version running and shows the failure in the menu. The installer also backs up the old app first; if replacement fails, it restores and reopens the old app. Automatic updates pause short-term retries for the same failed version, while manual `Check` can retry immediately.
 
-The bottom toolbar always includes `Refresh`, `Radar`, `Codex`, a GitHub entry with a star icon plus the count, and `Quit`, so common jumps do not require scrolling.
+The bottom toolbar always includes `Refresh`, `Radar`, `Codex`, `GitHub`, and `Quit`, so common jumps do not require scrolling.
 
 The update section also includes:
 
 - `Check`: manually checks and installs a newer release.
 - `Changelog`: opens the latest release notes.
 - `Prompts`: opens the open-source prompt log.
-- Star button: shows the public star count and opens the repository page; it never auto-stars.
+- `GitHub`: opens the repository page.
 
 Turn off `Auto update` in the dropdown if you prefer manual updates only.
 
@@ -240,7 +240,6 @@ Codex Radar Sentinel reads these public endpoints:
 - [CodexRadar homepage](https://codexradar.com/)
 - [current.json](https://codexradar.com/current.json): speed-window, reset, Prediction, and model IQ data.
 - [feed.xml](https://codexradar.com/feed.xml)
-- [GitHub public repository metadata](https://api.github.com/repos/WineChord/codex-radar): public star count only.
 
 For local quota, it reads the Codex app-server:
 
@@ -288,7 +287,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.24
+./scripts/check_release_readiness.sh 0.1.25
 ```
 
 Build release packages:
@@ -296,7 +295,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.24
+./scripts/package_release.sh 0.1.25
 ```
 
 Update README menu bar and menu screenshots:

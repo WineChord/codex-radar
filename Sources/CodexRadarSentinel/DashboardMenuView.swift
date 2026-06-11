@@ -469,10 +469,6 @@ struct DashboardMenuView: View {
                 .font(.system(size: metrics.caption))
                 .foregroundStyle(updateStatusColor)
                 .lineLimit(2)
-            Text(githubStarSupportText)
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
             HStack(spacing: Layout.tileSpacing) {
                 compactActionButton(title: text("检查更新", "Check"), systemImage: "arrow.clockwise") {
                     store.checkForUpdatesNow()
@@ -488,9 +484,9 @@ struct DashboardMenuView: View {
                     store.openPromptLog()
                 }
                 compactActionButton(
-                    title: githubStarUpdateButtonTitle,
-                    systemImage: "star.fill",
-                    help: githubStarHelpText
+                    title: "GitHub",
+                    systemImage: "star",
+                    help: text("打开 GitHub 仓库", "Open the GitHub repo")
                 ) {
                     store.openGitHubRepository()
                 }
@@ -529,7 +525,7 @@ struct DashboardMenuView: View {
             toolbarButton(title: "Codex", systemImage: "terminal") {
                 store.openCodexApp()
             }
-            toolbarButton(title: githubStarToolbarTitle, systemImage: "star.fill") {
+            toolbarButton(title: "GitHub", systemImage: "star") {
                 store.openGitHubRepository()
             }
             toolbarButton(title: text("退出", "Quit"), systemImage: "power") {
@@ -1146,48 +1142,4 @@ struct DashboardMenuView: View {
         }
     }
 
-    private var githubStarUpdateButtonTitle: String {
-        guard let count = store.githubStars else {
-            return "Star"
-        }
-        return compactCount(count)
-    }
-
-    private var githubStarToolbarTitle: String {
-        guard let count = store.githubStars else {
-            return "Star"
-        }
-        return compactCount(count)
-    }
-
-    private var githubStarSupportText: String {
-        if let count = store.githubStars {
-            return text(
-                "GitHub ★\(compactCount(count)) · 点击只打开仓库；觉得有用可以手动 Star。",
-                "GitHub ★\(compactCount(count)) · Opens the repo; star manually if useful."
-            )
-        }
-        return text(
-            "GitHub Star 数加载中；点击只会打开仓库，不会自动 Star。",
-            "GitHub stars are loading; the button only opens the repo and never auto-stars."
-        )
-    }
-
-    private var githubStarHelpText: String {
-        text(
-            "打开 GitHub 仓库；不会自动 Star",
-            "Open the GitHub repo; does not auto-star"
-        )
-    }
-
-    private func compactCount(_ count: Int) -> String {
-        if count < 1_000 {
-            return String(count)
-        }
-        if count < 10_000 {
-            let value = Double(count) / 1_000
-            return String(format: "%.1fk", value)
-        }
-        return "\(count / 1_000)k"
-    }
 }
