@@ -17,10 +17,85 @@ We also open-sourced the product prompts behind this app: [Prompt Log](PROMPTS.m
 
 <img src="docs/assets/en/news-pacing.png" width="390" alt="Codex Radar Sentinel pace strategy screenshot">
 
+- `Pace rule` and `Menu bar advanced` headers are now full-row buttons.
+- The chevron is only a visual hint; the title, icon, and trailing status are clickable too.
+- This makes frequent menu-bar checks less fiddly on high-resolution displays.
+
+</details>
+
+<details>
+<summary><strong>v0.1.22: Strategy cards switch directly</strong> - No unreliable menu picker inside the menu bar panel.</summary>
+
 - `Pace` compares target remaining with actual weekly quota remaining, then tells you whether there is room to spend more or slow down.
-- New rules: `Time`, `Daily`, `Reserve`, `Workdays`, and `Front-load`.
-- `Pace rule` and `Menu bar advanced` stay collapsed by default. The whole header row now expands or collapses.
-- After expanding `Pace rule`, click any rule card to switch and see its formula, refresh granularity, and best-use explanation.
+- After expanding `Pace rule`, click any strategy explanation card to switch.
+- The active strategy is highlighted and marked `Current`, so the selected rule is always visible.
+
+</details>
+
+<details>
+<summary><strong>v0.1.21: Multiple pacing strategies</strong> - Plan weekly quota around different working styles.</summary>
+
+<img src="docs/assets/en/news-pacing.png" width="390" alt="Codex Radar Sentinel usage pace screenshot">
+
+- Added `Time`, `Daily`, `Reserve`, `Workdays`, and `Front-load`.
+- Each rule explains its formula, refresh granularity, and best-use case.
+- The optional `Pace` menu-bar segment can show target remaining directly, such as `R80%`.
+
+</details>
+
+<details>
+<summary><strong>v0.1.19: Pace became target remaining</strong> - “How much should be left now” is easier than “how much should be used”.</summary>
+
+- The pace section now explains `Target left`, `Actual left`, and `Can spend`.
+- If target remaining is 80% and actual remaining is 90%, the app says there is room to spend more.
+- This better matches how people manage a weekly quota without mental reverse math.
+
+</details>
+
+<details>
+<summary><strong>v0.1.17: Advanced menu-bar compaction</strong> - Save status-bar space without losing readability.</summary>
+
+<p>
+  <img src="docs/assets/en/status-normal.png" height="30" alt="Normal status">
+  <img src="docs/assets/en/status-custom.png" height="30" alt="Custom status">
+</p>
+
+- Tune separator, side padding, and font scale.
+- Show IQ as raw, `/10` integer, or `/10` decimal.
+- Hide `%` or keep only the segments that matter to you.
+
+</details>
+
+<details>
+<summary><strong>v0.1.11: Optional 5h short-window segment</strong> - Weekly quota is not the only limit worth watching.</summary>
+
+- `5h` is off by default and can be enabled manually.
+- When enabled, the title can look like `96%/99%/62/low`; the second percentage is the short window.
+- Useful when weekly quota is fine but the short window is the real blocker.
+
+</details>
+
+<details>
+<summary><strong>v0.1.4: Automatic updates</strong> - Download, verify, replace, and reopen from GitHub Releases.</summary>
+
+- Auto update is on by default: first check after launch, then every 6 hours.
+- Release ZIPs are verified by SHA256 before replacing the app bundle.
+- Failed updates keep the current app running and pause short-term automatic retries for that same version.
+
+</details>
+
+<details>
+<summary><strong>v0.1.0: First menu-bar dashboard</strong> - CodexRadar public signals plus local Codex quota in one macOS status item.</summary>
+
+<p>
+  <img src="docs/assets/en/status-normal.png" height="30" alt="Normal status">
+  <img src="docs/assets/en/status-speed.png" height="30" alt="Speed status">
+  <img src="docs/assets/en/status-limit.png" height="30" alt="Limit status">
+</p>
+
+- Always-on weekly quota, Codex IQ, and CodexRadar signal.
+- Red menu-bar emphasis and macOS notification when a speed window opens.
+- Reset events, prediction, IQ, and local quota status in one dropdown.
 
 </details>
 

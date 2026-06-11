@@ -17,10 +17,85 @@
 
 <img src="docs/assets/zh/news-pacing.png" width="390" alt="Codex Radar Sentinel 应剩策略截图">
 
+- `应剩计算策略` 和 `状态栏高级` 的标题行都变成整行按钮。
+- 左侧箭头只是视觉提示，实际可以点标题文字、图标、右侧状态。
+- 这类小交互降低了菜单栏工具的操作精度要求，尤其适合高频点开查看。
+
+</details>
+
+<details>
+<summary><strong>v0.1.22：策略卡片可直接切换</strong> - 不再依赖菜单栏弹窗里不稳定的下拉选择器。</summary>
+
 - `应剩` 会把建议剩余和实际剩余放在一起看，直接告诉你还能多用还是该放慢。
+- 展开 `应剩计算策略` 后，点击任一策略说明卡片即可切换。
+- 当前策略会有蓝色高亮和 `当前` 标记，不需要猜当前选中了什么。
+
+</details>
+
+<details>
+<summary><strong>v0.1.21：多种应剩策略</strong> - 按不同工作习惯规划周额度节奏。</summary>
+
+<img src="docs/assets/zh/news-pacing.png" width="390" alt="Codex Radar Sentinel 用量节奏截图">
+
 - 新增 `按时间`、`每日`、`留余`、`工作日`、`先用` 五种策略。
-- `应剩计算策略` 和 `状态栏高级` 默认折叠；现在点击整行标题都能展开或收起。
-- 策略展开后点击任一策略卡片即可切换，并能看到公式、刷新粒度和适用场景。
+- 每种策略都解释公式、刷新粒度和适用场景。
+- 可选把 `应剩` 放进状态栏，例如用 `应80%` 提醒现在理想剩余。
+
+</details>
+
+<details>
+<summary><strong>v0.1.19：应剩改成建议剩余</strong> - 看“现在应该还剩多少”，比看“应该用掉多少”更直观。</summary>
+
+- 用 `建议剩余 / 实际剩余 / 可多用` 三个卡片解释当前节奏。
+- 例如建议应剩 80%、实际还剩 90%，就直接提示可以多用一点。
+- 这个表达更适合控制周额度节奏，不需要用户自己反向换算。
+
+</details>
+
+<details>
+<summary><strong>v0.1.17：状态栏高级压缩</strong> - 在不牺牲可读性的前提下减少菜单栏占位。</summary>
+
+<p>
+  <img src="docs/assets/zh/status-normal.png" height="30" alt="正常状态">
+  <img src="docs/assets/zh/status-custom.png" height="30" alt="自定义状态">
+</p>
+
+- 可调分隔符、左右留白、字体比例。
+- IQ 可以选择原值、`/10` 整数或 `/10` 小数。
+- 可以隐藏 `%`，也可以只保留自己关心的状态栏段。
+
+</details>
+
+<details>
+<summary><strong>v0.1.11：5h 短窗可选显示</strong> - 除了周额度，也能把短窗额度放进状态栏。</summary>
+
+- `5h` 默认关闭，需要时可以手动打开。
+- 打开后状态栏可以类似 `96%/99%/62/低`，第二个百分比就是短窗。
+- 适合排查“周额度还很多，但短窗先触顶”的情况。
+
+</details>
+
+<details>
+<summary><strong>v0.1.4：自动更新</strong> - 新版本可以静默下载、校验、替换并重开。</summary>
+
+- 默认开启自动更新，启动后会检查 GitHub Release，之后每 6 小时检查一次。
+- 下载后校验 SHA256，再替换 app bundle。
+- 如果更新失败，会保留当前版本并短期暂停同版本自动重试，避免循环重启。
+
+</details>
+
+<details>
+<summary><strong>v0.1.0：第一版菜单栏仪表盘</strong> - 把 CodexRadar 公开信号和本机 Codex 额度合到一个 macOS 状态栏工具。</summary>
+
+<p>
+  <img src="docs/assets/zh/status-normal.png" height="30" alt="正常状态">
+  <img src="docs/assets/zh/status-speed.png" height="30" alt="速蹬状态">
+  <img src="docs/assets/zh/status-limit.png" height="30" alt="限额状态">
+</p>
+
+- 常驻显示周额度、Codex IQ 和 CodexRadar 信号。
+- 速蹬窗口开启时状态栏变红，并发送 macOS 通知。
+- reset 事件、预测、IQ、额度状态都在同一个下拉菜单里看。
 
 </details>
 
