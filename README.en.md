@@ -4,10 +4,6 @@
 
 Full credit to [CodexRadar](https://codexradar.com/): this project depends on CodexRadar's public signals for Codex speed windows, resets, reset prediction, RSS events, and model IQ. Codex Radar Sentinel is a local macOS menu bar app that brings those public CodexRadar signals together with the user's local Codex quota state.
 
-## Prompt Log
-
-We also open-sourced the product prompts behind this app: [Prompt Log](PROMPTS.md). It preserves the user's product requests and UI feedback while removing timestamps, local paths, screenshot cache paths, and security-sensitive environment details.
-
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
 ## News

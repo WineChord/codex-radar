@@ -4,10 +4,6 @@
 
 首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目依赖 CodexRadar 提供的公开信号，包括 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，把 CodexRadar 的公开信号与本机 Codex 额度状态整合到状态栏里。
 
-## Prompt 也开源了
-
-为了把这个小工具的诞生过程也开源出来，我们整理了从想法、吐槽、截图反馈到发布验证的用户 prompt：[Prompt Log](PROMPTS.md)。里面只保留产品需求和反馈，已隐去时间戳、本地路径、截图缓存路径和安全敏感信息，算是博大家一个开心。
-
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
