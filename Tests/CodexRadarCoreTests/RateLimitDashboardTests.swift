@@ -74,6 +74,38 @@ final class RateLimitDashboardTests: XCTestCase {
         XCTAssertEqual(StatusBarIQDisplayMode.dividedBy10Integer.format(62.5, preciseRaw: false), "6")
         XCTAssertEqual(StatusBarIQDisplayMode.dividedBy10Decimal.format(62.5, preciseRaw: false), "6.3")
     }
+
+    func testTimeProportionalQuotaPacingUsesElapsedResetWindow() throws {
+        let response = try JSONDecoder().decode(RateLimitResponse.self, from: sampleRateLimitData)
+        let dashboard = RateLimitDashboard(response: response)
+        let resetAt = 1_781_140_743
+        let windowSeconds = 10_080 * 60
+        let halfway = Date(timeIntervalSince1970: TimeInterval(resetAt - windowSeconds / 2))
+
+        let pacing = try XCTUnwrap(dashboard.quotaPacing(strategy: .timeProportional, now: halfway))
+
+        XCTAssertEqual(pacing.roundedTargetUsedPercent, 50)
+        XCTAssertEqual(pacing.roundedCurrentUsedPercent, 2)
+        XCTAssertEqual(pacing.roundedDeltaToTargetPercent, 48)
+        XCTAssertEqual(pacing.roundedElapsedWindowPercent, 50)
+        XCTAssertEqual(pacing.status, .underTarget)
+    }
+
+    func testSevenDayQuotaPacingStepsByElapsedDay() throws {
+        let response = try JSONDecoder().decode(RateLimitResponse.self, from: sampleRateLimitData)
+        let dashboard = RateLimitDashboard(response: response)
+        let resetAt = 1_781_140_743
+        let windowSeconds = 10_080 * 60
+        let startAt = resetAt - windowSeconds
+        let thirdDay = Date(timeIntervalSince1970: TimeInterval(startAt + 2 * 86_400 + 1))
+
+        let pacing = try XCTUnwrap(dashboard.quotaPacing(strategy: .sevenDay, now: thirdDay))
+
+        XCTAssertEqual(pacing.roundedTargetUsedPercent, 43)
+        XCTAssertEqual(pacing.roundedCurrentUsedPercent, 2)
+        XCTAssertEqual(pacing.roundedDeltaToTargetPercent, 41)
+        XCTAssertEqual(pacing.status, .underTarget)
+    }
 }
 
 private let sampleRateLimitData = Data("""

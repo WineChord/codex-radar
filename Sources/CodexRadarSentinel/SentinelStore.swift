@@ -73,6 +73,13 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var quotaPacingStrategy: QuotaPacingStrategy {
+        didSet {
+            defaults.set(quotaPacingStrategy.rawValue, forKey: DefaultsKey.quotaPacingStrategy)
+            updateTitleForStatusItem()
+        }
+    }
+
     @Published private(set) var selectedStatusMetrics: [StatusMetric] {
         didSet {
             defaults.set(selectedStatusMetrics.map(\.rawValue), forKey: DefaultsKey.selectedStatusMetrics)
@@ -146,6 +153,7 @@ final class SentinelStore: NSObject, ObservableObject {
         static let statusBarSeparator = "statusBarSeparator"
         static let statusBarHorizontalPadding = "statusBarHorizontalPadding"
         static let statusBarFontScale = "statusBarFontScale"
+        static let quotaPacingStrategy = "quotaPacingStrategy"
         static let selectedStatusMetrics = "selectedStatusMetrics"
         static let predictionNotificationsEnabled = "predictionNotificationsEnabled"
         static let iqNotificationsEnabled = "iqNotificationsEnabled"
@@ -201,6 +209,8 @@ final class SentinelStore: NSObject, ObservableObject {
             .flatMap(StatusBarHorizontalPadding.init(rawValue:)) ?? .system
         self.statusBarFontScale = defaults.string(forKey: DefaultsKey.statusBarFontScale)
             .flatMap(StatusBarFontScale.init(rawValue:)) ?? .normal
+        self.quotaPacingStrategy = defaults.string(forKey: DefaultsKey.quotaPacingStrategy)
+            .flatMap(QuotaPacingStrategy.init(rawValue:)) ?? .timeProportional
         self.selectedStatusMetrics = Self.loadSelectedStatusMetrics(defaults: defaults)
         let rawPreview = ProcessInfo.processInfo.environment[AppConstants.debugPreviewEnvironmentKey]
         self.debugPreview = rawPreview.flatMap(DashboardPreview.init(rawValue:)) ?? .live
@@ -225,7 +235,8 @@ final class SentinelStore: NSObject, ObservableObject {
             percentDisplayMode: statusBarPercentDisplayMode,
             separator: statusBarSeparator,
             horizontalPadding: statusBarHorizontalPadding,
-            fontScale: statusBarFontScale
+            fontScale: statusBarFontScale,
+            quotaPacingStrategy: quotaPacingStrategy
         )
     }
 
@@ -349,6 +360,7 @@ final class SentinelStore: NSObject, ObservableObject {
         appLanguage = language
         menuTextSize = .large
         resetStatusBarAdvancedOptions()
+        quotaPacingStrategy = .timeProportional
         statusBarAdvancedOptionsExpanded = false
         selectedStatusMetrics = Self.defaultStatusMetrics
         debugPreview = .live

@@ -51,6 +51,12 @@ def write_defaults(language, metrics):
     run(["defaults", "write", BUNDLE_ID, "appLanguage", "-string", language])
     run(["defaults", "write", BUNDLE_ID, "menuTextSize", "-string", "large"])
     run(["defaults", "write", BUNDLE_ID, "statusBarPreciseIQEnabled", "-bool", "false"])
+    run(["defaults", "write", BUNDLE_ID, "statusBarIQDisplayMode", "-string", "raw"])
+    run(["defaults", "write", BUNDLE_ID, "statusBarPercentDisplayMode", "-string", "symbol"])
+    run(["defaults", "write", BUNDLE_ID, "statusBarSeparator", "-string", "slash"])
+    run(["defaults", "write", BUNDLE_ID, "statusBarHorizontalPadding", "-string", "system"])
+    run(["defaults", "write", BUNDLE_ID, "statusBarFontScale", "-string", "normal"])
+    run(["defaults", "write", BUNDLE_ID, "quotaPacingStrategy", "-string", "timeProportional"])
     run(["defaults", "write", BUNDLE_ID, "selectedStatusMetrics", "-array", *metrics])
 
 

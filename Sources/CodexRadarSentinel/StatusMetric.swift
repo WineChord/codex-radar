@@ -4,6 +4,7 @@ import Foundation
 enum StatusMetric: String, CaseIterable, Identifiable {
     case weeklyQuota
     case shortQuota
+    case quotaPace
     case codexIQ
     case signal
 
@@ -17,6 +18,8 @@ enum StatusMetric: String, CaseIterable, Identifiable {
             return language.text("周额度", "Weekly")
         case .shortQuota:
             return "5h"
+        case .quotaPace:
+            return language.text("节奏", "Pace")
         case .codexIQ:
             return "IQ"
         case .signal:
@@ -24,12 +27,21 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         }
     }
 
-    func value(for state: DashboardState, language: AppLanguage) -> String {
+    func value(
+        for state: DashboardState,
+        language: AppLanguage,
+        pacingStrategy: QuotaPacingStrategy = .timeProportional
+    ) -> String {
         switch self {
         case .weeklyQuota:
             return DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)
         case .shortQuota:
             return DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent)
+        case .quotaPace:
+            guard let pacing = state.rateLimits?.quotaPacing(strategy: pacingStrategy) else {
+                return "-"
+            }
+            return DisplayFormatters.percent(pacing.roundedTargetUsedPercent)
         case .codexIQ:
             return DisplayFormatters.iqScore(state.modelIQ?.latest?.iqScore)
         case .signal:
@@ -53,13 +65,22 @@ enum StatusMetric: String, CaseIterable, Identifiable {
                 state.rateLimits?.shortRemainingPercent,
                 includesSymbol: options.percentDisplayMode.includesSymbol
             )
+        case .quotaPace:
+            guard let pacing = state.rateLimits?.quotaPacing(strategy: options.quotaPacingStrategy) else {
+                return "-"
+            }
+            let target = DisplayFormatters.percent(
+                pacing.roundedTargetUsedPercent,
+                includesSymbol: options.percentDisplayMode.includesSymbol
+            )
+            return language.text("用\(target)", "T\(target)")
         case .codexIQ:
             return options.iqDisplayMode.format(
                 state.modelIQ?.latest?.iqScore,
                 preciseRaw: options.preciseIQ
             )
         default:
-            return value(for: state, language: language)
+            return value(for: state, language: language, pacingStrategy: options.quotaPacingStrategy)
         }
     }
 

@@ -71,6 +71,7 @@ struct DashboardMenuView: View {
             statusLegend
             Divider()
             quotaSection
+            quotaPacingSection
             Divider()
             radarSection
             predictionSection
@@ -155,15 +156,24 @@ struct DashboardMenuView: View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("状态栏含义", "Menu Bar"), systemImage: "menubar.rectangle")
             Text(text(
-                "默认显示“周额度 / IQ / 信号”；可打开 5h 短窗。",
-                "Default: Weekly / IQ / Signal; enable 5h for the short window."
+                "默认显示“周额度 / IQ / 信号”；可打开 5h 和节奏。",
+                "Default: Weekly / IQ / Signal; enable 5h and Pace when useful."
             ))
             .font(.system(size: metrics.caption))
             .foregroundStyle(.secondary)
             .lineLimit(2)
-            HStack(spacing: Layout.tileSpacing) {
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: Layout.tileSpacing),
+                    GridItem(.flexible(), spacing: Layout.tileSpacing),
+                    GridItem(.flexible(), spacing: Layout.tileSpacing),
+                ],
+                alignment: .leading,
+                spacing: Layout.tileSpacing
+            ) {
                 legendTile(metric: .weeklyQuota, color: quotaColor)
                 legendTile(metric: .shortQuota, color: shortQuotaColor)
+                legendTile(metric: .quotaPace, color: quotaPaceColor)
                 legendTile(metric: .codexIQ, color: iqColor)
                 legendTile(metric: .signal, color: signalColor)
             }
@@ -189,6 +199,46 @@ struct DashboardMenuView: View {
                 Text("\(text("套餐", "Plan")) \(planType)")
                     .font(.system(size: metrics.caption))
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var quotaPacingSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            sectionTitle(text("用量节奏", "Usage Pace"), systemImage: "chart.xyaxis.line")
+            if let pacing = state.rateLimits?.quotaPacing(strategy: store.quotaPacingStrategy) {
+                HStack(spacing: Layout.tileSpacing) {
+                    pacingTile(
+                        title: text("建议已用", "Target used"),
+                        value: DisplayFormatters.percent(pacing.roundedTargetUsedPercent),
+                        detail: quotaPacingStrategyLabel(pacing.strategy),
+                        color: quotaPaceColor
+                    )
+                    pacingTile(
+                        title: text("当前已用", "Current used"),
+                        value: DisplayFormatters.percent(pacing.roundedCurrentUsedPercent),
+                        detail: text("周额度窗口", "weekly window"),
+                        color: .primary
+                    )
+                    pacingTile(
+                        title: text("节奏差", "Pace delta"),
+                        value: quotaPacingDeltaValue(pacing),
+                        detail: quotaPacingDeltaDetail(pacing),
+                        color: quotaPaceColor
+                    )
+                }
+                Text(quotaPacingExplanation(pacing))
+                    .font(.system(size: metrics.caption))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            } else {
+                Text(text(
+                    "还没有读取到周额度 reset 时间，暂时无法计算建议用量。",
+                    "Weekly reset timing is not loaded yet, so the suggested usage target is unavailable."
+                ))
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
             }
         }
     }
@@ -282,11 +332,28 @@ struct DashboardMenuView: View {
                 Text(text("状态栏显示", "Menu bar segments"))
                     .font(.system(size: metrics.caption, weight: .medium))
                     .foregroundStyle(.secondary)
-                HStack(spacing: Layout.tileSpacing) {
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: Layout.tileSpacing),
+                        GridItem(.flexible(), spacing: Layout.tileSpacing),
+                        GridItem(.flexible(), spacing: Layout.tileSpacing),
+                    ],
+                    alignment: .leading,
+                    spacing: 7
+                ) {
                     metricToggle(.weeklyQuota)
                     metricToggle(.shortQuota)
+                    metricToggle(.quotaPace)
                     metricToggle(.codexIQ)
                     metricToggle(.signal)
+                }
+                settingRow(title: text("节奏策略", "Pace rule")) {
+                    Picker(text("节奏策略", "Pace rule"), selection: $store.quotaPacingStrategy) {
+                        ForEach(QuotaPacingStrategy.allCases) { strategy in
+                            Text(quotaPacingStrategyLabel(strategy)).tag(strategy)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
                 Toggle(
                     text("状态栏 IQ 小数", "Decimal IQ in menu bar"),
@@ -535,7 +602,7 @@ struct DashboardMenuView: View {
             Text(metric.label(language: language))
                 .font(.system(size: metrics.caption, weight: .medium))
                 .foregroundStyle(.secondary)
-            Text(metric.value(for: state, language: language))
+            Text(metric.value(for: state, language: language, pacingStrategy: store.quotaPacingStrategy))
                 .font(.system(size: metrics.badge, weight: .semibold, design: .monospaced))
                 .foregroundStyle(color)
                 .lineLimit(1)
@@ -567,6 +634,30 @@ struct DashboardMenuView: View {
         .foregroundStyle(isEnabled ? Color.accentColor : Color.secondary)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
         .help(metric.label(language: language))
+    }
+
+    private func pacingTile(title: String, value: String, detail: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+            Text(value)
+                .font(.system(size: metrics.badge, weight: .semibold, design: .monospaced))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(detail)
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func quotaTile(title: String, value: String, resetAt: Int?) -> some View {
@@ -637,6 +728,56 @@ struct DashboardMenuView: View {
             return text("/10 整数", "/10 int")
         case .dividedBy10Decimal:
             return text("/10 小数", "/10 dec")
+        }
+    }
+
+    private func quotaPacingStrategyLabel(_ strategy: QuotaPacingStrategy) -> String {
+        switch strategy {
+        case .timeProportional:
+            return text("按时间", "Time")
+        case .sevenDay:
+            return text("7 天均分", "7-day")
+        }
+    }
+
+    private func quotaPacingDeltaValue(_ pacing: QuotaPacingSnapshot) -> String {
+        let delta = pacing.roundedDeltaToTargetPercent
+        if delta > 0 {
+            return "+\(delta)%"
+        }
+        if delta < 0 {
+            return "\(delta)%"
+        }
+        return "0%"
+    }
+
+    private func quotaPacingDeltaDetail(_ pacing: QuotaPacingSnapshot) -> String {
+        let delta = pacing.roundedDeltaToTargetPercent
+        if delta >= 3 {
+            return text("还可多用", "room left")
+        }
+        if delta <= -3 {
+            return text("已超前", "ahead")
+        }
+        return text("接近节奏", "on pace")
+    }
+
+    private func quotaPacingExplanation(_ pacing: QuotaPacingSnapshot) -> String {
+        let prefix = text(
+            "窗口已过 \(pacing.roundedElapsedWindowPercent)%",
+            "\(pacing.roundedElapsedWindowPercent)% of the window has elapsed"
+        )
+        switch pacing.strategy {
+        case .timeProportional:
+            return text(
+                "\(prefix)：按上次 reset 到下次 reset 的时间比例，建议现在已用到 \(pacing.roundedTargetUsedPercent)%。",
+                "\(prefix): target \(pacing.roundedTargetUsedPercent)% used based on elapsed time between resets."
+            )
+        case .sevenDay:
+            return text(
+                "\(prefix)：按 7 天均分，跨入新一天后提高当日建议已用。",
+                "\(prefix): the target steps up by day across a 7-day window."
+            )
         }
     }
 
@@ -733,6 +874,20 @@ struct DashboardMenuView: View {
             return .orange
         }
         return .green
+    }
+
+    private var quotaPaceColor: Color {
+        guard let pacing = state.rateLimits?.quotaPacing(strategy: store.quotaPacingStrategy) else {
+            return .secondary
+        }
+        switch pacing.status {
+        case .underTarget:
+            return .green
+        case .onPace:
+            return .teal
+        case .overTarget:
+            return .orange
+        }
     }
 
     private var iqColor: Color {

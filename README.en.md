@@ -32,7 +32,10 @@ The three values are:
 - `62`: Codex IQ score. The menu bar truncates it to a whole number by default to save space; the Codex IQ section in the dropdown shows the precise value, such as `62.5`.
 - `low`: reset / speed-window signal from CodexRadar.
 
-The `Menu bar segments` setting can also enable `5h`, which adds the 5-hour short-window quota to the menu bar. It is off by default; when enabled, the title looks like `96%/99%/62/low`.
+The `Menu bar segments` setting can also enable:
+
+- `5h`: adds the 5-hour short-window quota to the menu bar. It is off by default; when enabled, the title looks like `96%/99%/62/low`.
+- `Pace`: adds the suggested weekly-quota used percentage for the current point in the reset window. It is off by default; English shows it as `T43%`.
 
 `Menu bar advanced` is collapsed by default. When expanded, it can tune the separator, side padding, font scale, IQ `/10` display, and whether `%` is kept in the menu bar. These settings only affect the menu bar title; dropdown values stay complete.
 
@@ -48,6 +51,7 @@ These screenshots are real macOS menu bar captures. The script launches the real
 
 You can choose which values appear in the menu bar. For example, if you do not care about IQ, show only `96%/low`.
 If you care about the 5-hour short window, enable `5h`; it appears as an extra percentage between weekly quota and IQ.
+If you want to pace weekly quota evenly across the reset window, enable `Pace`.
 Turn on `Decimal IQ in menu bar` if you want the menu bar itself to show the precise IQ value.
 
 ## Full Menu
@@ -60,6 +64,7 @@ This image is captured by the app itself from the real SwiftUI menu window on a 
 
 - Weekly Codex quota remaining, read from the local Codex app-server.
 - Short-window quota remaining, also from the local Codex app-server.
+- Usage pace: the suggested used percentage based on either elapsed time between resets or a 7-day daily split, so weekly quota can be spent more evenly.
 - [CodexRadar](https://codexradar.com/) current speed-window and reset status.
 - [CodexRadar](https://codexradar.com/) 24h and 48h reset prediction.
 - Codex IQ from the daily probe.
@@ -174,7 +179,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.17
+./scripts/check_release_readiness.sh 0.1.18
 ```
 
 Build release packages:
@@ -182,7 +187,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.17
+./scripts/package_release.sh 0.1.18
 ```
 
 Update README menu bar and menu screenshots:

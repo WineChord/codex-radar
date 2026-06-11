@@ -32,7 +32,10 @@
 - `62`：Codex IQ 分数。状态栏默认截断为整数以节省空间；下拉菜单里的 Codex IQ 区块会显示精确值，例如 `62.5`。
 - `低`：CodexRadar 的 reset / 速蹬信号。
 
-下拉菜单的 `状态栏显示` 里还可以手动打开 `5h`，用于把 5 小时短窗额度也放进状态栏；默认关闭，打开后会类似 `96%/99%/62/低`。
+下拉菜单的 `状态栏显示` 里还可以手动打开：
+
+- `5h`：把 5 小时短窗额度也放进状态栏；默认关闭，打开后会类似 `96%/99%/62/低`。
+- `节奏`：把“建议当前已用到多少周额度”放进状态栏；默认关闭，中文显示类似 `用43%`，英文显示类似 `T43%`。
 
 `状态栏高级` 默认收起；展开后可以调分隔符、左右留白、字体比例、IQ 是否按 `/10` 显示，以及状态栏里是否保留 `%`。这些设置只影响状态栏标题，下拉菜单里的完整数值不变。
 
@@ -48,6 +51,7 @@
 
 可以在下拉菜单里选择状态栏显示哪些值。例如不关心 IQ 时，可以只显示 `96%/低`。
 如果关心 5 小时短窗，可以手动打开 `5h`，它会作为一个额外百分比插入到周额度和 IQ 之间。
+如果想按 reset 窗口节奏均匀使用周额度，可以手动打开 `节奏`。
 如果想让状态栏也显示精确 IQ 小数，可以打开 `状态栏 IQ 小数`。
 
 ## 完整菜单界面
@@ -60,6 +64,7 @@
 
 - Codex 周额度剩余，来自本机 Codex app-server。
 - Codex 短窗额度剩余，也来自本机 Codex app-server。
+- 用量节奏：按“上次 reset 到下次 reset 的时间比例”或“7 天均分”计算当前建议已用百分比，帮助把周额度更均匀地用掉。
 - [CodexRadar](https://codexradar.com/) 当前速蹬窗口和 reset 状态。
 - [CodexRadar](https://codexradar.com/) 24h / 48h reset 预测。
 - Codex IQ 每日探针结果。
@@ -174,7 +179,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.17
+./scripts/check_release_readiness.sh 0.1.18
 ```
 
 构建 release 包：
@@ -182,7 +187,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.17
+./scripts/package_release.sh 0.1.18
 ```
 
 更新 README 状态栏和菜单截图：

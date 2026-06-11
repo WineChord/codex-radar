@@ -9,6 +9,7 @@ struct StatusBarDisplayOptions: Equatable {
     var separator: StatusBarSeparator
     var horizontalPadding: StatusBarHorizontalPadding
     var fontScale: StatusBarFontScale
+    var quotaPacingStrategy: QuotaPacingStrategy
 
     static let defaultOptions = StatusBarDisplayOptions(
         preciseIQ: false,
@@ -16,7 +17,8 @@ struct StatusBarDisplayOptions: Equatable {
         percentDisplayMode: .symbol,
         separator: .slash,
         horizontalPadding: .system,
-        fontScale: .normal
+        fontScale: .normal,
+        quotaPacingStrategy: .timeProportional
     )
 }
 

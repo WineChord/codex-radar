@@ -31,7 +31,12 @@ enum StatusTitleFormatter {
                 let color = emphasized ? NSColor.white.withAlphaComponent(0.75) : .secondaryLabelColor
                 append(options.separator.text, color: color, font: font, to: title)
             }
-            let color = emphasized ? .white : metricColor(for: metric, state: state, language: language)
+            let color = emphasized ? .white : metricColor(
+                for: metric,
+                state: state,
+                language: language,
+                options: options
+            )
             append(
                 metric.statusBarValue(for: state, language: language, options: options),
                 color: color,
@@ -70,17 +75,27 @@ enum StatusTitleFormatter {
     private static func metricColor(
         for metric: StatusMetric,
         state: DashboardState,
-        language: AppLanguage
+        language: AppLanguage,
+        options: StatusBarDisplayOptions
     ) -> NSColor {
         switch metric {
         case .weeklyQuota:
             return quotaColor(for: state, remaining: state.rateLimits?.weeklyRemainingPercent)
         case .shortQuota:
             return quotaColor(for: state, remaining: state.rateLimits?.shortRemainingPercent)
+        case .quotaPace:
+            return quotaPaceColor(for: state, strategy: options.quotaPacingStrategy)
         case .codexIQ:
             return iqColor(for: state)
         case .signal:
-            return signalColor(for: state, signal: metric.value(for: state, language: language))
+            return signalColor(
+                for: state,
+                signal: metric.value(
+                    for: state,
+                    language: language,
+                    pacingStrategy: options.quotaPacingStrategy
+                )
+            )
         }
     }
 
@@ -98,6 +113,20 @@ enum StatusTitleFormatter {
             return .systemOrange
         }
         return .systemGreen
+    }
+
+    private static func quotaPaceColor(for state: DashboardState, strategy: QuotaPacingStrategy) -> NSColor {
+        guard let pacing = state.rateLimits?.quotaPacing(strategy: strategy) else {
+            return .secondaryLabelColor
+        }
+        switch pacing.status {
+        case .underTarget:
+            return .systemGreen
+        case .onPace:
+            return .systemTeal
+        case .overTarget:
+            return .systemOrange
+        }
     }
 
     private static func iqColor(for state: DashboardState) -> NSColor {
