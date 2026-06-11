@@ -339,14 +339,7 @@ struct DashboardMenuView: View {
                     metricToggle(.codexIQ)
                     metricToggle(.signal)
                 }
-                settingRow(title: text("节奏策略", "Pace rule")) {
-                    Picker(text("节奏策略", "Pace rule"), selection: $store.quotaPacingStrategy) {
-                        ForEach(QuotaPacingStrategy.allCases) { strategy in
-                            Text(quotaPacingStrategyLabel(strategy)).tag(strategy)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
+                quotaPacingOptions
                 Toggle(
                     text("状态栏 IQ 小数", "Decimal IQ in menu bar"),
                     isOn: $store.statusBarPreciseIQEnabled
@@ -370,6 +363,40 @@ struct DashboardMenuView: View {
         }
         .toggleStyle(.checkbox)
         .font(.system(size: metrics.label))
+    }
+
+    private var quotaPacingOptions: some View {
+        DisclosureGroup(isExpanded: $store.quotaPacingOptionsExpanded) {
+            VStack(alignment: .leading, spacing: 8) {
+                settingRow(title: text("策略", "Rule")) {
+                    Picker(text("策略", "Rule"), selection: $store.quotaPacingStrategy) {
+                        ForEach(QuotaPacingStrategy.allCases) { strategy in
+                            Text(quotaPacingStrategyLabel(strategy)).tag(strategy)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                quotaPacingStrategyCard(.timeProportional)
+                quotaPacingStrategyCard(.sevenDay)
+                Text(text(
+                    "这个策略会同时影响下拉菜单里的“建议剩余”和可选状态栏段“应剩”。",
+                    "This rule affects both the Target left value in the dropdown and the optional Pace menu-bar segment."
+                ))
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            .padding(.top, 6)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "clock.arrow.circlepath")
+                Text(text("应剩计算策略", "Pace rule"))
+                Spacer(minLength: 6)
+                Text(quotaPacingStrategyLabel(store.quotaPacingStrategy))
+                    .foregroundStyle(.secondary)
+            }
+            .font(.system(size: metrics.caption, weight: .semibold))
+        }
     }
 
     private var statusBarAdvancedOptions: some View {
@@ -654,6 +681,37 @@ struct DashboardMenuView: View {
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
     }
 
+    private func quotaPacingStrategyCard(_ strategy: QuotaPacingStrategy) -> some View {
+        let selected = store.quotaPacingStrategy == strategy
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(quotaPacingStrategyLabel(strategy))
+                    .font(.system(size: metrics.caption, weight: .semibold))
+                if selected {
+                    Text(text("当前", "Current"))
+                        .font(.system(size: metrics.caption, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.accentColor, in: Capsule())
+                }
+            }
+            Text(quotaPacingStrategySummary(strategy))
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(4)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(quotaPacingStrategyBestFor(strategy))
+                .font(.system(size: metrics.caption, weight: .medium))
+                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(selected ? Color.accentColor.opacity(0.12) : Color(nsColor: .quaternaryLabelColor).opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     private func quotaTile(title: String, value: String, resetAt: Int?) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
@@ -731,6 +789,36 @@ struct DashboardMenuView: View {
             return text("按时间", "Time")
         case .sevenDay:
             return text("7 天均分", "7-day")
+        }
+    }
+
+    private func quotaPacingStrategySummary(_ strategy: QuotaPacingStrategy) -> String {
+        switch strategy {
+        case .timeProportional:
+            return text(
+                "连续按 reset 窗口时间比例计算：窗口过了 20%，建议剩余就是 80%。数据每 60 秒刷新；状态栏显示整数，所以周窗口大约 1 小时 41 分钟变化 1%。",
+                "Continuous reset-window timing: if 20% of the window elapsed, target remaining is 80%. Data refreshes every 60s; integer menu-bar display moves about every 1h 41m for a weekly window."
+            )
+        case .sevenDay:
+            return text(
+                "按天级台阶计算：把周额度分成 7 份，进入第 N 天后显示当天结束前建议剩余。它不会按小时慢慢变，而是每天推进一格。",
+                "Daily steps: split weekly quota into seven chunks. On day N, it shows the remaining target for the end of that day. It does not drift hour by hour; it steps once per day."
+            )
+        }
+    }
+
+    private func quotaPacingStrategyBestFor(_ strategy: QuotaPacingStrategy) -> String {
+        switch strategy {
+        case .timeProportional:
+            return text(
+                "适合：想让 7 天额度平滑、均匀地用完。",
+                "Best for: spending the weekly quota smoothly across the full reset window."
+            )
+        case .sevenDay:
+            return text(
+                "适合：按每天固定预算安排使用，不想被小时级变化打扰。",
+                "Best for: planning by daily budget without hour-level movement."
+            )
         }
     }
 

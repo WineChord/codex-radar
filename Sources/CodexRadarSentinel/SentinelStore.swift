@@ -80,6 +80,12 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var quotaPacingOptionsExpanded: Bool {
+        didSet {
+            defaults.set(quotaPacingOptionsExpanded, forKey: DefaultsKey.quotaPacingOptionsExpanded)
+        }
+    }
+
     @Published private(set) var selectedStatusMetrics: [StatusMetric] {
         didSet {
             defaults.set(selectedStatusMetrics.map(\.rawValue), forKey: DefaultsKey.selectedStatusMetrics)
@@ -154,6 +160,7 @@ final class SentinelStore: NSObject, ObservableObject {
         static let statusBarHorizontalPadding = "statusBarHorizontalPadding"
         static let statusBarFontScale = "statusBarFontScale"
         static let quotaPacingStrategy = "quotaPacingStrategy"
+        static let quotaPacingOptionsExpanded = "quotaPacingOptionsExpanded"
         static let selectedStatusMetrics = "selectedStatusMetrics"
         static let predictionNotificationsEnabled = "predictionNotificationsEnabled"
         static let iqNotificationsEnabled = "iqNotificationsEnabled"
@@ -211,6 +218,7 @@ final class SentinelStore: NSObject, ObservableObject {
             .flatMap(StatusBarFontScale.init(rawValue:)) ?? .normal
         self.quotaPacingStrategy = defaults.string(forKey: DefaultsKey.quotaPacingStrategy)
             .flatMap(QuotaPacingStrategy.init(rawValue:)) ?? .timeProportional
+        self.quotaPacingOptionsExpanded = defaults.object(forKey: DefaultsKey.quotaPacingOptionsExpanded) as? Bool ?? false
         self.selectedStatusMetrics = Self.loadSelectedStatusMetrics(defaults: defaults)
         let rawPreview = ProcessInfo.processInfo.environment[AppConstants.debugPreviewEnvironmentKey]
         self.debugPreview = rawPreview.flatMap(DashboardPreview.init(rawValue:)) ?? .live
@@ -361,6 +369,7 @@ final class SentinelStore: NSObject, ObservableObject {
         menuTextSize = .large
         resetStatusBarAdvancedOptions()
         quotaPacingStrategy = .timeProportional
+        quotaPacingOptionsExpanded = false
         statusBarAdvancedOptionsExpanded = false
         selectedStatusMetrics = Self.defaultStatusMetrics
         debugPreview = .live

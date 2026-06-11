@@ -57,6 +57,7 @@ def write_defaults(language, metrics):
     run(["defaults", "write", BUNDLE_ID, "statusBarHorizontalPadding", "-string", "system"])
     run(["defaults", "write", BUNDLE_ID, "statusBarFontScale", "-string", "normal"])
     run(["defaults", "write", BUNDLE_ID, "quotaPacingStrategy", "-string", "timeProportional"])
+    run(["defaults", "write", BUNDLE_ID, "quotaPacingOptionsExpanded", "-bool", "false"])
     run(["defaults", "write", BUNDLE_ID, "selectedStatusMetrics", "-array", *metrics])
 
 
@@ -231,6 +232,9 @@ def capture_case(language_dir, language, name, preview, metrics):
             last_error = exc
             time.sleep(0.75)
     if last_error:
+        if destination.exists() and destination.stat().st_size > 0:
+            print(f"{destination.relative_to(ROOT)}: kept existing screenshot after capture warning: {last_error}")
+            return
         raise last_error
 
 

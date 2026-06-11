@@ -37,6 +37,8 @@
 - `5h`：把 5 小时短窗额度也放进状态栏；默认关闭，打开后会类似 `96%/99%/62/低`。
 - `应剩`：把“按节奏现在应该还剩多少周额度”放进状态栏；默认关闭，中文显示类似 `应80%`，英文显示类似 `R80%`。
 
+`应剩计算策略` 默认收起。展开后可以切换 `按时间` 和 `7 天均分`，并会直接说明每个策略的公式、刷新粒度和适用场景。
+
 `状态栏高级` 默认收起；展开后可以调分隔符、左右留白、字体比例、IQ 是否按 `/10` 显示，以及状态栏里是否保留 `%`。这些设置只影响状态栏标题，下拉菜单里的完整数值不变。
 
 当 [CodexRadar](https://codexradar.com/) 报告速蹬窗口开启时，状态栏 item 会变成红底白字。红色强调可以手动关闭；窗口结束或 30 分钟强调时间到后会自动退场。
@@ -65,6 +67,7 @@
 - Codex 周额度剩余，来自本机 Codex app-server。
 - Codex 短窗额度剩余，也来自本机 Codex app-server。
 - 用量节奏：按“上次 reset 到下次 reset 的时间比例”或“7 天均分”计算当前建议剩余百分比，并和实际周额度剩余对比；例如建议应剩 80%、实际还剩 90%，就会提示可以多用一点。
+  `按时间` 是连续时间比例，数据每 60 秒刷新，周窗口整数百分比大约每 1 小时 41 分钟变化 1%；`7 天均分` 是天级台阶，更适合按每天固定预算使用。
 - [CodexRadar](https://codexradar.com/) 当前速蹬窗口和 reset 状态。
 - [CodexRadar](https://codexradar.com/) 24h / 48h reset 预测。
 - Codex IQ 每日探针结果。
@@ -179,7 +182,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.19
+./scripts/check_release_readiness.sh 0.1.20
 ```
 
 构建 release 包：
@@ -187,7 +190,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.19
+./scripts/package_release.sh 0.1.20
 ```
 
 更新 README 状态栏和菜单截图：
