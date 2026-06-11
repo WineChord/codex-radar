@@ -85,8 +85,11 @@ final class RateLimitDashboardTests: XCTestCase {
         let pacing = try XCTUnwrap(dashboard.quotaPacing(strategy: .timeProportional, now: halfway))
 
         XCTAssertEqual(pacing.roundedTargetUsedPercent, 50)
+        XCTAssertEqual(pacing.roundedTargetRemainingPercent, 50)
         XCTAssertEqual(pacing.roundedCurrentUsedPercent, 2)
+        XCTAssertEqual(pacing.roundedCurrentRemainingPercent, 98)
         XCTAssertEqual(pacing.roundedDeltaToTargetPercent, 48)
+        XCTAssertEqual(pacing.roundedRemainingDeltaPercent, 48)
         XCTAssertEqual(pacing.roundedElapsedWindowPercent, 50)
         XCTAssertEqual(pacing.status, .underTarget)
     }
@@ -102,8 +105,11 @@ final class RateLimitDashboardTests: XCTestCase {
         let pacing = try XCTUnwrap(dashboard.quotaPacing(strategy: .sevenDay, now: thirdDay))
 
         XCTAssertEqual(pacing.roundedTargetUsedPercent, 43)
+        XCTAssertEqual(pacing.roundedTargetRemainingPercent, 57)
         XCTAssertEqual(pacing.roundedCurrentUsedPercent, 2)
+        XCTAssertEqual(pacing.roundedCurrentRemainingPercent, 98)
         XCTAssertEqual(pacing.roundedDeltaToTargetPercent, 41)
+        XCTAssertEqual(pacing.roundedRemainingDeltaPercent, 41)
         XCTAssertEqual(pacing.status, .underTarget)
     }
 }

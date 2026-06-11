@@ -35,7 +35,7 @@ The three values are:
 The `Menu bar segments` setting can also enable:
 
 - `5h`: adds the 5-hour short-window quota to the menu bar. It is off by default; when enabled, the title looks like `96%/99%/62/low`.
-- `Pace`: adds the suggested weekly-quota used percentage for the current point in the reset window. It is off by default; English shows it as `T43%`.
+- `Pace`: adds the weekly quota that should remain at the current point in the reset window. It is off by default; English shows it as `R80%`.
 
 `Menu bar advanced` is collapsed by default. When expanded, it can tune the separator, side padding, font scale, IQ `/10` display, and whether `%` is kept in the menu bar. These settings only affect the menu bar title; dropdown values stay complete.
 
@@ -64,7 +64,7 @@ This image is captured by the app itself from the real SwiftUI menu window on a 
 
 - Weekly Codex quota remaining, read from the local Codex app-server.
 - Short-window quota remaining, also from the local Codex app-server.
-- Usage pace: the suggested used percentage based on either elapsed time between resets or a 7-day daily split, so weekly quota can be spent more evenly.
+- Usage pace: the suggested remaining percentage based on either elapsed time between resets or a 7-day daily split, compared with actual weekly quota remaining. For example, if target remaining is 80% and actual remaining is 90%, it tells you there is room to spend more.
 - [CodexRadar](https://codexradar.com/) current speed-window and reset status.
 - [CodexRadar](https://codexradar.com/) 24h and 48h reset prediction.
 - Codex IQ from the daily probe.
@@ -179,7 +179,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.18
+./scripts/check_release_readiness.sh 0.1.19
 ```
 
 Build release packages:
@@ -187,7 +187,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.18
+./scripts/package_release.sh 0.1.19
 ```
 
 Update README menu bar and menu screenshots:

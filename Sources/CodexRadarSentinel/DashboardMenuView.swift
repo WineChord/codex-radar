@@ -156,21 +156,13 @@ struct DashboardMenuView: View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("状态栏含义", "Menu Bar"), systemImage: "menubar.rectangle")
             Text(text(
-                "默认显示“周额度 / IQ / 信号”；可打开 5h 和节奏。",
+                "默认显示“周额度 / IQ / 信号”；可打开 5h 和应剩。",
                 "Default: Weekly / IQ / Signal; enable 5h and Pace when useful."
             ))
             .font(.system(size: metrics.caption))
             .foregroundStyle(.secondary)
             .lineLimit(2)
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: Layout.tileSpacing),
-                    GridItem(.flexible(), spacing: Layout.tileSpacing),
-                    GridItem(.flexible(), spacing: Layout.tileSpacing),
-                ],
-                alignment: .leading,
-                spacing: Layout.tileSpacing
-            ) {
+            HStack(spacing: 6) {
                 legendTile(metric: .weeklyQuota, color: quotaColor)
                 legendTile(metric: .shortQuota, color: shortQuotaColor)
                 legendTile(metric: .quotaPace, color: quotaPaceColor)
@@ -209,19 +201,19 @@ struct DashboardMenuView: View {
             if let pacing = state.rateLimits?.quotaPacing(strategy: store.quotaPacingStrategy) {
                 HStack(spacing: Layout.tileSpacing) {
                     pacingTile(
-                        title: text("建议已用", "Target used"),
-                        value: DisplayFormatters.percent(pacing.roundedTargetUsedPercent),
+                        title: text("建议剩余", "Target left"),
+                        value: DisplayFormatters.percent(pacing.roundedTargetRemainingPercent),
                         detail: quotaPacingStrategyLabel(pacing.strategy),
                         color: quotaPaceColor
                     )
                     pacingTile(
-                        title: text("当前已用", "Current used"),
-                        value: DisplayFormatters.percent(pacing.roundedCurrentUsedPercent),
-                        detail: text("周额度窗口", "weekly window"),
+                        title: text("实际剩余", "Actual left"),
+                        value: DisplayFormatters.percent(pacing.roundedCurrentRemainingPercent),
+                        detail: text("本机周额度", "local weekly"),
                         color: .primary
                     )
                     pacingTile(
-                        title: text("节奏差", "Pace delta"),
+                        title: quotaPacingDeltaTitle(pacing),
                         value: quotaPacingDeltaValue(pacing),
                         detail: quotaPacingDeltaDetail(pacing),
                         color: quotaPaceColor
@@ -230,11 +222,11 @@ struct DashboardMenuView: View {
                 Text(quotaPacingExplanation(pacing))
                     .font(.system(size: metrics.caption))
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(3)
             } else {
                 Text(text(
-                    "还没有读取到周额度 reset 时间，暂时无法计算建议用量。",
-                    "Weekly reset timing is not loaded yet, so the suggested usage target is unavailable."
+                    "还没有读取到周额度 reset 时间，暂时无法计算建议剩余。",
+                    "Weekly reset timing is not loaded yet, so the target remaining quota is unavailable."
                 ))
                 .font(.system(size: metrics.caption))
                 .foregroundStyle(.secondary)
@@ -602,13 +594,15 @@ struct DashboardMenuView: View {
             Text(metric.label(language: language))
                 .font(.system(size: metrics.caption, weight: .medium))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
             Text(metric.value(for: state, language: language, pacingStrategy: store.quotaPacingStrategy))
                 .font(.system(size: metrics.badge, weight: .semibold, design: .monospaced))
                 .foregroundStyle(color)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(0.65)
         }
-        .padding(.horizontal, 9)
+        .padding(.horizontal, 7)
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
@@ -741,7 +735,7 @@ struct DashboardMenuView: View {
     }
 
     private func quotaPacingDeltaValue(_ pacing: QuotaPacingSnapshot) -> String {
-        let delta = pacing.roundedDeltaToTargetPercent
+        let delta = pacing.roundedRemainingDeltaPercent
         if delta > 0 {
             return "+\(delta)%"
         }
@@ -751,13 +745,24 @@ struct DashboardMenuView: View {
         return "0%"
     }
 
-    private func quotaPacingDeltaDetail(_ pacing: QuotaPacingSnapshot) -> String {
-        let delta = pacing.roundedDeltaToTargetPercent
+    private func quotaPacingDeltaTitle(_ pacing: QuotaPacingSnapshot) -> String {
+        let delta = pacing.roundedRemainingDeltaPercent
         if delta >= 3 {
-            return text("还可多用", "room left")
+            return text("可多用", "Can spend")
         }
         if delta <= -3 {
-            return text("已超前", "ahead")
+            return text("已超用", "Over pace")
+        }
+        return text("节奏差", "Delta")
+    }
+
+    private func quotaPacingDeltaDetail(_ pacing: QuotaPacingSnapshot) -> String {
+        let delta = pacing.roundedRemainingDeltaPercent
+        if delta >= 3 {
+            return text("比建议多", "above target")
+        }
+        if delta <= -3 {
+            return text("比建议少", "below target")
         }
         return text("接近节奏", "on pace")
     }
@@ -767,16 +772,27 @@ struct DashboardMenuView: View {
             "窗口已过 \(pacing.roundedElapsedWindowPercent)%",
             "\(pacing.roundedElapsedWindowPercent)% of the window has elapsed"
         )
+        let target = DisplayFormatters.percent(pacing.roundedTargetRemainingPercent)
+        let actual = DisplayFormatters.percent(pacing.roundedCurrentRemainingPercent)
+        let delta = abs(pacing.roundedRemainingDeltaPercent)
+        let action: String
+        if pacing.roundedRemainingDeltaPercent >= 3 {
+            action = text("实际还剩 \(actual)，比建议多 \(delta)%，可以多用一点。", "Actual is \(actual), \(delta)% above target, so you can spend more.")
+        } else if pacing.roundedRemainingDeltaPercent <= -3 {
+            action = text("实际还剩 \(actual)，比建议少 \(delta)%，建议放慢一点。", "Actual is \(actual), \(delta)% below target, so slow down a bit.")
+        } else {
+            action = text("实际还剩 \(actual)，基本贴近节奏。", "Actual is \(actual), close to pace.")
+        }
         switch pacing.strategy {
         case .timeProportional:
             return text(
-                "\(prefix)：按上次 reset 到下次 reset 的时间比例，建议现在已用到 \(pacing.roundedTargetUsedPercent)%。",
-                "\(prefix): target \(pacing.roundedTargetUsedPercent)% used based on elapsed time between resets."
+                "\(prefix)：按 reset 窗口时间比例，建议现在应剩 \(target)。\(action)",
+                "\(prefix): target remaining is \(target) by reset-window time. \(action)"
             )
         case .sevenDay:
             return text(
-                "\(prefix)：按 7 天均分，跨入新一天后提高当日建议已用。",
-                "\(prefix): the target steps up by day across a 7-day window."
+                "\(prefix)：按 7 天均分，建议现在应剩 \(target)。\(action)",
+                "\(prefix): target remaining is \(target) by the 7-day rule. \(action)"
             )
         }
     }

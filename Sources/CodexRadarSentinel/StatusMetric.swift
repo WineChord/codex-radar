@@ -19,7 +19,7 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         case .shortQuota:
             return "5h"
         case .quotaPace:
-            return language.text("节奏", "Pace")
+            return language.text("应剩", "Pace")
         case .codexIQ:
             return "IQ"
         case .signal:
@@ -41,7 +41,7 @@ enum StatusMetric: String, CaseIterable, Identifiable {
             guard let pacing = state.rateLimits?.quotaPacing(strategy: pacingStrategy) else {
                 return "-"
             }
-            return DisplayFormatters.percent(pacing.roundedTargetUsedPercent)
+            return DisplayFormatters.percent(pacing.roundedTargetRemainingPercent)
         case .codexIQ:
             return DisplayFormatters.iqScore(state.modelIQ?.latest?.iqScore)
         case .signal:
@@ -70,10 +70,10 @@ enum StatusMetric: String, CaseIterable, Identifiable {
                 return "-"
             }
             let target = DisplayFormatters.percent(
-                pacing.roundedTargetUsedPercent,
+                pacing.roundedTargetRemainingPercent,
                 includesSymbol: options.percentDisplayMode.includesSymbol
             )
-            return language.text("用\(target)", "T\(target)")
+            return language.text("应\(target)", "R\(target)")
         case .codexIQ:
             return options.iqDisplayMode.format(
                 state.modelIQ?.latest?.iqScore,

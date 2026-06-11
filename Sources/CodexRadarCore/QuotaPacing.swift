@@ -36,6 +36,30 @@ public struct QuotaPacingSnapshot: Equatable {
         Int(round(deltaToTargetPercent))
     }
 
+    public var currentRemainingPercent: Double {
+        100 - currentUsedPercent
+    }
+
+    public var targetRemainingPercent: Double {
+        100 - targetUsedPercent
+    }
+
+    public var remainingDeltaPercent: Double {
+        currentRemainingPercent - targetRemainingPercent
+    }
+
+    public var roundedCurrentRemainingPercent: Int {
+        roundedPercent(currentRemainingPercent)
+    }
+
+    public var roundedTargetRemainingPercent: Int {
+        roundedPercent(targetRemainingPercent)
+    }
+
+    public var roundedRemainingDeltaPercent: Int {
+        Int(round(remainingDeltaPercent))
+    }
+
     public var roundedElapsedWindowPercent: Int {
         roundedPercent(elapsedWindowPercent)
     }
