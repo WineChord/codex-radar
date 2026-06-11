@@ -9,6 +9,17 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.24：显示 GitHub Star 数</strong> - 底部入口从普通 GitHub 按钮升级为公开 Star 数展示。</summary>
+
+<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel GitHub Star 入口截图">
+
+- 版本更新区会显示 `GitHub ★10` 这类说明，按钮本身用星标图标加数字，避免占用太多空间。
+- 数据来自 GitHub 公开仓库元信息，不需要授权，也不会自动 Star。
+- 点击按钮只打开仓库页面；如果觉得项目有用，可以在 GitHub 上手动点 Star。
+
+</details>
+
+<details>
 <summary><strong>v0.1.23：折叠区整行可点</strong> - 点标题文字、图标或右侧状态都能展开，不用再精确点左侧小箭头。</summary>
 
 <img src="docs/assets/zh/news-pacing.png" width="390" alt="Codex Radar Sentinel 应剩策略截图">
@@ -188,14 +199,14 @@
 
 如果下载、校验或安装失败，应用会保留当前版本并在菜单里显示失败原因。安装脚本也会先备份旧版；如果替换失败，会恢复并重新打开旧版。对同一个刚刚安装失败的版本，自动更新会暂停短期重试，手动 `检查更新` 仍可立即重试。
 
-底部工具栏固定提供 `刷新`、`Radar`、`Codex`、`GitHub` 和 `退出`，方便常用跳转不用滚动菜单。
+底部工具栏固定提供 `刷新`、`Radar`、`Codex`、星标图标加数量的 GitHub 入口和 `退出`，方便常用跳转不用滚动菜单。
 
 版本更新区还提供：
 
 - `检查更新`：立刻检查并安装新版本。
 - `Changelog`：打开最新 release notes。
 - `Prompts`：打开开源的 prompt log。
-- `GitHub ★`：打开仓库页面。
+- 星标按钮：显示公开 Star 数并打开仓库页面；不会自动 Star。
 
 如果只想手动更新，可以在下拉菜单关闭 `自动更新`。
 
@@ -224,11 +235,12 @@ CODEX_RADAR_PREVIEW=speedWindow swift run CodexRadarSentinel
 
 ## 数据来源
 
-Codex Radar Sentinel 读取这些公开 CodexRadar 入口：
+Codex Radar Sentinel 读取这些公开入口：
 
 - [CodexRadar homepage](https://codexradar.com/)
 - [current.json](https://codexradar.com/current.json)：包含速蹬窗口、reset、Prediction 和 model IQ。
 - [feed.xml](https://codexradar.com/feed.xml)
+- [GitHub public repository metadata](https://api.github.com/repos/WineChord/codex-radar)：只读取公开 Star 数。
 
 本机额度读取 Codex app-server：
 
@@ -276,7 +288,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.23
+./scripts/check_release_readiness.sh 0.1.24
 ```
 
 构建 release 包：
@@ -284,7 +296,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.23
+./scripts/package_release.sh 0.1.24
 ```
 
 更新 README 状态栏和菜单截图：
