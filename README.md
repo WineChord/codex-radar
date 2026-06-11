@@ -10,6 +10,19 @@
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
+## News / 最新功能
+
+<details>
+<summary><strong>v0.1.21：应剩策略升级</strong> - 看现在应该还剩多少额度，并按使用习惯选择节奏。</summary>
+
+<img src="docs/assets/zh/news-pacing.png" width="390" alt="Codex Radar Sentinel 应剩策略截图">
+
+- `应剩` 会把建议剩余和实际剩余放在一起看，直接告诉你还能多用还是该放慢。
+- 新增 `按时间`、`每日`、`留余`、`工作日`、`先用` 五种策略。
+- 策略说明默认折叠，展开后可以看到公式、刷新粒度和适用场景。
+
+</details>
+
 ## 让 Codex 帮你安装
 
 如果你正在用 Codex 桌面版，可以直接复制下面这段 prompt 给 Codex。需要允许 Codex 访问网络、执行 shell 命令、写入 `/Applications`；如果 macOS 弹出通知权限，点允许即可。
@@ -58,7 +71,7 @@
 
 ## 完整菜单界面
 
-这张图由 app 自己在高清屏上截取真实 SwiftUI 菜单窗口生成，和状态栏截图一起由 `./scripts/update_readme_screenshots.sh` 维护。README 里按 390px 宽度展示，避免尺寸过大；点开原图可以看到高清细节。
+这张图由 app 自己在高清屏上截取真实 SwiftUI 菜单窗口生成，和状态栏截图、News 小图一起由 `./scripts/update_readme_screenshots.sh` 维护。README 里按 390px 宽度展示，避免尺寸过大；点开原图可以看到高清细节。
 
 <img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 中文完整菜单界面">
 
@@ -199,7 +212,7 @@ swift build -c release
 ./scripts/update_readme_screenshots.sh
 ```
 
-这个脚本会启动真实 app 并裁剪 macOS 状态栏 item，也会调用 app 自己的文档截图模式渲染完整菜单界面。因此需要本机允许 System Events 读取辅助功能信息，并允许屏幕截图。
+这个脚本会启动真实 app 并裁剪 macOS 状态栏 item，也会调用 app 自己的文档截图模式渲染完整菜单界面，并从完整菜单生成 News 小图。因此需要本机允许 System Events 读取辅助功能信息，并允许屏幕截图。
 
 重新生成 macOS 图标：
 

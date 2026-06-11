@@ -10,6 +10,19 @@ We also open-sourced the product prompts behind this app: [Prompt Log](PROMPTS.m
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
+## News
+
+<details>
+<summary><strong>v0.1.21: Pace strategy upgrade</strong> - See how much quota should remain and pick the pacing rule that matches how you work.</summary>
+
+<img src="docs/assets/en/news-pacing.png" width="390" alt="Codex Radar Sentinel pace strategy screenshot">
+
+- `Pace` compares target remaining with actual weekly quota remaining, then tells you whether there is room to spend more or slow down.
+- New rules: `Time`, `Daily`, `Reserve`, `Workdays`, and `Front-load`.
+- The rule guide stays collapsed by default and expands into formula, refresh granularity, and best-use explanations.
+
+</details>
+
 ## Install With Codex
 
 If you use the Codex desktop app, you can copy this prompt into Codex. Grant Codex network access, shell execution, and permission to write to `/Applications`; if macOS asks for notification permission, allow it.
@@ -58,7 +71,7 @@ Turn on `Decimal IQ in menu bar` if you want the menu bar itself to show the pre
 
 ## Full Menu
 
-This image is captured by the app itself from the real SwiftUI menu window on a high-resolution screen, and it is maintained together with the menu bar screenshots by `./scripts/update_readme_screenshots.sh`. The README displays it at 390px wide so it stays readable without taking over the page; open the source image for the full-resolution view.
+This image is captured by the app itself from the real SwiftUI menu window on a high-resolution screen, and it is maintained together with the menu bar screenshots and News crop by `./scripts/update_readme_screenshots.sh`. The README displays it at 390px wide so it stays readable without taking over the page; open the source image for the full-resolution view.
 
 <img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel full English menu">
 
@@ -199,7 +212,7 @@ Update README menu bar and menu screenshots:
 ./scripts/update_readme_screenshots.sh
 ```
 
-This script launches the real app and crops the macOS menu bar item. It also asks the app to render the full menu from its real SwiftUI view. The Mac must allow System Events accessibility access and screen capture.
+This script launches the real app and crops the macOS menu bar item. It also asks the app to render the full menu from its real SwiftUI view, then crops the compact News image. The Mac must allow System Events accessibility access and screen capture.
 
 Regenerate the macOS icon:
 

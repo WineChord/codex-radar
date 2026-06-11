@@ -27,6 +27,11 @@ CASES = [
     ("en", "en", "custom", "live", ["weeklyQuota", "signal"]),
 ]
 
+NEWS_CROPS = {
+    "zh": [(0, 1340, 1560, 1910), (0, 3460, 1560, 4050)],
+    "en": [(0, 1275, 1560, 1940), (0, 3520, 1560, 4120)],
+}
+
 
 def run(command, **kwargs):
     return subprocess.run(command, check=True, text=True, **kwargs)
@@ -250,11 +255,34 @@ def render_menu_screenshots():
     run(["swift", "run", "CodexRadarSentinel"], cwd=ROOT, env=env)
 
 
+def render_news_screenshots():
+    for language, boxes in NEWS_CROPS.items():
+        source = ASSET_ROOT / language / "menu-full.png"
+        destination = ASSET_ROOT / language / "news-pacing.png"
+        image = Image.open(source).convert("RGB")
+        parts = [image.crop(box) for box in boxes]
+        gap = 28
+        output = Image.new(
+            "RGB",
+            (image.width, sum(part.height for part in parts) + gap * (len(parts) - 1)),
+            "white",
+        )
+        y = 0
+        for index, part in enumerate(parts):
+            output.paste(part, (0, y))
+            y += part.height
+            if index < len(parts) - 1:
+                y += gap
+        output.save(destination)
+        print(f"{destination.relative_to(ROOT)}")
+
+
 def main():
     ensure_app_exists()
     for case in CASES:
         capture_case(*case)
     render_menu_screenshots()
+    render_news_screenshots()
     restore_app()
 
 
