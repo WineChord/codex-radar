@@ -8,11 +8,18 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 cd "$repo_root"
 
-echo "Checking CodexRadar live endpoints..."
+echo "Checking CodexRadar live sources..."
+curl -fsSL "https://codexradar.com/" -o "${tmp_dir}/homepage.html"
+homepage_bytes="$(wc -c < "${tmp_dir}/homepage.html" | tr -d ' ')"
+echo "  homepage: ${homepage_bytes} bytes"
 for path in current.json feed.xml; do
   curl -fsSL "https://codexradar.com/${path}" -o "${tmp_dir}/${path}"
   bytes="$(wc -c < "${tmp_dir}/${path}" | tr -d ' ')"
-  echo "  ${path}: ${bytes} bytes"
+  if head -c 64 "${tmp_dir}/${path}" | grep -q '<'; then
+    echo "  ${path}: ${bytes} bytes, homepage HTML fallback"
+  else
+    echo "  ${path}: ${bytes} bytes"
+  fi
 done
 
 echo "Running Swift tests with live CodexRadar contract checks..."

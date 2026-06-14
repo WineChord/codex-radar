@@ -2,20 +2,20 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目依赖 CodexRadar 提供的公开信号，包括 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，把 CodexRadar 的公开信号与本机 Codex 额度状态整合到状态栏里。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前已转向模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的 Model IQ 与本机 Codex 额度状态整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
 
 <details>
-<summary><strong>v0.1.26：调试预览默认折叠</strong> - 预览入口不再常驻占高度，点整行即可展开。</summary>
+<summary><strong>v0.1.27：兼容 CodexRadar 新首页</strong> - 旧 JSON/RSS 端点下架后，自动从首页读取 Model IQ。</summary>
 
-<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 调试预览折叠截图">
+<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel CodexRadar 首页兼容截图">
 
-- `调试预览` 默认折叠，菜单底部更短。
-- 折叠标题右侧显示当前预览状态，例如 `Live`。
-- 点标题文字、图标或右侧状态都能展开，保留原来的 `Live / 速蹬 / Reset / 限额` 切换。
+- CodexRadar 已将 reset 预测、速蹬窗口提醒和历史窗口下架，旧 `/current.json` 与 `/feed.xml` 当前会回到首页。
+- app 会识别首页 HTML，从公开页面提取最新 Model IQ，并合成“无速蹬窗口”的兼容状态。
+- 本机 Codex 额度、IQ 和菜单主体继续可用；不会再把 HTML 当 JSON 解码错误展示给用户。
 
 </details>
 
@@ -135,7 +135,7 @@
 
 - `96%`：Codex 周额度剩余百分比。
 - `62`：Codex IQ 分数。状态栏默认截断为整数以节省空间；下拉菜单里的 Codex IQ 区块会显示精确值，例如 `62.5`。
-- `低`：CodexRadar 的 reset / 速蹬信号。
+- `低`：CodexRadar 信号。当前 CodexRadar 已下架 reset 预测和速蹬窗口提醒，所以 live 模式通常显示低风险；如果旧接口恢复，app 会继续识别窗口和 reset 状态。
 
 下拉菜单的 `状态栏显示` 里还可以手动打开：
 
@@ -146,7 +146,7 @@
 
 `状态栏高级` 默认收起；点击这一整行标题即可展开或收起。展开后可以调分隔符、左右留白、字体比例、IQ 是否按 `/10` 显示，以及状态栏里是否保留 `%`。这些设置只影响状态栏标题，下拉菜单里的完整数值不变。
 
-当 [CodexRadar](https://codexradar.com/) 报告速蹬窗口开启时，状态栏 item 会变成红底白字。红色强调可以手动关闭；窗口结束或 30 分钟强调时间到后会自动退场。
+当 [CodexRadar](https://codexradar.com/) 提供的兼容信号报告速蹬窗口开启时，状态栏 item 会变成红底白字。红色强调可以手动关闭；窗口结束或 30 分钟强调时间到后会自动退场。当前 CodexRadar 首页已说明速蹬窗口提醒下架，因此 live 模式不会凭空触发速蹬。
 
 ## 状态展示
 
@@ -173,9 +173,9 @@
 - Codex 短窗额度剩余，也来自本机 Codex app-server。
 - 用量节奏：按所选策略计算当前建议剩余百分比，并和实际周额度剩余对比；例如建议应剩 80%、实际还剩 90%，就会提示可以多用一点。
   策略包括：`按时间` 平滑均匀用完；`每日` 按天级预算推进；`留余` 前期保留 20% 缓冲；`工作日` 工作日多用、周末少用；`先用` 前半程更积极，避免 reset 前剩太多。
-- [CodexRadar](https://codexradar.com/) 当前速蹬窗口和 reset 状态。
-- [CodexRadar](https://codexradar.com/) 24h / 48h reset 预测。
-- Codex IQ 每日探针结果。
+- [CodexRadar](https://codexradar.com/) 当前公开的 Model IQ。
+- CodexRadar 旧 reset/速蹬/预测接口的兼容状态；这些功能当前在 CodexRadar 侧已下架，app 会显示“无窗/低风险”，并在接口未来恢复时继续识别。
+- Codex IQ 每日探针结果，当前优先从 CodexRadar 首页读取。
 
 应用默认中文；下拉菜单里可以切换 English。Codex、IQ、Reset、Prediction、Radar 这类英文术语会保留，因为它们在产品里更清楚。
 
@@ -183,12 +183,12 @@
 
 应用会在这些情况发送 macOS 通知：
 
-- 速蹬窗口开启。
-- CodexRadar 记录到 reset；顶部直接显示“上次 reset 时间是 ...”，本机额度仍看 `Codex 额度`。
+- 兼容信号报告速蹬窗口开启。
+- CodexRadar 兼容信号记录到 reset；顶部直接显示“上次 reset 时间是 ...”，本机额度仍看 `Codex 额度`。
 - 周额度低于 30%。
 - 周额度低于 15%。
 - 周额度从低位恢复。
-- Prediction 升到 high，或 CodexRadar 明确标记 should_notify。
+- Prediction 升到 high，或 CodexRadar 明确标记 should_notify。当前 CodexRadar 已下架 reset 预测时，live 模式不会触发这类预测通知。
 - Codex IQ 进入 red 或低于 80。
 
 通知声音默认关闭，可以在下拉菜单里打开。首次启动会把历史 reset 窗口记为已见过，避免补发旧通知；如果首次启动时正好处在速蹬窗口中，仍然会提醒。
@@ -238,8 +238,7 @@ CODEX_RADAR_PREVIEW=speedWindow swift run CodexRadarSentinel
 Codex Radar Sentinel 读取这些公开入口：
 
 - [CodexRadar homepage](https://codexradar.com/)
-- [current.json](https://codexradar.com/current.json)：包含速蹬窗口、reset、Prediction 和 model IQ。
-- [feed.xml](https://codexradar.com/feed.xml)
+- [current.json](https://codexradar.com/current.json) 和 [feed.xml](https://codexradar.com/feed.xml)：旧 reset/速蹬接口。CodexRadar 现在会把它们重定向回首页；app 会自动降级为首页 Model IQ 解析。
 
 本机额度读取 Codex app-server：
 
@@ -287,7 +286,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.26
+./scripts/check_release_readiness.sh 0.1.27
 ```
 
 构建 release 包：
@@ -295,7 +294,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.26
+./scripts/package_release.sh 0.1.27
 ```
 
 更新 README 状态栏和菜单截图：
@@ -314,6 +313,6 @@ swift build -c release
 
 ## 鸣谢
 
-Codex Radar Sentinel 之所以能成立，是因为 [CodexRadar](https://codexradar.com/) 提供了清晰的公开信号，包括 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ。本应用只是把这些公开信号和用户本机 Codex 额度状态整合成一个 macOS 菜单栏工具。
+Codex Radar Sentinel 之所以能成立，是因为 [CodexRadar](https://codexradar.com/) 持续提供清晰的公开 Codex 信号。CodexRadar 早期提供速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前已转向模型质量雷达。本应用只是把这些公开信号和用户本机 Codex 额度状态整合成一个 macOS 菜单栏工具。
 
 Codex Radar Sentinel 与 CodexRadar 或 OpenAI 没有关联。

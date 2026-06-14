@@ -247,8 +247,8 @@ struct DashboardMenuView: View {
                 labelPair(text("范围", "Scope"), state.current?.lastWindow?.scope ?? text("未知", "unknown"))
             }
             Text(state.current?.lastWindow?.summary ?? text(
-                "还没有读取到 CodexRadar current.json。",
-                "CodexRadar current.json has not been loaded yet."
+                "还没有读取到 CodexRadar 公开信号。",
+                "CodexRadar public signal has not been loaded yet."
             ))
             .font(.system(size: metrics.label))
             .foregroundStyle(.secondary)
@@ -1001,6 +1001,9 @@ struct DashboardMenuView: View {
         if state.rateLimits?.isBlocked == true {
             return text("本机限额中", "Local limit reached")
         }
+        if codexRadarSignalRetired {
+            return text("无速蹬窗口", "No speed window")
+        }
         if state.recentResetClosed {
             return text(
                 "上次 reset 时间是 \(DisplayFormatters.compactDateTime(lastResetAt))",
@@ -1020,6 +1023,9 @@ struct DashboardMenuView: View {
         if state.rateLimits?.isBlocked == true {
             return text("本机 Codex 返回限额状态", "Local Codex reports a limit")
         }
+        if codexRadarSignalRetired {
+            return text("CodexRadar 当前聚焦 Model IQ", "CodexRadar now focuses on Model IQ")
+        }
         if state.recentResetClosed {
             return text("本机额度见下方 · 来源 CodexRadar", "Local quota below · source CodexRadar")
         }
@@ -1033,6 +1039,11 @@ struct DashboardMenuView: View {
         state.current?.lastWindow?.closedDate
             ?? state.current?.checkedDate
             ?? state.lastUpdatedAt
+    }
+
+    private var codexRadarSignalRetired: Bool {
+        state.current?.status?.lowercased() == "retired"
+            || state.current?.lastWindow?.status?.lowercased() == "retired"
     }
 
     private var signalLabel: String {

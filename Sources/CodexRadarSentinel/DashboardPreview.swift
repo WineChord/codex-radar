@@ -141,36 +141,32 @@ enum DashboardPreviewFactory {
     }
 
     private static func applyFallbackMetrics(to state: inout DashboardState) {
-        if state.rateLimits == nil {
-            state.rateLimits = decodeRateLimits("""
-            {
-              "rateLimits": {
-                "limitId": "codex",
-                "limitName": null,
-                "primary": { "usedPercent": 14, "windowDurationMins": 300, "resetsAt": 1780571944 },
-                "secondary": { "usedPercent": 3, "windowDurationMins": 10080, "resetsAt": 1781140743 },
-                "credits": null,
-                "planType": "pro",
-                "rateLimitReachedType": null
-              },
-              "rateLimitsByLimitId": null
-            }
-            """)
+        state.rateLimits = decodeRateLimits("""
+        {
+          "rateLimits": {
+            "limitId": "codex",
+            "limitName": null,
+            "primary": { "usedPercent": 14, "windowDurationMins": 300, "resetsAt": 1780571944 },
+            "secondary": { "usedPercent": 3, "windowDurationMins": 10080, "resetsAt": 1781140743 },
+            "credits": null,
+            "planType": "pro",
+            "rateLimitReachedType": null
+          },
+          "rateLimitsByLimitId": null
         }
-        if state.modelIQ == nil {
-            state.modelIQ = decode("""
-            {
-              "updated_at": "2026-06-04T18:00:00+08:00",
-              "latest": {
-                "date": "2026-06-04",
-                "tasks": 12,
-                "passed": 6,
-                "iq_score": 62.5,
-                "status": "red"
-              }
-            }
-            """)
+        """)
+        state.modelIQ = decode("""
+        {
+          "updated_at": "2026-06-04T18:00:00+08:00",
+          "latest": {
+            "date": "2026-06-04",
+            "tasks": 12,
+            "passed": 6,
+            "iq_score": 62.5,
+            "status": "red"
+          }
         }
+        """)
     }
 
     private static func decode<T: Decodable>(_ json: String) -> T? {

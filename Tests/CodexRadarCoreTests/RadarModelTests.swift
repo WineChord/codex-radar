@@ -37,6 +37,21 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.modelIQ?.latest?.passed, 5)
         XCTAssertEqual(current.modelIQ?.latest?.tasks, 12)
     }
+
+    func testBuildsFallbackCurrentFromHomepageHTML() throws {
+        let current = try CodexRadarClient.currentFromHomepageHTML(homepageHTML, checkedAt: Date(timeIntervalSince1970: 1_781_510_400))
+
+        XCTAssertEqual(current.schemaVersion, "homepage-fallback-v1")
+        XCTAssertFalse(current.windowOpen)
+        XCTAssertEqual(current.recommendedAction, "wait")
+        XCTAssertEqual(current.lastWindow?.status, "retired")
+        XCTAssertEqual(current.predictionDetail?.probability24h, 0)
+        XCTAssertEqual(current.modelIQ?.latest?.date, "2026-06-14")
+        XCTAssertEqual(current.modelIQ?.latest?.model, "GPT-5.5")
+        XCTAssertEqual(current.modelIQ?.latest?.iqScore, 62.5)
+        XCTAssertEqual(current.modelIQ?.latest?.passed, 5)
+        XCTAssertEqual(current.modelIQ?.latest?.tasks, 12)
+    }
 }
 
 private let currentJSON = """
@@ -65,6 +80,20 @@ private let currentJSON = """
     "should_notify": false
   }
 }
+"""
+
+private let homepageHTML = """
+<!doctype html>
+<html>
+<body>
+<p>Tibo 的重置机制已转向“重置卡手工重置”，原重置预测、速蹬窗口提醒和历史窗口已下架。</p>
+<svg>
+<title>6月13日 GPT-5.5 xhigh: IQ指数 87.5, 7/12, 费用 $42.41, 耗时 170分钟, cache命中率 94.5%</title>
+<title>6月14日 GPT-5.4 xhigh: IQ指数 75.0, 6/12, 费用 $21.33, 耗时 206分钟, cache命中率 95.7%</title>
+<title>6月14日 GPT-5.5 xhigh: IQ指数 62.5, 5/12, 费用 $37.59, 耗时 183分钟, cache命中率 94.3%</title>
+</svg>
+</body>
+</html>
 """
 
 private let predictionJSON = """

@@ -7,12 +7,12 @@ Use this skill when the user asks to keep Codex Radar Sentinel aligned with Code
 Keep the macOS menu bar app mapped to the latest public CodexRadar site and endpoint behavior:
 
 - `https://codexradar.com/`
-- `https://codexradar.com/current.json`
-- `https://codexradar.com/feed.xml`
+- `https://codexradar.com/current.json` (legacy; may redirect to homepage)
+- `https://codexradar.com/feed.xml` (legacy; may redirect to homepage)
 
 ## Workflow
 
-1. Fetch the homepage, `current.json`, and `feed.xml`. Note the retrieval date, root keys, changed field types, new visible site sections, and any new public links or APIs.
+1. Fetch the homepage, `current.json`, and `feed.xml`. Note the retrieval date, root keys or redirect target, changed field types, new visible site sections, and any new public links or APIs.
 2. Compare the live payloads with `Sources/CodexRadarCore/RadarModels.swift`, `Sources/CodexRadarCore/NotificationPolicy.swift`, `Sources/CodexRadarSentinel/DashboardMenuView.swift`, and `Sources/CodexRadarSentinel/StatusMetric.swift`.
 3. Fix decoding before changing UI. JSON fields that may evolve from integer to decimal should use compatible numeric types and a display formatter.
 4. Map only useful new CodexRadar capabilities into the macOS app. Prefer clear menu-bar value, compact menu detail, or low-noise notification behavior over exposing raw endpoint complexity.
@@ -41,7 +41,7 @@ If any menu-bar segment shows `--` while CodexRadar has a visible value on the w
 
 ## Current Known Contract Notes
 
-- CodexRadar schema v2 embeds Prediction and model IQ in `current.json`; the old `prediction.json` and `model-iq.json` endpoints may return HTTP 410.
-- `current.json.model_iq.latest.score` can be decimal, for example `62.5`; do not decode it as an integer.
-- CodexRadar IQ is experimental, so new `baseline`, `history`, token, cost, and task detail fields may appear without needing immediate UI exposure.
-- `current.json.window_open` and RSS open/close events remain the highest-priority speed-window notification signals.
+- As of 2026-06-15, CodexRadar says reset prediction, speed-window reminders, and historical windows are retired. `current.json` and `feed.xml` may redirect to the homepage HTML.
+- When JSON endpoints are unavailable, `CodexRadarClient` falls back to parsing the homepage Model IQ SVG `<title>` values and synthesizes a compatible `RadarCurrent` with `window_open = false`.
+- Legacy CodexRadar schema v2 embedded Prediction and model IQ in `current.json`; keep those decoders because older fixtures and possible future JSON restoration still depend on them.
+- `model_iq.latest.score` / homepage IQ values can be decimal, for example `62.5`; do not decode IQ as an integer.

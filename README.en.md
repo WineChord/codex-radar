@@ -2,20 +2,20 @@
 
 [中文](README.md) | English
 
-Full credit to [CodexRadar](https://codexradar.com/): this project depends on CodexRadar's public signals for Codex speed windows, resets, reset prediction, RSS events, and model IQ. Codex Radar Sentinel is a local macOS menu bar app that brings those public CodexRadar signals together with the user's local Codex quota state.
+Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now focuses on model quality. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar Model IQ together with the user's local Codex quota state, while keeping compatibility if the old reset/speed endpoints return.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
 ## News
 
 <details>
-<summary><strong>v0.1.26: Preview is collapsed by default</strong> - The preview controls no longer take permanent menu height.</summary>
+<summary><strong>v0.1.27: CodexRadar homepage fallback</strong> - After the old JSON/RSS endpoints were retired, Model IQ is read from the homepage.</summary>
 
-<img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel collapsed preview screenshot">
+<img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel CodexRadar homepage fallback screenshot">
 
-- `Preview` is collapsed by default, keeping the bottom of the menu shorter.
-- The collapsed row shows the current preview state, such as `Live`.
-- Click the title, icon, or trailing state to expand and use the original `Live / Speed / Reset / Limit` switcher.
+- CodexRadar has retired reset prediction, speed-window alerts, and historical windows. The old `/current.json` and `/feed.xml` endpoints now return the homepage.
+- The app detects homepage HTML, extracts the latest public Model IQ, and synthesizes a compatible “no speed window” state.
+- Local Codex quota, IQ, and the main menu continue to work without surfacing a JSON decoding error.
 
 </details>
 
@@ -135,7 +135,7 @@ The three values are:
 
 - `96%`: weekly Codex quota remaining.
 - `62`: Codex IQ score. The menu bar truncates it to a whole number by default to save space; the Codex IQ section in the dropdown shows the precise value, such as `62.5`.
-- `low`: reset / speed-window signal from CodexRadar.
+- `low`: CodexRadar signal. CodexRadar has currently retired reset prediction and speed-window alerts, so live mode normally shows low risk; if the legacy endpoints return, the app will keep recognizing window and reset states.
 
 The `Menu bar segments` setting can also enable:
 
@@ -146,7 +146,7 @@ The `Menu bar segments` setting can also enable:
 
 `Menu bar advanced` is collapsed by default. Click the whole header row to expand or collapse it. When expanded, it can tune the separator, side padding, font scale, IQ `/10` display, and whether `%` is kept in the menu bar. These settings only affect the menu bar title; dropdown values stay complete.
 
-When [CodexRadar](https://codexradar.com/) reports an active speed window, the menu bar item turns red with white text. The red emphasis can be dismissed manually; it also clears when the window closes or after the 30-minute emphasis window expires.
+When compatible signals from [CodexRadar](https://codexradar.com/) report an active speed window, the menu bar item turns red with white text. The red emphasis can be dismissed manually; it also clears when the window closes or after the 30-minute emphasis window expires. CodexRadar's current homepage says speed-window alerts have been retired, so live mode will not invent a speed-window alert.
 
 ## Status States
 
@@ -173,9 +173,9 @@ This image is captured by the app itself from the real SwiftUI menu window on a 
 - Short-window quota remaining, also from the local Codex app-server.
 - Usage pace: the suggested remaining percentage based on the selected strategy, compared with actual weekly quota remaining. For example, if target remaining is 80% and actual remaining is 90%, it tells you there is room to spend more.
   Strategies include: `Time` for smooth even spending; `Daily` for day-level budgeting; `Reserve` to keep a 20% buffer early; `Workdays` for heavier weekday usage and lighter weekends; `Front-load` to spend earlier and avoid unused quota near reset.
-- [CodexRadar](https://codexradar.com/) current speed-window and reset status.
-- [CodexRadar](https://codexradar.com/) 24h and 48h reset prediction.
-- Codex IQ from the daily probe.
+- The currently public Model IQ from [CodexRadar](https://codexradar.com/).
+- Compatibility state for CodexRadar's legacy reset/speed/prediction endpoints. Those features are currently retired on CodexRadar, so the app shows no window / low risk and will keep recognizing them if the endpoints return later.
+- Codex IQ from the daily probe, currently read from the CodexRadar homepage first.
 
 The app defaults to Chinese. English can be selected in the dropdown. Technical terms such as Codex, IQ, Reset, Prediction, and Radar are kept in English where they are clearer.
 
@@ -183,12 +183,12 @@ The app defaults to Chinese. English can be selected in the dropdown. Technical 
 
 The app sends macOS notifications for:
 
-- Speed window opened.
-- CodexRadar records a reset; the header says `Last reset was ...`, while local quota stays in `Codex Quota`.
+- Compatible signal reports a speed window opened.
+- Compatible CodexRadar signal records a reset; the header says `Last reset was ...`, while local quota stays in `Codex Quota`.
 - Weekly quota falls below 30%.
 - Weekly quota falls below 15%.
 - Weekly quota recovers after a low-remaining state.
-- Prediction rises to high, or CodexRadar explicitly marks it as should_notify.
+- Prediction rises to high, or CodexRadar explicitly marks it as should_notify. When CodexRadar's reset prediction is retired, live mode does not trigger prediction notifications.
 - Codex IQ enters red or falls below 80.
 
 Notification sound is off by default and can be enabled in the dropdown. Historical reset windows are seeded on first launch, so starting the app after a reset does not replay old reset notifications. If the first launch happens during an active speed window, it still notifies.
@@ -238,8 +238,7 @@ Accepted values are `live`, `speedWindow`, `resetConfirmed`, and `blocked`.
 Codex Radar Sentinel reads these public endpoints:
 
 - [CodexRadar homepage](https://codexradar.com/)
-- [current.json](https://codexradar.com/current.json): speed-window, reset, Prediction, and model IQ data.
-- [feed.xml](https://codexradar.com/feed.xml)
+- [current.json](https://codexradar.com/current.json) and [feed.xml](https://codexradar.com/feed.xml): legacy reset/speed endpoints. CodexRadar currently redirects them back to the homepage, so the app falls back to homepage Model IQ parsing.
 
 For local quota, it reads the Codex app-server:
 
@@ -287,7 +286,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.26
+./scripts/check_release_readiness.sh 0.1.27
 ```
 
 Build release packages:
@@ -295,7 +294,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.26
+./scripts/package_release.sh 0.1.27
 ```
 
 Update README menu bar and menu screenshots:
@@ -314,6 +313,6 @@ Regenerate the macOS icon:
 
 ## Credits
 
-Codex Radar Sentinel exists because [CodexRadar](https://codexradar.com/) publishes clear public signals for Codex speed windows, resets, reset prediction, RSS events, and model IQ. This app wraps those public signals together with the user's local Codex quota state in a macOS menu bar tool.
+Codex Radar Sentinel exists because [CodexRadar](https://codexradar.com/) publishes clear public Codex signals. CodexRadar previously published speed windows, resets, reset prediction, RSS events, and model IQ; it now focuses on model quality. This app wraps those public signals together with the user's local Codex quota state in a macOS menu bar tool.
 
 Codex Radar Sentinel is not affiliated with CodexRadar or OpenAI.

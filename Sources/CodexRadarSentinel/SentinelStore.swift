@@ -399,7 +399,7 @@ final class SentinelStore: NSObject, ObservableObject {
         state = documentationState
     }
 
-    private static let documentationUpdatedAt = Date(timeIntervalSince1970: 1_780_573_080)
+    private static let documentationUpdatedAt = Date(timeIntervalSince1970: 1_781_478_000)
 
     private static func documentationRateLimits() -> RateLimitDashboard? {
         let now = Int(Date().timeIntervalSince1970)
@@ -429,7 +429,7 @@ final class SentinelStore: NSObject, ObservableObject {
         {
           "updated_at": "2026-06-05T09:33:54+08:00",
           "latest": {
-            "date": "2026-06-05",
+            "date": "2026-06-14",
             "tasks": 12,
             "passed": 5,
             "iq_score": 62.5,
@@ -441,37 +441,53 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private static func documentationCurrent(language: AppLanguage) -> RadarCurrent? {
         let title = language.text(
-            "Codex 可靠性事故补偿重置",
-            "Codex reliability incident compensation reset"
+            "CodexRadar reset/速蹬信号已下架",
+            "CodexRadar reset/speed signals retired"
         )
         let window = language.text("无窗", "none")
-        let scope = language.text("所有付费计划", "all paid plans")
+        let scope = language.text("模型质量雷达", "model quality radar")
         let summary = language.text(
-            "Tibo 表示过去 24 小时内有三次影响 Codex 可靠性的小事故，并已为所有付费计划重置 Codex 使用限制。",
-            "Tibo reported three minor Codex reliability incidents in the past 24 hours, and Codex usage limits were reset for all paid plans."
+            "CodexRadar 当前聚焦 Model IQ；旧 reset 预测、速蹬窗口提醒和历史窗口已下架。",
+            "CodexRadar currently focuses on Model IQ; legacy reset prediction, speed-window alerts, and historical windows are retired."
         )
         return decodeDocumentationJSON("""
         {
-          "checked_at": "2026-06-04T19:38:00+08:00",
-          "status": "none",
+          "schema_version": "homepage-fallback-v1",
+          "checked_at": "2026-06-15T07:00:00+08:00",
+          "status": "retired",
           "window_open": false,
           "recommended_action": "wait",
           "last_window": {
-            "id": "documentation-reset-window",
+            "id": "documentation-homepage-fallback",
             "title": "\(title)",
-            "status": "closed",
-            "opened_at": "2026-06-04T18:00:00+08:00",
-            "closed_at": "2026-06-04T19:38:00+08:00",
-            "window_minutes": 98,
+            "status": "retired",
             "window_human": "\(window)",
             "scope": "\(scope)",
             "summary": "\(summary)"
           },
           "prediction": {
             "level": "low",
-            "probability_24h": 0.11,
-            "probability_48h": 0.20,
-            "should_notify": false
+            "probability_24h": 0,
+            "probability_48h": 0,
+            "should_notify": false,
+            "reasoning_summary": "\(summary)",
+            "updated_at": "2026-06-15T07:00:00+08:00"
+          },
+          "model_iq": {
+            "updated_at": "2026-06-15T07:00:00+08:00",
+            "latest": {
+              "date": "2026-06-14",
+              "model": "GPT-5.5",
+              "reasoning_effort": "xhigh",
+              "tasks": 12,
+              "valid_tasks": 12,
+              "passed": 5,
+              "failed": 7,
+              "pass_rate": 0.4166666667,
+              "iq_score": 62.5,
+              "score": 62.5,
+              "status": "red"
+            }
           }
         }
         """)
@@ -479,17 +495,17 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private static func documentationPrediction(language: AppLanguage) -> RadarPrediction? {
         let summary = language.text(
-            "当前无官方开启窗口。Tibo 已在 2026-06-04 08:25:58 +0800 为过去 24 小时三次 Codex 可靠性小事故完成一次全付费计划限额重置。",
-            "No official window is open. Tibo completed one all-paid-plan Codex limit reset at 2026-06-04 08:25:58 +0800 after three minor Codex reliability incidents in the prior 24 hours."
+            "CodexRadar 当前已下架 reset 预测和速蹬窗口提醒；live 模式按低风险处理，并继续展示首页 Model IQ。",
+            "CodexRadar has retired reset prediction and speed-window alerts; live mode treats this as low risk and keeps showing homepage Model IQ."
         )
         return decodeDocumentationJSON("""
         {
           "level": "low",
-          "probability_24h": 0.11,
-          "probability_48h": 0.20,
+          "probability_24h": 0,
+          "probability_48h": 0,
           "should_notify": false,
           "reasoning_summary": "\(summary)",
-          "updated_at": "2026-06-04T19:38:00+08:00"
+          "updated_at": "2026-06-15T07:00:00+08:00"
         }
         """)
     }
