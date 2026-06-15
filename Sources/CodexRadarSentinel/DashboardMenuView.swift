@@ -321,7 +321,31 @@ struct DashboardMenuView: View {
                 Spacer()
                 labelPair(text("状态", "Status"), state.modelIQ?.latest?.status ?? text("未知", "unknown"))
             }
+            if let latest = state.modelIQ?.latest {
+                HStack {
+                    labelPair(text("耗时", "Time"), latest.wallTimeText)
+                    Spacer()
+                    labelPair(text("费用", "Cost"), DisplayFormatters.costUSD(latest.costUSD))
+                    Spacer()
+                    labelPair("Cache", latest.cacheHitRateText)
+                    Spacer()
+                    labelPair(text("体感", "Rating"), modelRatingText(state.modelRatings?.rating(for: latest)))
+                }
+            }
         }
+    }
+
+    private func modelRatingText(_ rating: ModelRating?) -> String {
+        guard let rating,
+              let average = rating.average,
+              average.isFinite else {
+            return DisplayFormatters.percentPlaceholder
+        }
+        let score = String(format: "%.1f/10", locale: Locale(identifier: "en_US_POSIX"), average)
+        guard let count = rating.count, count > 0 else {
+            return score
+        }
+        return text("\(score) · \(count)票", "\(score) · \(count) votes")
     }
 
     private func errorSection(_ error: String) -> some View {
@@ -831,6 +855,7 @@ struct DashboardMenuView: View {
             Text(value)
                 .font(.system(size: metrics.label))
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
 

@@ -5,6 +5,7 @@ public struct DashboardState: Equatable {
     public var current: RadarCurrent?
     public var prediction: RadarPrediction?
     public var modelIQ: ModelIQEnvelope?
+    public var modelRatings: ModelRatingsEnvelope?
     public var lastUpdatedAt: Date?
     public var lastError: String?
 
@@ -13,6 +14,7 @@ public struct DashboardState: Equatable {
         current: RadarCurrent? = nil,
         prediction: RadarPrediction? = nil,
         modelIQ: ModelIQEnvelope? = nil,
+        modelRatings: ModelRatingsEnvelope? = nil,
         lastUpdatedAt: Date? = nil,
         lastError: String? = nil
     ) {
@@ -20,6 +22,7 @@ public struct DashboardState: Equatable {
         self.current = current
         self.prediction = prediction
         self.modelIQ = modelIQ
+        self.modelRatings = modelRatings
         self.lastUpdatedAt = lastUpdatedAt
         self.lastError = lastError
     }

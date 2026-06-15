@@ -41,6 +41,10 @@ public struct CodexRadarClient {
         }
     }
 
+    public func fetchModelRatings() async throws -> ModelRatingsEnvelope {
+        try await fetchJSON(AppConstants.modelRatingsPath, as: ModelRatingsEnvelope.self)
+    }
+
     private func fetchJSON<T: Decodable>(_ path: String, as type: T.Type) async throws -> T {
         let data = try await fetchData(path)
         return try decoder.decode(T.self, from: data)
@@ -95,7 +99,7 @@ public struct CodexRadarClient {
     }
 
     private static func parseHomepageModelIQ(html: String, checkedAt: Date) -> [String: Any]? {
-        let pattern = #"<title>\s*(\d{1,2})月(\d{1,2})日\s+([^:]+):\s*IQ指数\s*([0-9]+(?:\.[0-9]+)?),\s*(\d+)/(\d+)"#
+        let pattern = #"<title>\s*(\d{1,2})月(\d{1,2})日\s+([^:]+):\s*IQ指数\s*([0-9]+(?:\.[0-9]+)?),\s*(\d+)/(\d+)(?:,\s*费用\s*\$([0-9]+(?:\.[0-9]+)?),\s*耗时\s*([0-9]+)分钟,\s*cache命中率\s*([0-9]+(?:\.[0-9]+)?)%)?"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return nil
         }
@@ -111,6 +115,9 @@ public struct CodexRadarClient {
                   let tasks = Int(capture(match, 6, in: html)) else {
                 return nil
             }
+            let cost = Double(capture(match, 7, in: html))
+            let minutes = Int(capture(match, 8, in: html))
+            let cacheHitRate = Double(capture(match, 9, in: html))
             let modelParts = capture(match, 3, in: html).split(separator: " ", omittingEmptySubsequences: true)
             let model = modelParts.first.map(String.init)
             let effort = modelParts.dropFirst().isEmpty ? nil : modelParts.dropFirst().joined(separator: " ")
@@ -121,7 +128,10 @@ public struct CodexRadarClient {
                 reasoningEffort: effort,
                 score: score,
                 passed: passed,
-                tasks: tasks
+                tasks: tasks,
+                costUSD: cost,
+                wallSeconds: minutes.map { $0 * 60 },
+                cacheHitRate: cacheHitRate
             )
         }
         guard let latest = snapshots.max(by: { lhs, rhs in
@@ -147,6 +157,18 @@ public struct CodexRadarClient {
             "score": latest.score,
             "status": modelIQStatus(latest.score)
         ]
+        if let wallSeconds = latest.wallSeconds {
+            payload["wall_seconds"] = wallSeconds
+            payload["wall_time_human"] = "\(wallSeconds / 60)分钟"
+        }
+        if let costUSD = latest.costUSD {
+            payload["cost_usd"] = costUSD
+        }
+        if let cacheHitRate = latest.cacheHitRate {
+            let inputTokens = 1_000_000
+            payload["input_tokens"] = inputTokens
+            payload["cached_input_tokens"] = Int(round(Double(inputTokens) * cacheHitRate / 100))
+        }
         if let model = latest.model {
             payload["model"] = model
         }
@@ -188,6 +210,9 @@ private struct HomepageIQSnapshot {
     let score: Double
     let passed: Int
     let tasks: Int
+    let costUSD: Double?
+    let wallSeconds: Int?
+    let cacheHitRate: Double?
 
     var modelPriority: Int {
         if model?.contains("5.5") == true {

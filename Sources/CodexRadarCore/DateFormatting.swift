@@ -49,6 +49,31 @@ public enum DisplayFormatters {
         return "\(Int(value))"
     }
 
+    public static func cacheHitRate(cachedInputTokens: Int?, inputTokens: Int?) -> String {
+        guard let cachedInputTokens,
+              let inputTokens,
+              inputTokens > 0 else {
+            return percentPlaceholder
+        }
+        let rate = Double(cachedInputTokens) / Double(inputTokens) * 100
+        return String(format: "%.1f%%", locale: Locale(identifier: "en_US_POSIX"), rate)
+    }
+
+    public static func costUSD(_ value: Double?) -> String {
+        guard let value, value.isFinite else {
+            return percentPlaceholder
+        }
+        return String(format: "$%.2f", locale: Locale(identifier: "en_US_POSIX"), value)
+    }
+
+    public static func minutesFromSeconds(_ seconds: Int?) -> String {
+        guard let seconds else {
+            return percentPlaceholder
+        }
+        let minutes = max(1, Int(round(Double(seconds) / 60)))
+        return "\(minutes)m"
+    }
+
     public static func compactDateTime(_ date: Date?) -> String {
         guard let date else {
             return "unknown"

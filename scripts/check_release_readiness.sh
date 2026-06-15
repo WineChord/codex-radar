@@ -25,6 +25,16 @@ for path in current.json feed.xml; do
     echo "  ${path}: ${bytes} bytes"
   fi
 done
+fetch_url "https://codexradar.com/api/model-ratings" "${tmp_dir}/model-ratings.json"
+ratings_count="$(python3 - <<'PY' "${tmp_dir}/model-ratings.json"
+import json
+import sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+print(len(data.get("models", [])))
+PY
+)"
+echo "  api/model-ratings: ${ratings_count} models"
 
 echo "Running Swift tests with live CodexRadar contract checks..."
 CODEX_RADAR_LIVE_CONTRACT_TESTS=1 swift test

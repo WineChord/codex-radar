@@ -231,6 +231,23 @@ public struct ModelIQSnapshot: Decodable, Equatable {
     public let iqScore: Double?
     public let status: String?
     public let wallSeconds: Int?
+    public let wallTimeHuman: String?
+    public let totalTokens: Int?
+    public let inputTokens: Int?
+    public let cachedInputTokens: Int?
+    public let outputTokens: Int?
+    public let costUSD: Double?
+
+    public var cacheHitRateText: String {
+        DisplayFormatters.cacheHitRate(
+            cachedInputTokens: cachedInputTokens,
+            inputTokens: inputTokens
+        )
+    }
+
+    public var wallTimeText: String {
+        wallTimeHuman ?? DisplayFormatters.minutesFromSeconds(wallSeconds)
+    }
 
     enum CodingKeys: String, CodingKey {
         case date
@@ -247,6 +264,12 @@ public struct ModelIQSnapshot: Decodable, Equatable {
         case score
         case status
         case wallSeconds = "wall_seconds"
+        case wallTimeHuman = "wall_time_human"
+        case totalTokens = "total_tokens"
+        case inputTokens = "input_tokens"
+        case cachedInputTokens = "cached_input_tokens"
+        case outputTokens = "output_tokens"
+        case costUSD = "cost_usd"
     }
 
     public init(from decoder: Decoder) throws {
@@ -265,5 +288,80 @@ public struct ModelIQSnapshot: Decodable, Equatable {
             ?? container.decodeIfPresent(Double.self, forKey: .score)
         status = try container.decodeIfPresent(String.self, forKey: .status)
         wallSeconds = try container.decodeIfPresent(Int.self, forKey: .wallSeconds)
+        wallTimeHuman = try container.decodeIfPresent(String.self, forKey: .wallTimeHuman)
+        totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
+        inputTokens = try container.decodeIfPresent(Int.self, forKey: .inputTokens)
+        cachedInputTokens = try container.decodeIfPresent(Int.self, forKey: .cachedInputTokens)
+        outputTokens = try container.decodeIfPresent(Int.self, forKey: .outputTokens)
+        costUSD = try container.decodeIfPresent(Double.self, forKey: .costUSD)
+    }
+}
+
+public struct ModelRatingsEnvelope: Decodable, Equatable {
+    public let ok: Bool?
+    public let day: String?
+    public let timezone: String?
+    public let refreshSeconds: Int?
+    public let updatedAt: String?
+    public let models: [ModelRating]
+    public let source: String?
+
+    enum CodingKeys: String, CodingKey {
+        case ok
+        case day
+        case timezone
+        case refreshSeconds = "refresh_seconds"
+        case updatedAt = "updated_at"
+        case models
+        case source
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ok = try container.decodeIfPresent(Bool.self, forKey: .ok)
+        day = try container.decodeIfPresent(String.self, forKey: .day)
+        timezone = try container.decodeIfPresent(String.self, forKey: .timezone)
+        refreshSeconds = try container.decodeIfPresent(Int.self, forKey: .refreshSeconds)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        models = try container.decodeIfPresent([ModelRating].self, forKey: .models) ?? []
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+    }
+
+    public func rating(for snapshot: ModelIQSnapshot?) -> ModelRating? {
+        guard let snapshot else {
+            return models.first
+        }
+        let model = snapshot.model?.lowercased()
+        let effort = snapshot.reasoningEffort?.lowercased()
+        if let model, let effort {
+            let expectedID = "\(model)-\(effort)"
+            if let exact = models.first(where: { $0.id?.lowercased() == expectedID }) {
+                return exact
+            }
+            if let exactLabel = models.first(where: { $0.label?.lowercased() == "\(model) \(effort)" }) {
+                return exactLabel
+            }
+        }
+        if let model,
+           let grouped = models.first(where: { $0.group?.lowercased() == model || $0.label?.lowercased().hasPrefix(model) == true }) {
+            return grouped
+        }
+        return models.first
+    }
+}
+
+public struct ModelRating: Decodable, Equatable {
+    public let id: String?
+    public let label: String?
+    public let group: String?
+    public let average: Double?
+    public let count: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case label
+        case group
+        case average
+        case count
     }
 }

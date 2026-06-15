@@ -9,6 +9,17 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.29：质量指标对齐 CodexRadar</strong> - 下拉菜单新增耗时、费用、cache 命中率和社区体感分。</summary>
+
+<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 质量指标截图">
+
+- CodexRadar 当前网页展示“智商、速度、费用与 cache 命中率”和“社区体感分”，菜单已同步这些公开指标。
+- `Codex IQ` 区块现在会显示耗时、费用、Cache 和体感分，例如 `49分钟 / $39.94 / 95.0% / 9.4/10`。
+- 状态栏默认仍保持 `周额度 / IQ / 质量`，不会因为新增指标变宽。
+
+</details>
+
+<details>
 <summary><strong>v0.1.28：转向模型质量雷达</strong> - 速蹬窗口已下架，状态栏第三段改成 Model IQ 质量状态。</summary>
 
 <img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 模型质量雷达截图">
@@ -249,6 +260,7 @@ Codex Radar Sentinel 读取这些公开入口：
 
 - [CodexRadar homepage](https://codexradar.com/)
 - [current.json](https://codexradar.com/current.json)：当前可能返回 JSON，包含 Model IQ、官方权益事件和 legacy prediction 字段。
+- [api/model-ratings](https://codexradar.com/api/model-ratings)：社区体感分，菜单里的 `体感` 来自这里。
 - [feed.xml](https://codexradar.com/feed.xml)：后续用于官方权益提醒；不可用或返回首页时，app 会继续以首页/JSON 里的 Model IQ 为准。
 
 本机额度读取 Codex app-server：
@@ -297,7 +309,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.28
+./scripts/check_release_readiness.sh 0.1.29
 ```
 
 构建 release 包：
@@ -305,7 +317,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.28
+./scripts/package_release.sh 0.1.29
 ```
 
 更新 README 状态栏和菜单截图：

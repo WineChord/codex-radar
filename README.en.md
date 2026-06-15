@@ -9,6 +9,17 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.29: Quality metrics aligned with CodexRadar</strong> - The dropdown now shows runtime, cost, cache hit rate, and community rating.</summary>
+
+<img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel quality metrics screenshot">
+
+- CodexRadar now presents “IQ, speed, cost, cache hit rate” plus community ratings, and the menu mirrors those public metrics.
+- The `Codex IQ` section now shows time, cost, Cache, and rating, for example `49m / $39.94 / 95.0% / 9.4/10`.
+- The menu bar title remains `Weekly / IQ / Quality` by default, so the new metrics do not make it wider.
+
+</details>
+
+<details>
 <summary><strong>v0.1.28: Model quality first</strong> - Speed windows are retired, so the third menu-bar segment is now Model IQ quality.</summary>
 
 <img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel model quality radar screenshot">
@@ -249,6 +260,7 @@ Codex Radar Sentinel reads these public endpoints:
 
 - [CodexRadar homepage](https://codexradar.com/)
 - [current.json](https://codexradar.com/current.json): may currently return JSON with Model IQ, official entitlement events, and legacy prediction fields.
+- [api/model-ratings](https://codexradar.com/api/model-ratings): community ratings. The menu's `Rating` value comes from this endpoint.
 - [feed.xml](https://codexradar.com/feed.xml): reserved for official entitlement alerts; when unavailable or returning the homepage, the app keeps using Model IQ from the homepage/JSON.
 
 For local quota, it reads the Codex app-server:
@@ -297,7 +309,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.28
+./scripts/check_release_readiness.sh 0.1.29
 ```
 
 Build release packages:
@@ -305,7 +317,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.28
+./scripts/package_release.sh 0.1.29
 ```
 
 Update README menu bar and menu screenshots:

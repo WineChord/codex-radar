@@ -19,6 +19,13 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(iq.latest?.iqScore, 62.5)
         XCTAssertEqual(iq.latest?.passed, 6)
         XCTAssertEqual(iq.latest?.tasks, 12)
+        XCTAssertEqual(iq.latest?.costUSD, 39.94)
+        XCTAssertEqual(iq.latest?.cacheHitRateText, "95.0%")
+
+        let ratings = try decoder.decode(ModelRatingsEnvelope.self, from: Data(modelRatingsJSON.utf8))
+        let rating = ratings.rating(for: iq.latest)
+        XCTAssertEqual(rating?.average, 9.4)
+        XCTAssertEqual(rating?.count, 10)
     }
 
     func testDecodesEmbeddedCurrentPayload() throws {
@@ -51,6 +58,9 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.modelIQ?.latest?.iqScore, 62.5)
         XCTAssertEqual(current.modelIQ?.latest?.passed, 5)
         XCTAssertEqual(current.modelIQ?.latest?.tasks, 12)
+        XCTAssertEqual(current.modelIQ?.latest?.costUSD, 37.59)
+        XCTAssertEqual(current.modelIQ?.latest?.wallTimeText, "183分钟")
+        XCTAssertEqual(current.modelIQ?.latest?.cacheHitRateText, "94.3%")
     }
 }
 
@@ -126,8 +136,33 @@ private let modelIQJSON = """
     "baseline_pass_rate": 0.666667,
     "iq_score": 62.5,
     "status": "red",
-    "wall_seconds": 2818
+    "wall_seconds": 2818,
+    "input_tokens": 38991839,
+    "cached_input_tokens": 37026944,
+    "output_tokens": 386860,
+    "cost_usd": 39.94
   }
+}
+"""
+
+private let modelRatingsJSON = """
+{
+  "ok": true,
+  "day": "2026-06-15",
+  "timezone": "Asia/Shanghai",
+  "refresh_seconds": 60,
+  "updated_at": "2026-06-15T02:02:03.291Z",
+  "models": [
+    {
+      "id": "gpt-5.5-xhigh",
+      "label": "GPT-5.5 xhigh",
+      "group": "GPT-5.5",
+      "average": 9.4,
+      "count": 10
+    }
+  ],
+  "source": "cache",
+  "my_scores": {}
 }
 """
 

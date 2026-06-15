@@ -395,6 +395,7 @@ final class SentinelStore: NSObject, ObservableObject {
         documentationState.current = Self.documentationCurrent(language: language)
         documentationState.prediction = Self.documentationPrediction(language: language)
         documentationState.modelIQ = Self.documentationModelIQ()
+        documentationState.modelRatings = Self.documentationModelRatings()
         documentationState.lastUpdatedAt = Self.documentationUpdatedAt
         state = documentationState
     }
@@ -433,8 +434,38 @@ final class SentinelStore: NSObject, ObservableObject {
             "tasks": 12,
             "passed": 9,
             "iq_score": 112.5,
-            "status": "green"
+            "status": "green",
+            "wall_seconds": 2944,
+            "wall_time_human": "49分钟",
+            "input_tokens": 38991839,
+            "cached_input_tokens": 37026944,
+            "output_tokens": 386860,
+            "cost_usd": 39.943747,
+            "model": "gpt-5.5",
+            "reasoning_effort": "xhigh"
           }
+        }
+        """)
+    }
+
+    private static func documentationModelRatings() -> ModelRatingsEnvelope? {
+        decodeDocumentationJSON("""
+        {
+          "ok": true,
+          "day": "2026-06-15",
+          "timezone": "Asia/Shanghai",
+          "refresh_seconds": 60,
+          "updated_at": "2026-06-15T02:02:03.291Z",
+          "models": [
+            {
+              "id": "gpt-5.5-xhigh",
+              "label": "GPT-5.5 xhigh",
+              "group": "GPT-5.5",
+              "average": 9.4,
+              "count": 10
+            }
+          ],
+          "source": "cache"
         }
         """)
     }
@@ -486,7 +517,13 @@ final class SentinelStore: NSObject, ObservableObject {
               "pass_rate": 0.75,
               "iq_score": 112.5,
               "score": 112.5,
-              "status": "green"
+              "status": "green",
+              "wall_seconds": 2944,
+              "wall_time_human": "49分钟",
+              "input_tokens": 38991839,
+              "cached_input_tokens": 37026944,
+              "output_tokens": 386860,
+              "cost_usd": 39.943747
             }
           }
         }
@@ -539,10 +576,12 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private func refresh() async {
         async let currentResult = fetchCurrentResult()
+        async let modelRatingsResult = fetchModelRatingsResult()
         async let rateLimitResult = fetchRateLimitResult()
 
         let results = await (
             current: currentResult,
+            modelRatings: modelRatingsResult,
             rateLimits: rateLimitResult
         )
 
@@ -551,6 +590,9 @@ final class SentinelStore: NSObject, ObservableObject {
         var errors: [String] = []
 
         applyCurrent(results.current, to: &next, errors: &errors)
+        if case .success(let modelRatings) = results.modelRatings {
+            next.modelRatings = modelRatings
+        }
         apply(results.rateLimits, to: &next.rateLimits, errors: &errors)
 
         next.lastUpdatedAt = Date()
@@ -568,6 +610,12 @@ final class SentinelStore: NSObject, ObservableObject {
     private func fetchCurrentResult() async -> Result<RadarCurrent, Error> {
         await capture {
             try await radarClient.fetchCurrent()
+        }
+    }
+
+    private func fetchModelRatingsResult() async -> Result<ModelRatingsEnvelope, Error> {
+        await capture {
+            try await radarClient.fetchModelRatings()
         }
     }
 
