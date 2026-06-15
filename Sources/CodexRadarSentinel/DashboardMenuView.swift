@@ -74,7 +74,9 @@ struct DashboardMenuView: View {
             quotaPacingSection
             Divider()
             radarSection
-            predictionSection
+            if showsPredictionSection {
+                predictionSection
+            }
             iqSection
             if let error = state.lastError {
                 errorSection(error)
@@ -156,8 +158,8 @@ struct DashboardMenuView: View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("状态栏含义", "Menu Bar"), systemImage: "menubar.rectangle")
             Text(text(
-                "默认显示“周额度 / IQ / 信号”；可打开 5h 和应剩。",
-                "Default: Weekly / IQ / Signal; enable 5h and Pace when useful."
+                "默认显示“周额度 / IQ / 质量”；可打开 5h 和应剩。",
+                "Default: Weekly / IQ / Quality; enable 5h and Pace when useful."
             ))
             .font(.system(size: metrics.caption))
             .foregroundStyle(.secondary)
@@ -237,23 +239,54 @@ struct DashboardMenuView: View {
 
     private var radarSection: some View {
         VStack(alignment: .leading, spacing: 7) {
-            sectionTitle("Reset Radar", systemImage: "dot.radiowaves.left.and.right")
-            Text(state.current?.lastWindow?.title ?? text("还没有加载 reset 窗口", "No reset window loaded"))
+            sectionTitle("CodexRadar", systemImage: "dot.radiowaves.left.and.right")
+            Text(radarTitle)
                 .font(.system(size: metrics.body, weight: .medium))
                 .lineLimit(2)
             HStack {
-                labelPair(text("窗口", "Window"), state.current?.lastWindow?.windowHuman ?? text("未知", "unknown"))
+                labelPair(text("当前重点", "Focus"), radarFocus)
                 Spacer()
-                labelPair(text("范围", "Scope"), state.current?.lastWindow?.scope ?? text("未知", "unknown"))
+                labelPair(text("旧提醒", "Legacy alerts"), radarLegacyStatus)
             }
-            Text(state.current?.lastWindow?.summary ?? text(
-                "还没有读取到 CodexRadar 公开信号。",
-                "CodexRadar public signal has not been loaded yet."
-            ))
+            Text(radarSummary)
             .font(.system(size: metrics.label))
             .foregroundStyle(.secondary)
             .lineLimit(2)
         }
+    }
+
+    private var radarTitle: String {
+        if codexRadarSignalRetired {
+            return text("模型质量雷达", "Model quality radar")
+        }
+        return state.current?.lastWindow?.title ?? text("还没有加载 CodexRadar 状态", "No CodexRadar status loaded")
+    }
+
+    private var radarFocus: String {
+        if codexRadarSignalRetired {
+            return "Model IQ"
+        }
+        return state.current?.lastWindow?.windowHuman ?? text("未知", "unknown")
+    }
+
+    private var radarLegacyStatus: String {
+        if codexRadarSignalRetired {
+            return text("已下架", "retired")
+        }
+        return state.current?.lastWindow?.scope ?? text("未知", "unknown")
+    }
+
+    private var radarSummary: String {
+        if codexRadarSignalRetired {
+            return text(
+                "CodexRadar 已转向模型质量：Model IQ、速度、费用、cache 命中率和社区体感分。本应用不再把速蹬/Prediction 当作 live 主信号。",
+                "CodexRadar now focuses on model quality: Model IQ, speed, cost, cache hit rate, and community ratings. This app no longer treats speed windows or Prediction as live primary signals."
+            )
+        }
+        return state.current?.lastWindow?.summary ?? text(
+            "还没有读取到 CodexRadar 公开信号。",
+            "CodexRadar public signal has not been loaded yet."
+        )
     }
 
     private var predictionSection: some View {
@@ -355,7 +388,9 @@ struct DashboardMenuView: View {
                 alignment: .leading,
                 spacing: 7
             ) {
-                Toggle(text("Prediction 提醒", "Prediction alerts"), isOn: $store.predictionNotificationsEnabled)
+                if showsPredictionSection {
+                    Toggle(text("Prediction 提醒", "Prediction alerts"), isOn: $store.predictionNotificationsEnabled)
+                }
                 Toggle(text("IQ 提醒", "IQ alerts"), isOn: $store.iqNotificationsEnabled)
                 Toggle(text("通知声音", "Notification sound"), isOn: $store.notificationSoundEnabled)
                 Toggle(text("登录时启动", "Launch at login"), isOn: $store.launchAtLoginEnabled)
@@ -995,14 +1030,17 @@ struct DashboardMenuView: View {
     }
 
     private var actionText: String {
-        if state.current?.windowOpen == true {
+        if state.activeSpeedWindow {
             return text("速蹬窗口开启", "Speed window open")
+        }
+        if state.activeEntitlementEvent {
+            return text("官方权益事件", "Official entitlement")
         }
         if state.rateLimits?.isBlocked == true {
             return text("本机限额中", "Local limit reached")
         }
         if codexRadarSignalRetired {
-            return text("无速蹬窗口", "No speed window")
+            return text("模型质量雷达", "Model quality radar")
         }
         if state.recentResetClosed {
             return text(
@@ -1014,17 +1052,20 @@ struct DashboardMenuView: View {
     }
 
     private var headerDetailText: String {
-        if state.current?.windowOpen == true {
+        if state.activeSpeedWindow {
             return text(
                 "建议尽快使用 · 周额度 \(DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent))",
                 "Use soon · weekly \(DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent))"
             )
         }
+        if state.activeEntitlementEvent {
+            return state.current?.lastWindow?.title ?? text("CodexRadar 记录到官方权益事件", "CodexRadar recorded an official entitlement event")
+        }
         if state.rateLimits?.isBlocked == true {
             return text("本机 Codex 返回限额状态", "Local Codex reports a limit")
         }
         if codexRadarSignalRetired {
-            return text("CodexRadar 当前聚焦 Model IQ", "CodexRadar now focuses on Model IQ")
+            return text("CodexRadar 已转向 Model IQ", "CodexRadar has moved to Model IQ")
         }
         if state.recentResetClosed {
             return text("本机额度见下方 · 来源 CodexRadar", "Local quota below · source CodexRadar")
@@ -1046,13 +1087,29 @@ struct DashboardMenuView: View {
             || state.current?.lastWindow?.status?.lowercased() == "retired"
     }
 
+    private var showsPredictionSection: Bool {
+        guard !codexRadarSignalRetired else {
+            return false
+        }
+        guard let prediction = state.prediction ?? state.current?.predictionDetail else {
+            return false
+        }
+        if state.activeSpeedWindow || prediction.shouldNotify == true {
+            return true
+        }
+        return prediction.level?.lowercased() != "low"
+    }
+
     private var signalLabel: String {
         StatusMetric.signal.value(for: state, language: language)
     }
 
     private var headerSymbol: String {
-        if state.current?.windowOpen == true {
+        if state.activeSpeedWindow {
             return "bolt.circle.fill"
+        }
+        if state.activeEntitlementEvent {
+            return "gift.circle.fill"
         }
         if state.rateLimits?.isBlocked == true {
             return "lock.circle.fill"
@@ -1061,8 +1118,11 @@ struct DashboardMenuView: View {
     }
 
     private var headerColor: Color {
-        if state.current?.windowOpen == true {
+        if state.activeSpeedWindow {
             return .red
+        }
+        if state.activeEntitlementEvent {
+            return .teal
         }
         if state.rateLimits?.isBlocked == true {
             return .orange
@@ -1129,8 +1189,12 @@ struct DashboardMenuView: View {
             return .red
         case "限额", "med", "medium", "中":
             return .orange
-        case "低", "low":
+        case "正常", "ok":
+            return .green
+        case "权益", "event":
             return .teal
+        case "低", "low":
+            return iqColor
         default:
             return .secondary
         }

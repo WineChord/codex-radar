@@ -427,13 +427,13 @@ final class SentinelStore: NSObject, ObservableObject {
     private static func documentationModelIQ() -> ModelIQEnvelope? {
         decodeDocumentationJSON("""
         {
-          "updated_at": "2026-06-05T09:33:54+08:00",
+          "updated_at": "2026-06-15T08:25:00+08:00",
           "latest": {
-            "date": "2026-06-14",
+            "date": "2026-06-15",
             "tasks": 12,
-            "passed": 5,
-            "iq_score": 62.5,
-            "status": "red"
+            "passed": 9,
+            "iq_score": 112.5,
+            "status": "green"
           }
         }
         """)
@@ -441,8 +441,8 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private static func documentationCurrent(language: AppLanguage) -> RadarCurrent? {
         let title = language.text(
-            "CodexRadar reset/速蹬信号已下架",
-            "CodexRadar reset/speed signals retired"
+            "CodexRadar 已转向模型质量雷达",
+            "CodexRadar has moved to model quality"
         )
         let window = language.text("无窗", "none")
         let scope = language.text("模型质量雷达", "model quality radar")
@@ -476,17 +476,17 @@ final class SentinelStore: NSObject, ObservableObject {
           "model_iq": {
             "updated_at": "2026-06-15T07:00:00+08:00",
             "latest": {
-              "date": "2026-06-14",
+              "date": "2026-06-15",
               "model": "GPT-5.5",
               "reasoning_effort": "xhigh",
               "tasks": 12,
               "valid_tasks": 12,
-              "passed": 5,
-              "failed": 7,
-              "pass_rate": 0.4166666667,
-              "iq_score": 62.5,
-              "score": 62.5,
-              "status": "red"
+              "passed": 9,
+              "failed": 3,
+              "pass_rate": 0.75,
+              "iq_score": 112.5,
+              "score": 112.5,
+              "status": "green"
             }
           }
         }

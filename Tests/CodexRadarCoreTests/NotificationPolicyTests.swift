@@ -47,6 +47,58 @@ final class NotificationPolicyTests: XCTestCase {
         XCTAssertEqual(first.map(\.title), ["Codex 周额度很低"])
         XCTAssertTrue(second.isEmpty)
     }
+
+    func testRetiredCodexRadarPredictionDoesNotNotify() throws {
+        var memory = NotificationMemory(initialized: true)
+        let current = try JSONDecoder().decode(RadarCurrent.self, from: Data("""
+        {
+          "status": "retired",
+          "window_open": false,
+          "prediction": {
+            "level": "high",
+            "probability_24h": 1,
+            "should_notify": true
+          }
+        }
+        """.utf8))
+        let state = DashboardState(
+            rateLimits: try sampleDashboard(weeklyUsed: 12),
+            current: current,
+            prediction: current.predictionDetail,
+            modelIQ: nil
+        )
+
+        let events = NotificationPolicy().evaluate(previous: nil, current: state, memory: &memory)
+
+        XCTAssertTrue(events.isEmpty)
+    }
+
+    func testEntitlementEventDoesNotNotifyAsSpeedWindow() throws {
+        var memory = NotificationMemory()
+        let current = try JSONDecoder().decode(RadarCurrent.self, from: Data("""
+        {
+          "window_open": true,
+          "status": "open",
+          "window": {
+            "open": true,
+            "status": "open",
+            "title": "Codex 用量限制重置",
+            "message": "当前有已确认官方权益事件"
+          }
+        }
+        """.utf8))
+        let state = DashboardState(
+            rateLimits: try sampleDashboard(weeklyUsed: 12),
+            current: current,
+            prediction: nil,
+            modelIQ: nil
+        )
+
+        let events = NotificationPolicy().evaluate(previous: nil, current: state, memory: &memory)
+
+        XCTAssertTrue(events.isEmpty)
+        XCTAssertNil(memory.lastSpeedOpenKey)
+    }
 }
 
 private func current(windowOpen: Bool, status: String) throws -> RadarCurrent {

@@ -9,11 +9,22 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.28：转向模型质量雷达</strong> - 速蹬窗口已下架，状态栏第三段改成 Model IQ 质量状态。</summary>
+
+<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 模型质量雷达截图">
+
+- CodexRadar 当前聚焦 Model IQ、速度、费用、cache 命中率和社区体感分。
+- 状态栏默认变成 `周额度 / IQ / 质量`，例如 `96%/112/正常`；IQ 偏低时会显示 `低`。
+- 下拉菜单隐藏 live Prediction 区块，不再把 `0% / 0%` 这类旧 reset 预测当成主信息展示。
+
+</details>
+
+<details>
 <summary><strong>v0.1.27：兼容 CodexRadar 新首页</strong> - 旧 JSON/RSS 端点下架后，自动从首页读取 Model IQ。</summary>
 
 <img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel CodexRadar 首页兼容截图">
 
-- CodexRadar 已将 reset 预测、速蹬窗口提醒和历史窗口下架，旧 `/current.json` 与 `/feed.xml` 当前会回到首页。
+- CodexRadar 已将 reset 预测、速蹬窗口提醒和历史窗口下架；旧端点不可用或回到首页时，app 会自动降级。
 - app 会识别首页 HTML，从公开页面提取最新 Model IQ，并合成“无速蹬窗口”的兼容状态。
 - 本机 Codex 额度、IQ 和菜单主体继续可用；不会再把 HTML 当 JSON 解码错误展示给用户。
 
@@ -128,35 +139,35 @@
 状态栏标题刻意保持很短：
 
 ```text
-96%/62/低
+96%/112/正常
 ```
 
 三个值分别是：
 
 - `96%`：Codex 周额度剩余百分比。
-- `62`：Codex IQ 分数。状态栏默认截断为整数以节省空间；下拉菜单里的 Codex IQ 区块会显示精确值，例如 `62.5`。
-- `低`：CodexRadar 信号。当前 CodexRadar 已下架 reset 预测和速蹬窗口提醒，所以 live 模式通常显示低风险；如果旧接口恢复，app 会继续识别窗口和 reset 状态。
+- `112`：Codex IQ 分数。状态栏默认截断为整数以节省空间；下拉菜单里的 Codex IQ 区块会显示精确值，例如 `112.5`。
+- `正常`：CodexRadar 模型质量状态，来自 Model IQ。IQ 偏低时会显示 `低`。
 
 下拉菜单的 `状态栏显示` 里还可以手动打开：
 
-- `5h`：把 5 小时短窗额度也放进状态栏；默认关闭，打开后会类似 `96%/99%/62/低`。
+- `5h`：把 5 小时短窗额度也放进状态栏；默认关闭，打开后会类似 `96%/99%/112/正常`。
 - `应剩`：把“按节奏现在应该还剩多少周额度”放进状态栏；默认关闭，中文显示类似 `应80%`，英文显示类似 `R80%`。
 
 `应剩计算策略` 默认收起。点击这一整行标题即可展开或收起；展开后点击任一策略卡片即可切换，并会直接说明每个策略的公式、刷新粒度和适用场景。
 
 `状态栏高级` 默认收起；点击这一整行标题即可展开或收起。展开后可以调分隔符、左右留白、字体比例、IQ 是否按 `/10` 显示，以及状态栏里是否保留 `%`。这些设置只影响状态栏标题，下拉菜单里的完整数值不变。
 
-当 [CodexRadar](https://codexradar.com/) 提供的兼容信号报告速蹬窗口开启时，状态栏 item 会变成红底白字。红色强调可以手动关闭；窗口结束或 30 分钟强调时间到后会自动退场。当前 CodexRadar 首页已说明速蹬窗口提醒下架，因此 live 模式不会凭空触发速蹬。
+当前 [CodexRadar](https://codexradar.com/) 已说明速蹬窗口提醒下架，所以 live 模式不再把速蹬/Prediction 当作主信号。如果未来旧兼容接口恢复并报告窗口开启，红色速蹬强调仍会生效。
 
 ## 状态展示
 
 这些截图来自真实 macOS 状态栏：脚本会启动真实 app，切换预览状态，然后裁剪本 app 的状态栏 item。不是手绘 mock，也不包含右侧其他菜单栏图标。
 
-| 正常 | 速蹬窗口 | 本机限额 | 自定义 |
+| 正常 | IQ 偏低 | 本机限额 | 自定义 |
 | --- | --- | --- | --- |
-| ![正常状态](docs/assets/zh/status-normal.png) | ![速蹬状态](docs/assets/zh/status-speed.png) | ![限额状态](docs/assets/zh/status-limit.png) | ![自定义状态](docs/assets/zh/status-custom.png) |
+| ![正常状态](docs/assets/zh/status-normal.png) | ![IQ 偏低状态](docs/assets/zh/status-quality-low.png) | ![限额状态](docs/assets/zh/status-limit.png) | ![自定义状态](docs/assets/zh/status-custom.png) |
 
-可以在下拉菜单里选择状态栏显示哪些值。例如不关心 IQ 时，可以只显示 `96%/低`。
+可以在下拉菜单里选择状态栏显示哪些值。例如不关心 IQ 数字时，可以只显示 `96%/正常`。
 如果关心 5 小时短窗，可以手动打开 `5h`，它会作为一个额外百分比插入到周额度和 IQ 之间。
 如果想按 reset 窗口节奏均匀使用周额度，可以手动打开 `应剩`。
 如果想让状态栏也显示精确 IQ 小数，可以打开 `状态栏 IQ 小数`。
@@ -173,9 +184,9 @@
 - Codex 短窗额度剩余，也来自本机 Codex app-server。
 - 用量节奏：按所选策略计算当前建议剩余百分比，并和实际周额度剩余对比；例如建议应剩 80%、实际还剩 90%，就会提示可以多用一点。
   策略包括：`按时间` 平滑均匀用完；`每日` 按天级预算推进；`留余` 前期保留 20% 缓冲；`工作日` 工作日多用、周末少用；`先用` 前半程更积极，避免 reset 前剩太多。
-- [CodexRadar](https://codexradar.com/) 当前公开的 Model IQ。
-- CodexRadar 旧 reset/速蹬/预测接口的兼容状态；这些功能当前在 CodexRadar 侧已下架，app 会显示“无窗/低风险”，并在接口未来恢复时继续识别。
-- Codex IQ 每日探针结果，当前优先从 CodexRadar 首页读取。
+- [CodexRadar](https://codexradar.com/) 当前公开的 Model IQ、模型质量状态和探针通过数。
+- CodexRadar 首页可见的模型质量方向：速度、费用、cache 命中率和社区体感分。
+- CodexRadar 旧 reset/速蹬/预测接口的兼容状态；这些功能当前在 CodexRadar 侧已下架，app 不再把它们当作 live 主信息展示。
 
 应用默认中文；下拉菜单里可以切换 English。Codex、IQ、Reset、Prediction、Radar 这类英文术语会保留，因为它们在产品里更清楚。
 
@@ -183,15 +194,13 @@
 
 应用会在这些情况发送 macOS 通知：
 
-- 兼容信号报告速蹬窗口开启。
-- CodexRadar 兼容信号记录到 reset；顶部直接显示“上次 reset 时间是 ...”，本机额度仍看 `Codex 额度`。
 - 周额度低于 30%。
 - 周额度低于 15%。
 - 周额度从低位恢复。
-- Prediction 升到 high，或 CodexRadar 明确标记 should_notify。当前 CodexRadar 已下架 reset 预测时，live 模式不会触发这类预测通知。
 - Codex IQ 进入 red 或低于 80。
+- legacy 兼容接口如果未来重新报告速蹬窗口、reset 或 high prediction，仍会触发对应提醒。
 
-通知声音默认关闭，可以在下拉菜单里打开。首次启动会把历史 reset 窗口记为已见过，避免补发旧通知；如果首次启动时正好处在速蹬窗口中，仍然会提醒。
+通知声音默认关闭，可以在下拉菜单里打开。首次启动会把历史 reset 窗口记为已见过，避免补发旧通知；如果 legacy 兼容接口未来恢复且首次启动时正好处在明确的速蹬窗口中，仍然会提醒。
 
 ## 更新
 
@@ -219,6 +228,7 @@
 下拉菜单里有 `预览` 分段控件，可以本地查看不同状态：
 
 - `Live`：真实数据。
+- `低 IQ`：模型质量偏低 UI。
 - `速蹬`：速蹬窗口 UI，包括红色状态栏和红色提示。
 - `Reset`：CodexRadar 记录到 reset 的 UI。
 - `限额`：本机限额 UI。
@@ -228,17 +238,18 @@
 也可以用环境变量启动：
 
 ```bash
-CODEX_RADAR_PREVIEW=speedWindow swift run CodexRadarSentinel
+CODEX_RADAR_PREVIEW=qualityLow swift run CodexRadarSentinel
 ```
 
-可选值是 `live`、`speedWindow`、`resetConfirmed`、`blocked`。
+可选值是 `live`、`qualityLow`、`speedWindow`、`resetConfirmed`、`blocked`。
 
 ## 数据来源
 
 Codex Radar Sentinel 读取这些公开入口：
 
 - [CodexRadar homepage](https://codexradar.com/)
-- [current.json](https://codexradar.com/current.json) 和 [feed.xml](https://codexradar.com/feed.xml)：旧 reset/速蹬接口。CodexRadar 现在会把它们重定向回首页；app 会自动降级为首页 Model IQ 解析。
+- [current.json](https://codexradar.com/current.json)：当前可能返回 JSON，包含 Model IQ、官方权益事件和 legacy prediction 字段。
+- [feed.xml](https://codexradar.com/feed.xml)：后续用于官方权益提醒；不可用或返回首页时，app 会继续以首页/JSON 里的 Model IQ 为准。
 
 本机额度读取 Codex app-server：
 
@@ -286,7 +297,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.27
+./scripts/check_release_readiness.sh 0.1.28
 ```
 
 构建 release 包：
@@ -294,7 +305,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.27
+./scripts/package_release.sh 0.1.28
 ```
 
 更新 README 状态栏和菜单截图：

@@ -23,7 +23,7 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         case .codexIQ:
             return "IQ"
         case .signal:
-            return language.text("信号", "Signal")
+            return language.text("质量", "Quality")
         }
     }
 
@@ -85,11 +85,24 @@ enum StatusMetric: String, CaseIterable, Identifiable {
     }
 
     static func signalValue(for state: DashboardState, language: AppLanguage) -> String {
-        if state.current?.windowOpen == true {
+        if state.activeSpeedWindow {
             return language.text("速蹬", "speed")
         }
         if state.rateLimits?.isBlocked == true {
             return language.text("限额", "limit")
+        }
+        if let score = state.modelIQ?.latest?.iqScore {
+            let status = state.modelIQ?.latest?.status?.lowercased()
+            if status == "red" || score < 80 {
+                return language.text("低", "low")
+            }
+            if status == "yellow" || score < 95 {
+                return language.text("中", "med")
+            }
+            return language.text("正常", "ok")
+        }
+        if state.activeEntitlementEvent {
+            return language.text("权益", "event")
         }
         let level = state.prediction?.level ?? state.current?.prediction?.level
         switch level?.lowercased() {

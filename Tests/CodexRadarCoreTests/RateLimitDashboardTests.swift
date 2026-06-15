@@ -48,7 +48,26 @@ final class RateLimitDashboardTests: XCTestCase {
 
         XCTAssertEqual(state.statusTitle, "98%/62/低")
 
-        let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(#"{ "window_open": true }"#.utf8))
+        let normalIQ = try JSONDecoder().decode(ModelIQEnvelope.self, from: Data(#"{ "latest": { "iq_score": 112.5, "status": "green" } }"#.utf8))
+        let normalState = DashboardState(
+            rateLimits: dashboard,
+            current: nil,
+            prediction: prediction,
+            modelIQ: normalIQ
+        )
+
+        XCTAssertEqual(normalState.statusTitle, "98%/112/正常")
+
+        let current = try JSONDecoder().decode(RadarCurrent.self, from: Data("""
+        {
+          "window_open": true,
+          "last_window": {
+            "id": "debug-speed-window",
+            "title": "Codex 速蹬窗口开启",
+            "status": "open"
+          }
+        }
+        """.utf8))
         let speedState = DashboardState(
             rateLimits: dashboard,
             current: current,
@@ -57,6 +76,29 @@ final class RateLimitDashboardTests: XCTestCase {
         )
 
         XCTAssertEqual(speedState.statusTitle, "98%/62/速蹬")
+
+        let entitlement = try JSONDecoder().decode(RadarCurrent.self, from: Data("""
+        {
+          "window_open": true,
+          "status": "open",
+          "window": {
+            "open": true,
+            "status": "open",
+            "title": "Codex 用量限制重置",
+            "message": "当前有已确认官方权益事件"
+          }
+        }
+        """.utf8))
+        let entitlementState = DashboardState(
+            rateLimits: dashboard,
+            current: entitlement,
+            prediction: prediction,
+            modelIQ: normalIQ
+        )
+
+        XCTAssertEqual(entitlementState.statusTitle, "98%/112/正常")
+        XCTAssertFalse(entitlementState.activeSpeedWindow)
+        XCTAssertTrue(entitlementState.activeEntitlementEvent)
     }
 
     func testIQDisplayFormattersSupportCompactAndPreciseOutput() {

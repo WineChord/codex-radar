@@ -9,11 +9,15 @@ trap 'rm -rf "$tmp_dir"' EXIT
 cd "$repo_root"
 
 echo "Checking CodexRadar live sources..."
-curl -fsSL "https://codexradar.com/" -o "${tmp_dir}/homepage.html"
+fetch_url() {
+  curl --http1.1 --retry 3 --retry-delay 1 --retry-all-errors -fsSL "$1" -o "$2"
+}
+
+fetch_url "https://codexradar.com/" "${tmp_dir}/homepage.html"
 homepage_bytes="$(wc -c < "${tmp_dir}/homepage.html" | tr -d ' ')"
 echo "  homepage: ${homepage_bytes} bytes"
 for path in current.json feed.xml; do
-  curl -fsSL "https://codexradar.com/${path}" -o "${tmp_dir}/${path}"
+  fetch_url "https://codexradar.com/${path}" "${tmp_dir}/${path}"
   bytes="$(wc -c < "${tmp_dir}/${path}" | tr -d ' ')"
   if head -c 64 "${tmp_dir}/${path}" | grep -q '<'; then
     echo "  ${path}: ${bytes} bytes, homepage HTML fallback"

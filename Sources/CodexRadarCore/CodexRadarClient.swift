@@ -71,7 +71,7 @@ public struct CodexRadarClient {
             "recommended_action": "wait",
             "last_window": [
                 "id": "codexradar-reset-radar-retired",
-                "title": "CodexRadar reset/速蹬信号已下架",
+                "title": "CodexRadar 已转向模型质量雷达",
                 "status": "retired",
                 "window_human": "无窗",
                 "scope": "CodexRadar 模型质量雷达",

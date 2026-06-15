@@ -28,18 +28,18 @@ public struct DashboardState: Equatable {
         let quota = DisplayFormatters.percent(rateLimits?.weeklyRemainingPercent)
         let iq = DisplayFormatters.compactIQScore(modelIQ?.latest?.iqScore)
         let signal: String
-        if current?.windowOpen == true {
+        if activeSpeedWindow {
             signal = "速蹬"
         } else if rateLimits?.isBlocked == true {
             signal = "限额"
         } else {
-            signal = predictionLevelLabel ?? "-"
+            signal = qualityLabel ?? entitlementEventLabel ?? predictionLevelLabel ?? "-"
         }
         return "\(quota)/\(iq)/\(signal)"
     }
 
     public var actionLabel: String {
-        if current?.windowOpen == true {
+        if activeSpeedWindow {
             return "速蹬窗口开启"
         }
         if rateLimits?.isBlocked == true {
@@ -65,13 +65,52 @@ public struct DashboardState: Equatable {
         }
     }
 
+    public var qualityLabel: String? {
+        guard let score = modelIQ?.latest?.iqScore else {
+            return nil
+        }
+        let status = modelIQ?.latest?.status?.lowercased()
+        if status == "red" || score < 80 {
+            return "低"
+        }
+        if status == "yellow" || score < 95 {
+            return "中"
+        }
+        return "正常"
+    }
+
     public var recentResetClosed: Bool {
         current?.lastWindow?.status?.lowercased() == "closed"
             && current?.lastWindow?.closedAt != nil
     }
 
-    public var speedAlertKey: String? {
+    public var activeSpeedWindow: Bool {
         guard current?.windowOpen == true else {
+            return false
+        }
+        let fields = [
+            current?.lastWindow?.id,
+            current?.lastWindow?.title,
+            current?.lastWindow?.summary,
+            current?.lastWindow?.windowHuman,
+            current?.recommendedAction,
+        ]
+        let joined = fields.compactMap { $0?.lowercased() }.joined(separator: " ")
+        return joined.contains("速蹬")
+            || joined.contains("speed-window")
+            || joined.contains("speed window")
+    }
+
+    public var activeEntitlementEvent: Bool {
+        current?.windowOpen == true && !activeSpeedWindow
+    }
+
+    public var entitlementEventLabel: String? {
+        activeEntitlementEvent ? "权益" : nil
+    }
+
+    public var speedAlertKey: String? {
+        guard activeSpeedWindow else {
             return nil
         }
         guard let window = current?.lastWindow else {

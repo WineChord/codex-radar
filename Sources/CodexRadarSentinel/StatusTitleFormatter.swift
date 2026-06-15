@@ -145,7 +145,7 @@ enum StatusTitleFormatter {
     }
 
     private static func signalColor(for state: DashboardState, signal: String) -> NSColor {
-        if state.current?.windowOpen == true {
+        if state.activeSpeedWindow {
             return .systemRed
         }
         if state.rateLimits?.isBlocked == true {
@@ -156,8 +156,12 @@ enum StatusTitleFormatter {
             return .systemRed
         case "中", "med":
             return .systemOrange
-        case "低", "low":
+        case "正常", "ok":
+            return .systemGreen
+        case "权益", "event":
             return .systemTeal
+        case "低", "low":
+            return iqColor(for: state)
         default:
             return .secondaryLabelColor
         }

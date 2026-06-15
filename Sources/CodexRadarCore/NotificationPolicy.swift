@@ -118,7 +118,7 @@ public struct NotificationPolicy {
         memory: inout NotificationMemory,
         events: inout [NotificationEvent]
     ) {
-        guard current.current?.windowOpen == true, let key = speedOpenKey(current: current) else {
+        guard current.activeSpeedWindow, let key = speedOpenKey(current: current) else {
             return
         }
         guard memory.lastSpeedOpenKey != key else {
@@ -219,6 +219,9 @@ public struct NotificationPolicy {
         memory: inout NotificationMemory,
         events: inout [NotificationEvent]
     ) {
+        guard current.current?.status?.lowercased() != "retired" else {
+            return
+        }
         guard let prediction = current.prediction else {
             return
         }
@@ -267,7 +270,7 @@ public struct NotificationPolicy {
 
     private func speedOpenKey(current: DashboardState) -> String? {
         guard let window = current.current?.lastWindow else {
-            return current.current?.windowOpen == true ? "unknown-open" : nil
+            return current.activeSpeedWindow ? "unknown-open" : nil
         }
         return "\(window.id ?? "unknown"):\(window.openedAt ?? "unknown")"
     }

@@ -3,6 +3,7 @@ import Foundation
 
 enum DashboardPreview: String, CaseIterable, Identifiable {
     case live
+    case qualityLow
     case speedWindow
     case resetConfirmed
     case blocked
@@ -15,6 +16,8 @@ enum DashboardPreview: String, CaseIterable, Identifiable {
         switch self {
         case .live:
             return "Live"
+        case .qualityLow:
+            return language.text("低 IQ", "Low IQ")
         case .speedWindow:
             return language.text("速蹬", "Speed")
         case .resetConfirmed:
@@ -30,6 +33,8 @@ enum DashboardPreviewFactory {
         switch preview {
         case .live:
             return live
+        case .qualityLow:
+            return qualityLowState(from: live)
         case .speedWindow:
             return speedWindowState(from: live)
         case .resetConfirmed:
@@ -37,6 +42,12 @@ enum DashboardPreviewFactory {
         case .blocked:
             return blockedState(from: live)
         }
+    }
+
+    private static func qualityLowState(from live: DashboardState) -> DashboardState {
+        var state = live
+        applyFallbackMetrics(to: &state)
+        return state
     }
 
     private static func speedWindowState(from live: DashboardState) -> DashboardState {

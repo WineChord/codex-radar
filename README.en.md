@@ -9,11 +9,22 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.28: Model quality first</strong> - Speed windows are retired, so the third menu-bar segment is now Model IQ quality.</summary>
+
+<img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel model quality radar screenshot">
+
+- CodexRadar now focuses on Model IQ, speed, cost, cache hit rate, and community ratings.
+- The default menu bar title is now `Weekly / IQ / Quality`, for example `96%/112/ok`; low IQ shows `low`.
+- The live Prediction block is hidden when CodexRadar has retired reset prediction, so old `0% / 0%` reset probabilities are no longer treated as primary information.
+
+</details>
+
+<details>
 <summary><strong>v0.1.27: CodexRadar homepage fallback</strong> - After the old JSON/RSS endpoints were retired, Model IQ is read from the homepage.</summary>
 
 <img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel CodexRadar homepage fallback screenshot">
 
-- CodexRadar has retired reset prediction, speed-window alerts, and historical windows. The old `/current.json` and `/feed.xml` endpoints now return the homepage.
+- CodexRadar has retired reset prediction, speed-window alerts, and historical windows. If old endpoints are unavailable or return the homepage, the app falls back automatically.
 - The app detects homepage HTML, extracts the latest public Model IQ, and synthesizes a compatible “no speed window” state.
 - Local Codex quota, IQ, and the main menu continue to work without surfacing a JSON decoding error.
 
@@ -128,35 +139,35 @@ Directly install Codex Radar Sentinel: download latest macOS package from https:
 The menu bar title is intentionally compact:
 
 ```text
-96%/62/low
+96%/112/ok
 ```
 
 The three values are:
 
 - `96%`: weekly Codex quota remaining.
-- `62`: Codex IQ score. The menu bar truncates it to a whole number by default to save space; the Codex IQ section in the dropdown shows the precise value, such as `62.5`.
-- `low`: CodexRadar signal. CodexRadar has currently retired reset prediction and speed-window alerts, so live mode normally shows low risk; if the legacy endpoints return, the app will keep recognizing window and reset states.
+- `112`: Codex IQ score. The menu bar truncates it to a whole number by default to save space; the Codex IQ section in the dropdown shows the precise value, such as `112.5`.
+- `ok`: CodexRadar model quality status from Model IQ. Low IQ shows `low`.
 
 The `Menu bar segments` setting can also enable:
 
-- `5h`: adds the 5-hour short-window quota to the menu bar. It is off by default; when enabled, the title looks like `96%/99%/62/low`.
+- `5h`: adds the 5-hour short-window quota to the menu bar. It is off by default; when enabled, the title looks like `96%/99%/112/ok`.
 - `Pace`: adds the weekly quota that should remain at the current point in the reset window. It is off by default; English shows it as `R80%`.
 
 `Pace rule` is collapsed by default. Click the whole header row to expand or collapse it; after expanding, click any rule card to switch. The app explains each rule's formula, refresh granularity, and best use case.
 
 `Menu bar advanced` is collapsed by default. Click the whole header row to expand or collapse it. When expanded, it can tune the separator, side padding, font scale, IQ `/10` display, and whether `%` is kept in the menu bar. These settings only affect the menu bar title; dropdown values stay complete.
 
-When compatible signals from [CodexRadar](https://codexradar.com/) report an active speed window, the menu bar item turns red with white text. The red emphasis can be dismissed manually; it also clears when the window closes or after the 30-minute emphasis window expires. CodexRadar's current homepage says speed-window alerts have been retired, so live mode will not invent a speed-window alert.
+CodexRadar's current homepage says speed-window alerts are retired, so live mode no longer treats speed windows or Prediction as primary signals. If the legacy compatibility endpoint returns later and reports an active window, the red speed-window emphasis still works.
 
 ## Status States
 
 These screenshots are real macOS menu bar captures. The script launches the real app, switches preview states, and crops only this app's menu bar item. They are not hand-drawn mocks and do not include other menu bar icons.
 
-| Normal | Speed window | Limit reached | Custom |
+| Normal | Low IQ | Limit reached | Custom |
 | --- | --- | --- | --- |
-| ![Normal status](docs/assets/en/status-normal.png) | ![Speed window status](docs/assets/en/status-speed.png) | ![Limit reached status](docs/assets/en/status-limit.png) | ![Custom status](docs/assets/en/status-custom.png) |
+| ![Normal status](docs/assets/en/status-normal.png) | ![Low IQ status](docs/assets/en/status-quality-low.png) | ![Limit reached status](docs/assets/en/status-limit.png) | ![Custom status](docs/assets/en/status-custom.png) |
 
-You can choose which values appear in the menu bar. For example, if you do not care about IQ, show only `96%/low`.
+You can choose which values appear in the menu bar. For example, if you do not care about the IQ number, show only `96%/ok`.
 If you care about the 5-hour short window, enable `5h`; it appears as an extra percentage between weekly quota and IQ.
 If you want to pace weekly quota evenly across the reset window, enable `Pace`.
 Turn on `Decimal IQ in menu bar` if you want the menu bar itself to show the precise IQ value.
@@ -173,9 +184,9 @@ This image is captured by the app itself from the real SwiftUI menu window on a 
 - Short-window quota remaining, also from the local Codex app-server.
 - Usage pace: the suggested remaining percentage based on the selected strategy, compared with actual weekly quota remaining. For example, if target remaining is 80% and actual remaining is 90%, it tells you there is room to spend more.
   Strategies include: `Time` for smooth even spending; `Daily` for day-level budgeting; `Reserve` to keep a 20% buffer early; `Workdays` for heavier weekday usage and lighter weekends; `Front-load` to spend earlier and avoid unused quota near reset.
-- The currently public Model IQ from [CodexRadar](https://codexradar.com/).
-- Compatibility state for CodexRadar's legacy reset/speed/prediction endpoints. Those features are currently retired on CodexRadar, so the app shows no window / low risk and will keep recognizing them if the endpoints return later.
-- Codex IQ from the daily probe, currently read from the CodexRadar homepage first.
+- The currently public Model IQ, quality status, and probe pass count from [CodexRadar](https://codexradar.com/).
+- The model-quality direction visible on CodexRadar: speed, cost, cache hit rate, and community ratings.
+- Compatibility state for CodexRadar's legacy reset/speed/prediction endpoints. Those features are currently retired on CodexRadar, so the app no longer treats them as live primary information.
 
 The app defaults to Chinese. English can be selected in the dropdown. Technical terms such as Codex, IQ, Reset, Prediction, and Radar are kept in English where they are clearer.
 
@@ -183,15 +194,13 @@ The app defaults to Chinese. English can be selected in the dropdown. Technical 
 
 The app sends macOS notifications for:
 
-- Compatible signal reports a speed window opened.
-- Compatible CodexRadar signal records a reset; the header says `Last reset was ...`, while local quota stays in `Codex Quota`.
 - Weekly quota falls below 30%.
 - Weekly quota falls below 15%.
 - Weekly quota recovers after a low-remaining state.
-- Prediction rises to high, or CodexRadar explicitly marks it as should_notify. When CodexRadar's reset prediction is retired, live mode does not trigger prediction notifications.
 - Codex IQ enters red or falls below 80.
+- If a legacy compatibility endpoint later reports a speed window, reset, or high prediction, the corresponding alert still works.
 
-Notification sound is off by default and can be enabled in the dropdown. Historical reset windows are seeded on first launch, so starting the app after a reset does not replay old reset notifications. If the first launch happens during an active speed window, it still notifies.
+Notification sound is off by default and can be enabled in the dropdown. Historical reset windows are seeded on first launch, so starting the app after a reset does not replay old reset notifications. If the legacy compatibility endpoint returns later and the first launch happens during an explicit speed window, it still notifies.
 
 ## Updates
 
@@ -219,6 +228,7 @@ This repository includes a repo-managed skill: [CodexRadar Sync](skills/codex-ra
 Use the `Preview` segmented control in the dropdown to inspect local UI states:
 
 - `Live`: real data.
+- `Low IQ`: low model-quality UI.
 - `Speed`: urgent speed-window UI, including the red menu bar item and red banner.
 - `Reset`: CodexRadar-recorded reset UI.
 - `Limit`: local quota-limit UI.
@@ -228,17 +238,18 @@ Preview mode only changes what the app displays. Notifications and persisted eve
 For scripted UI checks, launch with:
 
 ```bash
-CODEX_RADAR_PREVIEW=speedWindow swift run CodexRadarSentinel
+CODEX_RADAR_PREVIEW=qualityLow swift run CodexRadarSentinel
 ```
 
-Accepted values are `live`, `speedWindow`, `resetConfirmed`, and `blocked`.
+Accepted values are `live`, `qualityLow`, `speedWindow`, `resetConfirmed`, and `blocked`.
 
 ## Data Sources
 
 Codex Radar Sentinel reads these public endpoints:
 
 - [CodexRadar homepage](https://codexradar.com/)
-- [current.json](https://codexradar.com/current.json) and [feed.xml](https://codexradar.com/feed.xml): legacy reset/speed endpoints. CodexRadar currently redirects them back to the homepage, so the app falls back to homepage Model IQ parsing.
+- [current.json](https://codexradar.com/current.json): may currently return JSON with Model IQ, official entitlement events, and legacy prediction fields.
+- [feed.xml](https://codexradar.com/feed.xml): reserved for official entitlement alerts; when unavailable or returning the homepage, the app keeps using Model IQ from the homepage/JSON.
 
 For local quota, it reads the Codex app-server:
 
@@ -286,7 +297,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.27
+./scripts/check_release_readiness.sh 0.1.28
 ```
 
 Build release packages:
@@ -294,7 +305,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.27
+./scripts/package_release.sh 0.1.28
 ```
 
 Update README menu bar and menu screenshots:

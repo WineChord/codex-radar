@@ -18,10 +18,12 @@ PROCESS_NAME = "Codex Radar Sentinel"
 
 CASES = [
     ("zh", "zhHans", "normal", "live", ["weeklyQuota", "codexIQ", "signal"]),
+    ("zh", "zhHans", "quality-low", "qualityLow", ["weeklyQuota", "codexIQ", "signal"]),
     ("zh", "zhHans", "speed", "speedWindow", ["weeklyQuota", "codexIQ", "signal"]),
     ("zh", "zhHans", "limit", "blocked", ["weeklyQuota", "codexIQ", "signal"]),
     ("zh", "zhHans", "custom", "live", ["weeklyQuota", "signal"]),
     ("en", "en", "normal", "live", ["weeklyQuota", "codexIQ", "signal"]),
+    ("en", "en", "quality-low", "qualityLow", ["weeklyQuota", "codexIQ", "signal"]),
     ("en", "en", "speed", "speedWindow", ["weeklyQuota", "codexIQ", "signal"]),
     ("en", "en", "limit", "blocked", ["weeklyQuota", "codexIQ", "signal"]),
     ("en", "en", "custom", "live", ["weeklyQuota", "signal"]),
