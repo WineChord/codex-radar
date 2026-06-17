@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.30: Polling hang guard</strong> - CodexRadar requests now time out after 15 seconds, so one stuck request cannot stop future menu-bar refreshes.</summary>
+
+- CodexRadar has an official speed window open today, and the app correctly shows `speed` after refresh.
+- Fixed a long-running app case where a stuck public endpoint request could block the next 60-second polling cycles.
+- The menu bar remains compact; real windows still trigger the red speed emphasis and notification path.
+
+</details>
+
+<details>
 <summary><strong>v0.1.29: Quality metrics aligned with CodexRadar</strong> - The dropdown now shows runtime, cost, cache hit rate, and community rating.</summary>
 
 <img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel quality metrics screenshot">
@@ -239,6 +248,7 @@ This repository includes a repo-managed skill: [CodexRadar Sync](skills/codex-ra
 Use the `Preview` segmented control in the dropdown to inspect local UI states:
 
 - `Live`: real data.
+- `Normal`: normal quality UI without a speed window.
 - `Low IQ`: low model-quality UI.
 - `Speed`: urgent speed-window UI, including the red menu bar item and red banner.
 - `Reset`: CodexRadar-recorded reset UI.
@@ -252,7 +262,7 @@ For scripted UI checks, launch with:
 CODEX_RADAR_PREVIEW=qualityLow swift run CodexRadarSentinel
 ```
 
-Accepted values are `live`, `qualityLow`, `speedWindow`, `resetConfirmed`, and `blocked`.
+Accepted values are `live`, `qualityNormal`, `qualityLow`, `speedWindow`, `resetConfirmed`, and `blocked`.
 
 ## Data Sources
 
@@ -309,7 +319,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.29
+./scripts/check_release_readiness.sh 0.1.30
 ```
 
 Build release packages:
@@ -317,7 +327,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.29
+./scripts/package_release.sh 0.1.30
 ```
 
 Update README menu bar and menu screenshots:

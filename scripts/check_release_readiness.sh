@@ -10,7 +10,7 @@ cd "$repo_root"
 
 echo "Checking CodexRadar live sources..."
 fetch_url() {
-  curl --http1.1 --retry 3 --retry-delay 1 --retry-all-errors -fsSL "$1" -o "$2"
+  curl --http1.1 --connect-timeout 10 --max-time 25 --retry 3 --retry-delay 1 --retry-all-errors -fsSL "$1" -o "$2"
 }
 
 fetch_url "https://codexradar.com/" "${tmp_dir}/homepage.html"

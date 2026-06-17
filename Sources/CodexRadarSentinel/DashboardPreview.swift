@@ -3,6 +3,7 @@ import Foundation
 
 enum DashboardPreview: String, CaseIterable, Identifiable {
     case live
+    case qualityNormal
     case qualityLow
     case speedWindow
     case resetConfirmed
@@ -16,6 +17,8 @@ enum DashboardPreview: String, CaseIterable, Identifiable {
         switch self {
         case .live:
             return "Live"
+        case .qualityNormal:
+            return language.text("正常", "Normal")
         case .qualityLow:
             return language.text("低 IQ", "Low IQ")
         case .speedWindow:
@@ -33,6 +36,8 @@ enum DashboardPreviewFactory {
         switch preview {
         case .live:
             return live
+        case .qualityNormal:
+            return qualityNormalState(from: live)
         case .qualityLow:
             return qualityLowState(from: live)
         case .speedWindow:
@@ -47,6 +52,35 @@ enum DashboardPreviewFactory {
     private static func qualityLowState(from live: DashboardState) -> DashboardState {
         var state = live
         applyFallbackMetrics(to: &state)
+        return state
+    }
+
+    private static func qualityNormalState(from live: DashboardState) -> DashboardState {
+        var state = live
+        applyNormalMetrics(to: &state)
+        state.current = decode("""
+        {
+          "checked_at": "2026-06-17T10:00:00+08:00",
+          "status": "retired",
+          "window_open": false,
+          "recommended_action": "wait",
+          "last_window": {
+            "id": "debug-quality-normal",
+            "title": "Preview: CodexRadar model quality",
+            "status": "retired",
+            "window_human": "none",
+            "scope": "model quality",
+            "summary": "Preview mode: model quality is normal and no speed window is active."
+          },
+          "prediction": {
+            "level": "low",
+            "probability_24h": 0,
+            "probability_48h": 0,
+            "should_notify": false
+          }
+        }
+        """)
+        state.prediction = nil
         return state
     }
 
@@ -175,6 +209,35 @@ enum DashboardPreviewFactory {
             "passed": 6,
             "iq_score": 62.5,
             "status": "red"
+          }
+        }
+        """)
+    }
+
+    private static func applyNormalMetrics(to state: inout DashboardState) {
+        state.rateLimits = decodeRateLimits("""
+        {
+          "rateLimits": {
+            "limitId": "codex",
+            "limitName": null,
+            "primary": { "usedPercent": 1, "windowDurationMins": 300, "resetsAt": 1780571944 },
+            "secondary": { "usedPercent": 3, "windowDurationMins": 10080, "resetsAt": 1781140743 },
+            "credits": null,
+            "planType": "pro",
+            "rateLimitReachedType": null
+          },
+          "rateLimitsByLimitId": null
+        }
+        """)
+        state.modelIQ = decode("""
+        {
+          "updated_at": "2026-06-17T10:00:00+08:00",
+          "latest": {
+            "date": "2026-06-17",
+            "tasks": 12,
+            "passed": 8,
+            "iq_score": 100,
+            "status": "green"
           }
         }
         """)

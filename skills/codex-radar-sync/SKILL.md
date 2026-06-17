@@ -47,5 +47,6 @@ If any menu-bar segment shows `--` while CodexRadar has a visible value on the w
 - Do not treat every `window_open = true` as a speed window. Current JSON can use `window_open` for official entitlement/reset-card events; only explicit speed/速蹬 wording should trigger speed-window UI and notifications.
 - As of app v0.1.28, live UI should treat CodexRadar as a model-quality source first. The menu-bar `signal` metric is still the persisted key, but its user-facing label/value are Quality/质量 from Model IQ unless a legacy speed window or local limit is active.
 - As of app v0.1.29, the dropdown should expose the public model-quality details CodexRadar shows on the homepage: runtime, cost, cache hit rate, and community rating. Keep these in the menu, not the default status title.
+- As of app v0.1.30, CodexRadar HTTP requests must use `AppConstants.requestTimeoutSeconds`; otherwise one stuck endpoint can block future polling cycles and leave the status bar stale during an active window.
 - Legacy CodexRadar schema v2 embedded Prediction and model IQ in `current.json`; keep those decoders because older fixtures and possible future JSON restoration still depend on them.
 - `model_iq.latest.score` / homepage IQ values can be decimal, for example `62.5`; do not decode IQ as an integer.

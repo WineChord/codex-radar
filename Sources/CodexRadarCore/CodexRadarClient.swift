@@ -52,7 +52,9 @@ public struct CodexRadarClient {
 
     private func fetchData(_ path: String) async throws -> Data {
         let url = baseURL.appending(path: path)
-        let (data, response) = try await session.data(from: url)
+        let (data, response) = try await withTimeout(seconds: AppConstants.requestTimeoutSeconds) {
+            try await session.data(from: url)
+        }
         guard let httpResponse = response as? HTTPURLResponse else {
             return data
         }
@@ -60,6 +62,26 @@ public struct CodexRadarClient {
             throw ClientError.invalidStatus(httpResponse.statusCode)
         }
         return data
+    }
+
+    private func withTimeout<T>(
+        seconds: UInt64,
+        operation: @escaping () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+                throw URLError(.timedOut)
+            }
+            guard let value = try await group.next() else {
+                throw URLError(.timedOut)
+            }
+            group.cancelAll()
+            return value
+        }
     }
 
     static func currentFromHomepageHTML(_ html: String, checkedAt: Date = Date()) throws -> RadarCurrent {

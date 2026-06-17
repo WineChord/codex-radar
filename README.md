@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.30：防止轮询卡住</strong> - CodexRadar 请求增加 15 秒超时，避免一次网络卡住导致状态栏不再刷新。</summary>
+
+- 今天 CodexRadar 官方速蹬窗口已开启，重启 app 后状态栏正确显示 `速蹬`。
+- 修复长期运行时某次公开端点请求卡住后，后续 60 秒轮询可能不再继续的问题。
+- 状态栏仍保持紧凑；真正开窗时会恢复红色速蹬强调和通知。
+
+</details>
+
+<details>
 <summary><strong>v0.1.29：质量指标对齐 CodexRadar</strong> - 下拉菜单新增耗时、费用、cache 命中率和社区体感分。</summary>
 
 <img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 质量指标截图">
@@ -239,6 +248,7 @@
 下拉菜单里有 `预览` 分段控件，可以本地查看不同状态：
 
 - `Live`：真实数据。
+- `正常`：无速蹬窗口的正常质量 UI。
 - `低 IQ`：模型质量偏低 UI。
 - `速蹬`：速蹬窗口 UI，包括红色状态栏和红色提示。
 - `Reset`：CodexRadar 记录到 reset 的 UI。
@@ -252,7 +262,7 @@
 CODEX_RADAR_PREVIEW=qualityLow swift run CodexRadarSentinel
 ```
 
-可选值是 `live`、`qualityLow`、`speedWindow`、`resetConfirmed`、`blocked`。
+可选值是 `live`、`qualityNormal`、`qualityLow`、`speedWindow`、`resetConfirmed`、`blocked`。
 
 ## 数据来源
 
@@ -309,7 +319,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.29
+./scripts/check_release_readiness.sh 0.1.30
 ```
 
 构建 release 包：
@@ -317,7 +327,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.29
+./scripts/package_release.sh 0.1.30
 ```
 
 更新 README 状态栏和菜单截图：

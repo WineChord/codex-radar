@@ -99,6 +99,39 @@ final class NotificationPolicyTests: XCTestCase {
         XCTAssertTrue(events.isEmpty)
         XCTAssertNil(memory.lastSpeedOpenKey)
     }
+
+    func testCurrentWindowPayloadMessageNotifiesAsSpeedWindow() throws {
+        var memory = NotificationMemory()
+        let current = try JSONDecoder().decode(RadarCurrent.self, from: Data("""
+        {
+          "schema_version": "2.0",
+          "window_open": true,
+          "status": "open",
+          "recommended_action": "use_remaining_tokens",
+          "window": {
+            "open": true,
+            "status": "open",
+            "action": "use_remaining_tokens",
+            "message": "当前速蹬窗口开启",
+            "title": "Codex 用量限制重置",
+            "scope": "所有计划",
+            "opened_at": "2026-06-17T02:49:52+08:00"
+          }
+        }
+        """.utf8))
+        let state = DashboardState(
+            rateLimits: try sampleDashboard(weeklyUsed: 12),
+            current: current,
+            prediction: nil,
+            modelIQ: nil
+        )
+
+        let events = NotificationPolicy().evaluate(previous: nil, current: state, memory: &memory)
+
+        XCTAssertTrue(state.activeSpeedWindow)
+        XCTAssertEqual(state.statusTitle, "88%/--/速蹬")
+        XCTAssertEqual(events.map(\.title), ["速蹬窗口开启"])
+    }
 }
 
 private func current(windowOpen: Bool, status: String) throws -> RadarCurrent {
