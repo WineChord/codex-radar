@@ -4,7 +4,7 @@ public enum AppConstants {
     public static let appName = "Codex Radar Sentinel"
     public static let clientName = "codex-radar-sentinel"
     public static let bundleIdentifier = "com.codexradar.sentinel"
-    public static let appVersion = "0.1.30"
+    public static let appVersion = "0.1.31"
 
     public static let codexLimitID = "codex"
     public static let weeklyWindowMinutes = 10_080.0
@@ -15,6 +15,8 @@ public enum AppConstants {
     public static let warningRemainingPercent = 30
     public static let criticalRemainingPercent = 15
     public static let restoredRemainingPercent = 80
+    public static let weeklyWarningNotificationCooldownSeconds: TimeInterval = 43_200
+    public static let weeklyCriticalNotificationCooldownSeconds: TimeInterval = 14_400
 
     public static let defaultPollIntervalSeconds: UInt64 = 60
     public static let requestTimeoutSeconds: UInt64 = 15

@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.31: Quota notification cooldown</strong> - Low weekly quota alerts are rate-limited so the same low state does not keep popping up.</summary>
+
+- `Weekly quota low` is limited to once every 12 hours by default.
+- `Weekly quota very low` is limited to once every 4 hours and still uses the stronger alert path.
+- If the upstream reset timestamp slides or jitters, a changed key no longer creates repeated alerts on every 60-second refresh.
+
+</details>
+
+<details>
 <summary><strong>v0.1.30: Polling hang guard</strong> - CodexRadar requests now time out after 15 seconds, so one stuck request cannot stop future menu-bar refreshes.</summary>
 
 - CodexRadar has an official speed window open today, and the app correctly shows `speed` after refresh.
@@ -319,7 +328,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.30
+./scripts/check_release_readiness.sh 0.1.31
 ```
 
 Build release packages:
@@ -327,7 +336,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.30
+./scripts/package_release.sh 0.1.31
 ```
 
 Update README menu bar and menu screenshots:

@@ -785,6 +785,8 @@ private struct PersistedNotificationMemory: Codable {
     let lastWeeklyWarningKey: String?
     let lastWeeklyCriticalKey: String?
     let lastWeeklyRestoreKey: String?
+    let lastWeeklyWarningAt: Date?
+    let lastWeeklyCriticalAt: Date?
 
     init(value: NotificationMemory) {
         self.initialized = value.initialized
@@ -795,6 +797,8 @@ private struct PersistedNotificationMemory: Codable {
         self.lastWeeklyWarningKey = value.lastWeeklyWarningKey
         self.lastWeeklyCriticalKey = value.lastWeeklyCriticalKey
         self.lastWeeklyRestoreKey = value.lastWeeklyRestoreKey
+        self.lastWeeklyWarningAt = value.lastWeeklyWarningAt
+        self.lastWeeklyCriticalAt = value.lastWeeklyCriticalAt
     }
 
     var value: NotificationMemory {
@@ -806,7 +810,9 @@ private struct PersistedNotificationMemory: Codable {
             lastIQKey: lastIQKey,
             lastWeeklyWarningKey: lastWeeklyWarningKey,
             lastWeeklyCriticalKey: lastWeeklyCriticalKey,
-            lastWeeklyRestoreKey: lastWeeklyRestoreKey
+            lastWeeklyRestoreKey: lastWeeklyRestoreKey,
+            lastWeeklyWarningAt: lastWeeklyWarningAt,
+            lastWeeklyCriticalAt: lastWeeklyCriticalAt
         )
     }
 }

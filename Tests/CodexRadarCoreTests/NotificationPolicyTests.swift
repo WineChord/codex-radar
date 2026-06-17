@@ -48,6 +48,46 @@ final class NotificationPolicyTests: XCTestCase {
         XCTAssertTrue(second.isEmpty)
     }
 
+    func testWeeklyWarningCooldownIgnoresResetTimestampJitter() throws {
+        var memory = NotificationMemory(initialized: true)
+        let now = Date(timeIntervalSince1970: 1_000)
+        let firstState = DashboardState(
+            rateLimits: try sampleDashboard(weeklyUsed: 76, weeklyResetsAt: 1_781_140_743),
+            current: nil,
+            prediction: nil,
+            modelIQ: nil
+        )
+        let jitteredState = DashboardState(
+            rateLimits: try sampleDashboard(weeklyUsed: 76, weeklyResetsAt: 1_781_140_803),
+            current: nil,
+            prediction: nil,
+            modelIQ: nil
+        )
+
+        let first = NotificationPolicy().evaluate(
+            previous: nil,
+            current: firstState,
+            memory: &memory,
+            now: now
+        )
+        let second = NotificationPolicy().evaluate(
+            previous: firstState,
+            current: jitteredState,
+            memory: &memory,
+            now: now.addingTimeInterval(60)
+        )
+        let third = NotificationPolicy().evaluate(
+            previous: jitteredState,
+            current: jitteredState,
+            memory: &memory,
+            now: now.addingTimeInterval(AppConstants.weeklyWarningNotificationCooldownSeconds + 1)
+        )
+
+        XCTAssertEqual(first.map(\.title), ["Codex 周额度偏低"])
+        XCTAssertTrue(second.isEmpty)
+        XCTAssertEqual(third.map(\.title), ["Codex 周额度偏低"])
+    }
+
     func testRetiredCodexRadarPredictionDoesNotNotify() throws {
         var memory = NotificationMemory(initialized: true)
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data("""
@@ -159,14 +199,17 @@ private func current(windowOpen: Bool, status: String) throws -> RadarCurrent {
     return try decoder.decode(RadarCurrent.self, from: Data(json.utf8))
 }
 
-private func sampleDashboard(weeklyUsed: Double) throws -> RateLimitDashboard {
+private func sampleDashboard(
+    weeklyUsed: Double,
+    weeklyResetsAt: Int = 1_781_140_743
+) throws -> RateLimitDashboard {
     let json = """
     {
       "rateLimits": {
         "limitId": "codex",
         "limitName": null,
         "primary": { "usedPercent": 10, "windowDurationMins": 300, "resetsAt": 1780571944 },
-        "secondary": { "usedPercent": \(weeklyUsed), "windowDurationMins": 10080, "resetsAt": 1781140743 },
+        "secondary": { "usedPercent": \(weeklyUsed), "windowDurationMins": 10080, "resetsAt": \(weeklyResetsAt) },
         "credits": null,
         "planType": "pro",
         "rateLimitReachedType": null

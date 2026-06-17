@@ -34,6 +34,8 @@ public struct NotificationMemory: Equatable {
     public var lastWeeklyWarningKey: String?
     public var lastWeeklyCriticalKey: String?
     public var lastWeeklyRestoreKey: String?
+    public var lastWeeklyWarningAt: Date?
+    public var lastWeeklyCriticalAt: Date?
 
     public init(
         initialized: Bool = false,
@@ -43,7 +45,9 @@ public struct NotificationMemory: Equatable {
         lastIQKey: String? = nil,
         lastWeeklyWarningKey: String? = nil,
         lastWeeklyCriticalKey: String? = nil,
-        lastWeeklyRestoreKey: String? = nil
+        lastWeeklyRestoreKey: String? = nil,
+        lastWeeklyWarningAt: Date? = nil,
+        lastWeeklyCriticalAt: Date? = nil
     ) {
         self.initialized = initialized
         self.lastSpeedOpenKey = lastSpeedOpenKey
@@ -53,6 +57,8 @@ public struct NotificationMemory: Equatable {
         self.lastWeeklyWarningKey = lastWeeklyWarningKey
         self.lastWeeklyCriticalKey = lastWeeklyCriticalKey
         self.lastWeeklyRestoreKey = lastWeeklyRestoreKey
+        self.lastWeeklyWarningAt = lastWeeklyWarningAt
+        self.lastWeeklyCriticalAt = lastWeeklyCriticalAt
     }
 }
 
@@ -62,7 +68,8 @@ public struct NotificationPolicy {
     public func evaluate(
         previous: DashboardState?,
         current: DashboardState,
-        memory: inout NotificationMemory
+        memory: inout NotificationMemory,
+        now: Date = Date()
     ) -> [NotificationEvent] {
         let wasInitialized = memory.initialized
         if !memory.initialized {
@@ -84,7 +91,8 @@ public struct NotificationPolicy {
             previous: previous,
             current: current,
             memory: &memory,
-            events: &events
+            events: &events,
+            now: now
         )
         appendPredictionEvents(
             previous: previous,
@@ -159,7 +167,8 @@ public struct NotificationPolicy {
         previous: DashboardState?,
         current: DashboardState,
         memory: inout NotificationMemory,
-        events: inout [NotificationEvent]
+        events: inout [NotificationEvent],
+        now: Date
     ) {
         guard let remaining = current.rateLimits?.weeklyRemainingPercent else {
             return
@@ -168,8 +177,15 @@ public struct NotificationPolicy {
 
         if remaining <= AppConstants.criticalRemainingPercent {
             let key = "\(resetKey):critical"
-            if memory.lastWeeklyCriticalKey != key {
+            if shouldSendQuotaNotification(
+                key: key,
+                lastKey: memory.lastWeeklyCriticalKey,
+                lastSentAt: memory.lastWeeklyCriticalAt,
+                cooldown: AppConstants.weeklyCriticalNotificationCooldownSeconds,
+                now: now
+            ) {
                 memory.lastWeeklyCriticalKey = key
+                memory.lastWeeklyCriticalAt = now
                 events.append(NotificationEvent(
                     identifier: "weekly-critical-\(key)",
                     title: "Codex 周额度很低",
@@ -179,8 +195,15 @@ public struct NotificationPolicy {
             }
         } else if remaining <= AppConstants.warningRemainingPercent {
             let key = "\(resetKey):warning"
-            if memory.lastWeeklyWarningKey != key {
+            if shouldSendQuotaNotification(
+                key: key,
+                lastKey: memory.lastWeeklyWarningKey,
+                lastSentAt: memory.lastWeeklyWarningAt,
+                cooldown: AppConstants.weeklyWarningNotificationCooldownSeconds,
+                now: now
+            ) {
                 memory.lastWeeklyWarningKey = key
+                memory.lastWeeklyWarningAt = now
                 events.append(NotificationEvent(
                     identifier: "weekly-warning-\(key)",
                     title: "Codex 周额度偏低",
@@ -211,6 +234,22 @@ public struct NotificationPolicy {
             body: "当前周额度剩余 \(remaining)%。",
             severity: .active
         ))
+    }
+
+    private func shouldSendQuotaNotification(
+        key: String,
+        lastKey: String?,
+        lastSentAt: Date?,
+        cooldown: TimeInterval,
+        now: Date
+    ) -> Bool {
+        guard lastKey != key else {
+            return false
+        }
+        guard let lastSentAt else {
+            return true
+        }
+        return now.timeIntervalSince(lastSentAt) >= cooldown
     }
 
     private func appendPredictionEvents(

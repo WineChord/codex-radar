@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.31：周额度提醒降噪</strong> - 低额度通知增加冷却，避免同一低额度状态反复弹窗。</summary>
+
+- `周额度偏低` 默认最多 12 小时触发一次。
+- `周额度很低` 默认最多 4 小时触发一次，仍保留更强提醒。
+- 如果上游 reset 时间戳在滑动或抖动，app 不会因为 key 变化在每轮 60 秒刷新里重复打扰。
+
+</details>
+
+<details>
 <summary><strong>v0.1.30：防止轮询卡住</strong> - CodexRadar 请求增加 15 秒超时，避免一次网络卡住导致状态栏不再刷新。</summary>
 
 - 今天 CodexRadar 官方速蹬窗口已开启，重启 app 后状态栏正确显示 `速蹬`。
@@ -319,7 +328,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.30
+./scripts/check_release_readiness.sh 0.1.31
 ```
 
 构建 release 包：
@@ -327,7 +336,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.30
+./scripts/package_release.sh 0.1.31
 ```
 
 更新 README 状态栏和菜单截图：
