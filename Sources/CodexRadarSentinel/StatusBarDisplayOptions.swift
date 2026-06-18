@@ -10,6 +10,7 @@ struct StatusBarDisplayOptions: Equatable {
     var horizontalPadding: StatusBarHorizontalPadding
     var fontScale: StatusBarFontScale
     var quotaPacingStrategy: QuotaPacingStrategy
+    var usesChinaHolidayCalendar: Bool
 
     static let defaultOptions = StatusBarDisplayOptions(
         preciseIQ: false,
@@ -18,8 +19,13 @@ struct StatusBarDisplayOptions: Equatable {
         separator: .slash,
         horizontalPadding: .system,
         fontScale: .normal,
-        quotaPacingStrategy: .timeProportional
+        quotaPacingStrategy: .timeProportional,
+        usesChinaHolidayCalendar: true
     )
+
+    var holidayCalendar: HolidayCalendar? {
+        usesChinaHolidayCalendar ? .chinaMainland2026 : nil
+    }
 }
 
 enum StatusBarSeparator: String, CaseIterable, Identifiable {

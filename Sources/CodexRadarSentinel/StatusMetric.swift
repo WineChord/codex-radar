@@ -30,7 +30,8 @@ enum StatusMetric: String, CaseIterable, Identifiable {
     func value(
         for state: DashboardState,
         language: AppLanguage,
-        pacingStrategy: QuotaPacingStrategy = .timeProportional
+        pacingStrategy: QuotaPacingStrategy = .timeProportional,
+        holidayCalendar: HolidayCalendar? = nil
     ) -> String {
         switch self {
         case .weeklyQuota:
@@ -38,7 +39,10 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         case .shortQuota:
             return DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent)
         case .quotaPace:
-            guard let pacing = state.rateLimits?.quotaPacing(strategy: pacingStrategy) else {
+            guard let pacing = state.rateLimits?.quotaPacing(
+                strategy: pacingStrategy,
+                holidayCalendar: holidayCalendar
+            ) else {
                 return "-"
             }
             return DisplayFormatters.percent(pacing.roundedTargetRemainingPercent)
@@ -66,7 +70,10 @@ enum StatusMetric: String, CaseIterable, Identifiable {
                 includesSymbol: options.percentDisplayMode.includesSymbol
             )
         case .quotaPace:
-            guard let pacing = state.rateLimits?.quotaPacing(strategy: options.quotaPacingStrategy) else {
+            guard let pacing = state.rateLimits?.quotaPacing(
+                strategy: options.quotaPacingStrategy,
+                holidayCalendar: options.holidayCalendar
+            ) else {
                 return "-"
             }
             let target = DisplayFormatters.percent(
@@ -80,7 +87,12 @@ enum StatusMetric: String, CaseIterable, Identifiable {
                 preciseRaw: options.preciseIQ
             )
         default:
-            return value(for: state, language: language, pacingStrategy: options.quotaPacingStrategy)
+            return value(
+                for: state,
+                language: language,
+                pacingStrategy: options.quotaPacingStrategy,
+                holidayCalendar: options.holidayCalendar
+            )
         }
     }
 

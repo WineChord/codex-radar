@@ -80,6 +80,13 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var chinaHolidayCalendarEnabled: Bool {
+        didSet {
+            defaults.set(chinaHolidayCalendarEnabled, forKey: DefaultsKey.chinaHolidayCalendarEnabled)
+            updateTitleForStatusItem()
+        }
+    }
+
     @Published var quotaPacingOptionsExpanded: Bool {
         didSet {
             defaults.set(quotaPacingOptionsExpanded, forKey: DefaultsKey.quotaPacingOptionsExpanded)
@@ -166,6 +173,7 @@ final class SentinelStore: NSObject, ObservableObject {
         static let statusBarHorizontalPadding = "statusBarHorizontalPadding"
         static let statusBarFontScale = "statusBarFontScale"
         static let quotaPacingStrategy = "quotaPacingStrategy"
+        static let chinaHolidayCalendarEnabled = "chinaHolidayCalendarEnabled"
         static let quotaPacingOptionsExpanded = "quotaPacingOptionsExpanded"
         static let selectedStatusMetrics = "selectedStatusMetrics"
         static let predictionNotificationsEnabled = "predictionNotificationsEnabled"
@@ -225,6 +233,7 @@ final class SentinelStore: NSObject, ObservableObject {
             .flatMap(StatusBarFontScale.init(rawValue:)) ?? .normal
         self.quotaPacingStrategy = defaults.string(forKey: DefaultsKey.quotaPacingStrategy)
             .flatMap(QuotaPacingStrategy.init(rawValue:)) ?? .timeProportional
+        self.chinaHolidayCalendarEnabled = defaults.object(forKey: DefaultsKey.chinaHolidayCalendarEnabled) as? Bool ?? true
         self.quotaPacingOptionsExpanded = defaults.object(forKey: DefaultsKey.quotaPacingOptionsExpanded) as? Bool ?? false
         self.selectedStatusMetrics = Self.loadSelectedStatusMetrics(defaults: defaults)
         let rawPreview = ProcessInfo.processInfo.environment[AppConstants.debugPreviewEnvironmentKey]
@@ -252,8 +261,13 @@ final class SentinelStore: NSObject, ObservableObject {
             separator: statusBarSeparator,
             horizontalPadding: statusBarHorizontalPadding,
             fontScale: statusBarFontScale,
-            quotaPacingStrategy: quotaPacingStrategy
+            quotaPacingStrategy: quotaPacingStrategy,
+            usesChinaHolidayCalendar: chinaHolidayCalendarEnabled
         )
+    }
+
+    var quotaPacingHolidayCalendar: HolidayCalendar? {
+        chinaHolidayCalendarEnabled ? .chinaMainland2026 : nil
     }
 
     var shouldEmphasizeSpeedAlert: Bool {
@@ -377,6 +391,7 @@ final class SentinelStore: NSObject, ObservableObject {
         menuTextSize = .large
         resetStatusBarAdvancedOptions()
         quotaPacingStrategy = .timeProportional
+        chinaHolidayCalendarEnabled = true
         quotaPacingOptionsExpanded = false
         statusBarAdvancedOptionsExpanded = false
         debugPreviewSectionExpanded = false

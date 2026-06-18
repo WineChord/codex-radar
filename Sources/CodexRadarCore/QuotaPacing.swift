@@ -86,7 +86,8 @@ public extension RateLimitDashboard {
     func quotaPacing(
         strategy: QuotaPacingStrategy,
         now: Date = Date(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        holidayCalendar: HolidayCalendar? = nil
     ) -> QuotaPacingSnapshot? {
         guard let bucket = weeklyBucket,
               let resetAt = bucket.resetsAt,
@@ -122,7 +123,8 @@ public extension RateLimitDashboard {
                 startTime: startTime,
                 nowTime: nowTime,
                 resetTime: resetTime,
-                calendar: calendar
+                calendar: calendar,
+                holidayCalendar: holidayCalendar
             )
         case .frontLoaded:
             targetUsedPercent = Self.frontLoadedTargetUsedPercent(elapsedRatio: elapsedRatio)
@@ -177,9 +179,15 @@ public extension RateLimitDashboard {
         startTime: TimeInterval,
         nowTime: TimeInterval,
         resetTime: TimeInterval,
-        calendar: Calendar
+        calendar: Calendar,
+        holidayCalendar: HolidayCalendar?
     ) -> Double {
-        let total = weightedDayBudget(from: startTime, to: resetTime, calendar: calendar)
+        let total = weightedDayBudget(
+            from: startTime,
+            to: resetTime,
+            calendar: calendar,
+            holidayCalendar: holidayCalendar
+        )
         guard total > 0 else {
             return 0
         }
@@ -190,7 +198,8 @@ public extension RateLimitDashboard {
             from: startTime,
             to: nowTime,
             resetTime: resetTime,
-            calendar: calendar
+            calendar: calendar,
+            holidayCalendar: holidayCalendar
         )
         return elapsed / total * 100
     }
@@ -199,20 +208,27 @@ public extension RateLimitDashboard {
         from startTime: TimeInterval,
         to nowTime: TimeInterval,
         resetTime: TimeInterval,
-        calendar: Calendar
+        calendar: Calendar,
+        holidayCalendar: HolidayCalendar?
     ) -> Double {
         guard nowTime > startTime,
               let currentDay = calendar.dateInterval(of: .day, for: Date(timeIntervalSince1970: nowTime)) else {
             return 0
         }
         let elapsedEnd = min(currentDay.end.timeIntervalSince1970, resetTime)
-        return weightedDayBudget(from: startTime, to: elapsedEnd, calendar: calendar)
+        return weightedDayBudget(
+            from: startTime,
+            to: elapsedEnd,
+            calendar: calendar,
+            holidayCalendar: holidayCalendar
+        )
     }
 
     private static func weightedDayBudget(
         from startTime: TimeInterval,
         to endTime: TimeInterval,
-        calendar: Calendar
+        calendar: Calendar,
+        holidayCalendar: HolidayCalendar?
     ) -> Double {
         guard endTime > startTime,
               let startDay = calendar.dateInterval(of: .day, for: Date(timeIntervalSince1970: startTime)) else {
@@ -231,13 +247,29 @@ public extension RateLimitDashboard {
                 break
             }
             let dayFraction = segmentEnd.timeIntervalSince(day.start) / day.duration
-            total += dayFraction * dayWeight(for: cursor, calendar: calendar)
+            total += dayFraction * dayWeight(
+                for: cursor,
+                calendar: calendar,
+                holidayCalendar: holidayCalendar
+            )
             cursor = segmentEnd
         }
         return total
     }
 
-    private static func dayWeight(for date: Date, calendar: Calendar) -> Double {
+    private static func dayWeight(
+        for date: Date,
+        calendar: Calendar,
+        holidayCalendar: HolidayCalendar?
+    ) -> Double {
+        switch holidayCalendar?.dayKind(for: date, calendar: calendar) {
+        case .workday:
+            return 1
+        case .holiday:
+            return 0.35
+        case nil:
+            break
+        }
         let weekday = calendar.component(.weekday, from: date)
         if weekday == 1 || weekday == 7 {
             return 0.35

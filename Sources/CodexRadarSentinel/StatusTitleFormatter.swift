@@ -84,7 +84,11 @@ enum StatusTitleFormatter {
         case .shortQuota:
             return quotaColor(for: state, remaining: state.rateLimits?.shortRemainingPercent)
         case .quotaPace:
-            return quotaPaceColor(for: state, strategy: options.quotaPacingStrategy)
+            return quotaPaceColor(
+                for: state,
+                strategy: options.quotaPacingStrategy,
+                holidayCalendar: options.holidayCalendar
+            )
         case .codexIQ:
             return iqColor(for: state)
         case .signal:
@@ -93,7 +97,8 @@ enum StatusTitleFormatter {
                 signal: metric.value(
                     for: state,
                     language: language,
-                    pacingStrategy: options.quotaPacingStrategy
+                    pacingStrategy: options.quotaPacingStrategy,
+                    holidayCalendar: options.holidayCalendar
                 )
             )
         }
@@ -115,8 +120,15 @@ enum StatusTitleFormatter {
         return .systemGreen
     }
 
-    private static func quotaPaceColor(for state: DashboardState, strategy: QuotaPacingStrategy) -> NSColor {
-        guard let pacing = state.rateLimits?.quotaPacing(strategy: strategy) else {
+    private static func quotaPaceColor(
+        for state: DashboardState,
+        strategy: QuotaPacingStrategy,
+        holidayCalendar: HolidayCalendar?
+    ) -> NSColor {
+        guard let pacing = state.rateLimits?.quotaPacing(
+            strategy: strategy,
+            holidayCalendar: holidayCalendar
+        ) else {
             return .secondaryLabelColor
         }
         switch pacing.status {

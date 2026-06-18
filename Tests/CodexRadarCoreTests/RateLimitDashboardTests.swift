@@ -231,6 +231,53 @@ final class RateLimitDashboardTests: XCTestCase {
         XCTAssertEqual(pacing.roundedTargetRemainingPercent, 84)
         XCTAssertEqual(pacing.status, .underTarget)
     }
+
+    func testChinaHolidayCalendarAdjustsWorkdayWeightedPacing() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let resetAt = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 6,
+            day: 25,
+            hour: 10
+        )))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 6,
+            day: 18,
+            hour: 17
+        )))
+        let dashboard = try weeklyDashboard(usedPercent: 7, resetAt: resetAt)
+
+        let pacing = try XCTUnwrap(dashboard.quotaPacing(
+            strategy: .workdayWeighted,
+            now: now,
+            calendar: calendar,
+            holidayCalendar: .chinaMainland2026
+        ))
+
+        XCTAssertEqual(pacing.roundedTargetUsedPercent, 18)
+        XCTAssertEqual(pacing.roundedTargetRemainingPercent, 82)
+        XCTAssertEqual(pacing.status, .underTarget)
+    }
+
+    func testChinaHolidayCalendarMarksHolidaysAndMakeupWorkdays() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let dragonBoat = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 6,
+            day: 19
+        )))
+        let makeupSunday = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 1,
+            day: 4
+        )))
+
+        XCTAssertEqual(HolidayCalendar.chinaMainland2026.dayKind(for: dragonBoat, calendar: calendar), .holiday)
+        XCTAssertEqual(HolidayCalendar.chinaMainland2026.dayKind(for: makeupSunday, calendar: calendar), .workday)
+    }
 }
 
 private func weeklyDashboard(usedPercent: Double, start: Date) throws -> RateLimitDashboard {

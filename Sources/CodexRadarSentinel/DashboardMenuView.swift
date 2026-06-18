@@ -200,7 +200,10 @@ struct DashboardMenuView: View {
     private var quotaPacingSection: some View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("用量节奏", "Usage Pace"), systemImage: "chart.xyaxis.line")
-            if let pacing = state.rateLimits?.quotaPacing(strategy: store.quotaPacingStrategy) {
+            if let pacing = state.rateLimits?.quotaPacing(
+                strategy: store.quotaPacingStrategy,
+                holidayCalendar: store.quotaPacingHolidayCalendar
+            ) {
                 HStack(spacing: Layout.tileSpacing) {
                     pacingTile(
                         title: text("建议剩余", "Target left"),
@@ -437,6 +440,20 @@ struct DashboardMenuView: View {
                     .foregroundStyle(.secondary)
                 ForEach(QuotaPacingStrategy.allCases) { strategy in
                     quotaPacingStrategyButton(strategy)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(
+                        text("使用中国节假日/调休", "Use China holidays"),
+                        isOn: $store.chinaHolidayCalendarEnabled
+                    )
+                    .toggleStyle(.checkbox)
+                    Text(text(
+                        "默认开启，仅影响“工作日”策略。已内置 2026 年法定假日和调休补班：假日按周末权重，补班按工作日权重。",
+                        "On by default and only affects Workdays. Includes 2026 mainland China public holidays and makeup workdays: holidays use weekend weight; makeup days use weekday weight."
+                    ))
+                    .font(.system(size: metrics.caption))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
                 }
                 Text(text(
                     "这个策略会同时影响下拉菜单里的“建议剩余”和可选状态栏段“应剩”。",
@@ -724,7 +741,12 @@ struct DashboardMenuView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
-            Text(metric.value(for: state, language: language, pacingStrategy: store.quotaPacingStrategy))
+            Text(metric.value(
+                for: state,
+                language: language,
+                pacingStrategy: store.quotaPacingStrategy,
+                holidayCalendar: store.quotaPacingHolidayCalendar
+            ))
                 .font(.system(size: metrics.badge, weight: .semibold, design: .monospaced))
                 .foregroundStyle(color)
                 .lineLimit(1)
@@ -1182,7 +1204,10 @@ struct DashboardMenuView: View {
     }
 
     private var quotaPaceColor: Color {
-        guard let pacing = state.rateLimits?.quotaPacing(strategy: store.quotaPacingStrategy) else {
+        guard let pacing = state.rateLimits?.quotaPacing(
+            strategy: store.quotaPacingStrategy,
+            holidayCalendar: store.quotaPacingHolidayCalendar
+        ) else {
             return .secondary
         }
         switch pacing.status {

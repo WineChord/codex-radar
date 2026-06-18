@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.33: China holidays and makeup workdays</strong> - The Workdays rule now uses 2026 mainland China public holidays and makeup workdays by default.</summary>
+
+- `Use China holidays` is on by default and only affects the `Workdays` pace rule.
+- Public holidays use weekend weight `0.35`; makeup workdays use weekday weight `1`.
+- The built-in 2026 State Council schedule includes Dragon Boat Festival, so `06-19` to `06-21` is treated as holiday-paced time.
+
+</details>
+
+<details>
 <summary><strong>v0.1.32: Workday pace fix</strong> - The Workdays rule now uses local-calendar day buckets, avoiding overly high target remaining when a reset window starts mid-day.</summary>
 
 - Weekdays weigh `1`; weekends weigh `0.35`.
@@ -337,7 +346,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.32
+./scripts/check_release_readiness.sh 0.1.33
 ```
 
 Build release packages:
@@ -345,7 +354,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.32
+./scripts/package_release.sh 0.1.33
 ```
 
 Update README menu bar and menu screenshots:

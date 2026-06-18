@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.33：中国节假日/调休</strong> - 工作日策略默认启用 2026 中国法定节假日和调休补班。</summary>
+
+- `使用中国节假日/调休` 默认开启，只影响 `工作日` 应剩策略。
+- 法定假日按周末权重 `0.35` 计算，调休补班按工作日权重 `1` 计算。
+- 已内置 2026 国务院办公厅节假日安排，例如端午 `06-19` 至 `06-21` 会按假日节奏处理。
+
+</details>
+
+<details>
 <summary><strong>v0.1.32：工作日节奏修正</strong> - 工作日策略改为按本机日历的天级预算计算，避免 reset 当天中途开始时建议剩余过高。</summary>
 
 - 工作日权重为 `1`，周末权重为 `0.35`。
@@ -337,7 +346,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.32
+./scripts/check_release_readiness.sh 0.1.33
 ```
 
 构建 release 包：
@@ -345,7 +354,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.32
+./scripts/package_release.sh 0.1.33
 ```
 
 更新 README 状态栏和菜单截图：
