@@ -179,35 +179,59 @@ public extension RateLimitDashboard {
         resetTime: TimeInterval,
         calendar: Calendar
     ) -> Double {
-        let total = weightedSeconds(from: startTime, to: resetTime, calendar: calendar)
+        let total = weightedDayBudget(from: startTime, to: resetTime, calendar: calendar)
         guard total > 0 else {
             return 0
         }
-        let elapsed = weightedSeconds(from: startTime, to: nowTime, calendar: calendar)
+        guard nowTime > startTime else {
+            return 0
+        }
+        let elapsed = elapsedWeightedDayBudget(
+            from: startTime,
+            to: nowTime,
+            resetTime: resetTime,
+            calendar: calendar
+        )
         return elapsed / total * 100
     }
 
-    private static func weightedSeconds(
+    private static func elapsedWeightedDayBudget(
+        from startTime: TimeInterval,
+        to nowTime: TimeInterval,
+        resetTime: TimeInterval,
+        calendar: Calendar
+    ) -> Double {
+        guard nowTime > startTime,
+              let currentDay = calendar.dateInterval(of: .day, for: Date(timeIntervalSince1970: nowTime)) else {
+            return 0
+        }
+        let elapsedEnd = min(currentDay.end.timeIntervalSince1970, resetTime)
+        return weightedDayBudget(from: startTime, to: elapsedEnd, calendar: calendar)
+    }
+
+    private static func weightedDayBudget(
         from startTime: TimeInterval,
         to endTime: TimeInterval,
         calendar: Calendar
     ) -> Double {
-        guard endTime > startTime else {
+        guard endTime > startTime,
+              let startDay = calendar.dateInterval(of: .day, for: Date(timeIntervalSince1970: startTime)) else {
             return 0
         }
+
         var total = 0.0
-        var cursor = Date(timeIntervalSince1970: startTime)
-        let end = Date(timeIntervalSince1970: endTime)
-        while cursor < end {
+        var cursor = startDay.start
+        let endDate = Date(timeIntervalSince1970: endTime)
+        while cursor < endDate {
             guard let day = calendar.dateInterval(of: .day, for: cursor) else {
                 break
             }
-            let segmentEnd = min(day.end, end)
-            guard segmentEnd > cursor else {
+            let segmentEnd = min(day.end, endDate)
+            guard segmentEnd > day.start else {
                 break
             }
-            let seconds = segmentEnd.timeIntervalSince(cursor)
-            total += seconds * dayWeight(for: cursor, calendar: calendar)
+            let dayFraction = segmentEnd.timeIntervalSince(day.start) / day.duration
+            total += dayFraction * dayWeight(for: cursor, calendar: calendar)
             cursor = segmentEnd
         }
         return total

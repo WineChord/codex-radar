@@ -198,20 +198,54 @@ final class RateLimitDashboardTests: XCTestCase {
             calendar: calendar
         ))
 
-        XCTAssertEqual(pacing.roundedTargetUsedPercent, 88)
-        XCTAssertEqual(pacing.roundedTargetRemainingPercent, 12)
+        XCTAssertEqual(pacing.roundedTargetUsedPercent, 94)
+        XCTAssertEqual(pacing.roundedTargetRemainingPercent, 6)
+        XCTAssertEqual(pacing.status, .underTarget)
+    }
+
+    func testWorkdayWeightedQuotaPacingCountsCurrentLocalDay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let resetAt = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 6,
+            day: 25,
+            hour: 10
+        )))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 6,
+            day: 18,
+            hour: 17
+        )))
+        let dashboard = try weeklyDashboard(usedPercent: 7, resetAt: resetAt)
+
+        let pacing = try XCTUnwrap(dashboard.quotaPacing(
+            strategy: .workdayWeighted,
+            now: now,
+            calendar: calendar
+        ))
+
+        XCTAssertEqual(pacing.roundedElapsedWindowPercent, 4)
+        XCTAssertEqual(pacing.roundedTargetUsedPercent, 16)
+        XCTAssertEqual(pacing.roundedTargetRemainingPercent, 84)
         XCTAssertEqual(pacing.status, .underTarget)
     }
 }
 
 private func weeklyDashboard(usedPercent: Double, start: Date) throws -> RateLimitDashboard {
-    let resetAt = Int(start.timeIntervalSince1970) + 10_080 * 60
+    let resetAt = start.addingTimeInterval(10_080 * 60)
+    return try weeklyDashboard(usedPercent: usedPercent, resetAt: resetAt)
+}
+
+private func weeklyDashboard(usedPercent: Double, resetAt: Date) throws -> RateLimitDashboard {
+    let resetAtTimestamp = Int(resetAt.timeIntervalSince1970)
     let json = """
     {
       "rateLimits": {
         "limitId": "codex",
         "limitName": null,
-        "primary": { "usedPercent": \(usedPercent), "windowDurationMins": 10080, "resetsAt": \(resetAt) },
+        "primary": { "usedPercent": \(usedPercent), "windowDurationMins": 10080, "resetsAt": \(resetAtTimestamp) },
         "secondary": null,
         "credits": null,
         "planType": "pro",

@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.32：工作日节奏修正</strong> - 工作日策略改为按本机日历的天级预算计算，避免 reset 当天中途开始时建议剩余过高。</summary>
+
+- 工作日权重为 `1`，周末权重为 `0.35`。
+- 进入当天后就把当天预算计入建议用量；reset 当天按截止时刻折算。
+- 例如下次 reset 是 `06-25 10:00` 时，`06-18` 当天会作为一个工作日预算参与计算，不会只按从 10 点开始的几个小时算出 `应剩 95%`。
+
+</details>
+
+<details>
 <summary><strong>v0.1.31：周额度提醒降噪</strong> - 低额度通知增加冷却，避免同一低额度状态反复弹窗。</summary>
 
 - `周额度偏低` 默认最多 12 小时触发一次。
@@ -328,7 +337,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.31
+./scripts/check_release_readiness.sh 0.1.32
 ```
 
 构建 release 包：
@@ -336,7 +345,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.31
+./scripts/package_release.sh 0.1.32
 ```
 
 更新 README 状态栏和菜单截图：

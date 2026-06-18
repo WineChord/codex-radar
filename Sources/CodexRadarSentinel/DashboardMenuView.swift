@@ -931,8 +931,8 @@ struct DashboardMenuView: View {
             )
         case .workdayWeighted:
             return text(
-                "按本机日历给工作日更高权重、周末较低权重。工作日建议用得更多，周末建议消耗更慢。",
-                "Uses the local calendar with higher weekday weight and lower weekend weight. It expects more usage on workdays and slower usage on weekends."
+                "按本机日历的天级预算计算：工作日权重 1，周末权重 0.35；进入当天后会把当天预算计入建议用量，reset 当天按截止时刻折算。",
+                "Uses local calendar day buckets: weekdays weigh 1 and weekends 0.35. The current day counts once entered, and the reset day is prorated to the reset time."
             )
         case .frontLoaded:
             return text(

@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.32: Workday pace fix</strong> - The Workdays rule now uses local-calendar day buckets, avoiding overly high target remaining when a reset window starts mid-day.</summary>
+
+- Weekdays weigh `1`; weekends weigh `0.35`.
+- The current day counts once entered; the reset day is prorated to the reset time.
+- For example, when the next reset is `06-25 10:00`, `06-18` counts as a workday budget bucket instead of only counting the few hours after 10:00.
+
+</details>
+
+<details>
 <summary><strong>v0.1.31: Quota notification cooldown</strong> - Low weekly quota alerts are rate-limited so the same low state does not keep popping up.</summary>
 
 - `Weekly quota low` is limited to once every 12 hours by default.
@@ -328,7 +337,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.31
+./scripts/check_release_readiness.sh 0.1.32
 ```
 
 Build release packages:
@@ -336,7 +345,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.31
+./scripts/package_release.sh 0.1.32
 ```
 
 Update README menu bar and menu screenshots:
