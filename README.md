@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.34：Prediction 等级兼容</strong> - 兼容 CodexRadar 新增的 `medium_low` / `medium_high` 等复合预测等级。</summary>
+
+- `medium_low` 显示为 `中低`，英文显示为 `medium-low`。
+- `medium_high` 显示为 `中高`，英文显示为 `medium-high`。
+- 避免 Prediction 区在 CodexRadar 新等级下显示“未知”。
+
+</details>
+
+<details>
 <summary><strong>v0.1.33：中国节假日/调休</strong> - 工作日策略默认启用 2026 中国法定节假日和调休补班。</summary>
 
 - `使用中国节假日/调休` 默认开启，只影响 `工作日` 应剩策略。
@@ -346,7 +355,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.33
+./scripts/check_release_readiness.sh 0.1.34
 ```
 
 构建 release 包：
@@ -354,7 +363,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.33
+./scripts/package_release.sh 0.1.34
 ```
 
 更新 README 状态栏和菜单截图：

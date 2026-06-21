@@ -62,6 +62,20 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.modelIQ?.latest?.wallTimeText, "183分钟")
         XCTAssertEqual(current.modelIQ?.latest?.cacheHitRateText, "94.3%")
     }
+
+    func testDashboardMapsCompoundPredictionLevels() throws {
+        let prediction = try JSONDecoder().decode(RadarPrediction.self, from: Data("""
+        {
+          "level": "medium_low",
+          "probability_24h": 0.15,
+          "probability_48h": 0.31,
+          "updated_at": "2026-06-21T10:00:00+08:00"
+        }
+        """.utf8))
+        let state = DashboardState(prediction: prediction)
+
+        XCTAssertEqual(state.predictionLevelLabel, "中低")
+    }
 }
 
 private let currentJSON = """

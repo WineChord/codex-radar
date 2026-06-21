@@ -59,8 +59,12 @@ public struct DashboardState: Equatable {
         switch level?.lowercased() {
         case "high":
             return "高"
+        case "medium_high", "medium-high":
+            return "中高"
         case "medium":
             return "中"
+        case "medium_low", "medium-low":
+            return "中低"
         case "low":
             return "低"
         default:

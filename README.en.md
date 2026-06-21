@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.34: Prediction level compatibility</strong> - Supports CodexRadar's newer compound prediction levels such as `medium_low` and `medium_high`.</summary>
+
+- `medium_low` renders as `中低` in Chinese and `medium-low` in English.
+- `medium_high` renders as `中高` in Chinese and `medium-high` in English.
+- The Prediction section no longer falls back to `unknown` for these newer CodexRadar levels.
+
+</details>
+
+<details>
 <summary><strong>v0.1.33: China holidays and makeup workdays</strong> - The Workdays rule now uses 2026 mainland China public holidays and makeup workdays by default.</summary>
 
 - `Use China holidays` is on by default and only affects the `Workdays` pace rule.
@@ -346,7 +355,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.33
+./scripts/check_release_readiness.sh 0.1.34
 ```
 
 Build release packages:
@@ -354,7 +363,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.33
+./scripts/package_release.sh 0.1.34
 ```
 
 Update README menu bar and menu screenshots:

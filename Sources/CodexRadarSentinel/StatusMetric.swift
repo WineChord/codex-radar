@@ -120,8 +120,12 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         switch level?.lowercased() {
         case "high":
             return language.text("高", "high")
+        case "medium_high", "medium-high":
+            return language.text("中高", "med-high")
         case "medium":
             return language.text("中", "med")
+        case "medium_low", "medium-low":
+            return language.text("中低", "med-low")
         case "low":
             return language.text("低", "low")
         default:

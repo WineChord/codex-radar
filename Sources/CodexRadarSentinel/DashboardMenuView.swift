@@ -892,8 +892,12 @@ struct DashboardMenuView: View {
         switch level?.lowercased() {
         case "high":
             return text("高", "high")
+        case "medium_high", "medium-high":
+            return text("中高", "medium-high")
         case "medium":
             return text("中", "medium")
+        case "medium_low", "medium-low":
+            return text("中低", "medium-low")
         case "low":
             return text("低", "low")
         default:
