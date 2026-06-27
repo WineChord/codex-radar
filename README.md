@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.35：多模型 IQ 对齐</strong> - 下拉菜单同步 CodexRadar 新增的 GPT-5.4 high 和多模型对比。</summary>
+
+- 状态栏仍保持紧凑，只显示主模型 IQ，不会因为多模型监控变宽。
+- `Codex IQ` 区块新增多模型表格，展示 5.5 xhigh / high / medium、5.4 xhigh / high 的 IQ、探针和体感分。
+- 跟随 CodexRadar 首页新增的 “5.4 high 模型监控”能力，live contract 会继续校验新结构。
+
+</details>
+
+<details>
 <summary><strong>v0.1.34：Prediction 等级兼容</strong> - 兼容 CodexRadar 新增的 `medium_low` / `medium_high` 等复合预测等级。</summary>
 
 - `medium_low` 显示为 `中低`，英文显示为 `medium-low`。
@@ -355,7 +364,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.34
+./scripts/check_release_readiness.sh 0.1.35
 ```
 
 构建 release 包：
@@ -363,7 +372,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.34
+./scripts/package_release.sh 0.1.35
 ```
 
 更新 README 状态栏和菜单截图：

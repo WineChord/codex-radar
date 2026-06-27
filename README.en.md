@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.35: Multi-model IQ alignment</strong> - The dropdown now mirrors CodexRadar's new GPT-5.4 high and multi-model comparison view.</summary>
+
+- The menu-bar title stays compact and still uses the primary model IQ.
+- The `Codex IQ` section now includes a multi-model table for 5.5 xhigh / high / medium and 5.4 xhigh / high, with IQ, probe result, and community rating.
+- This follows CodexRadar's newly visible 5.4 high monitoring, and the live contract check now covers the expanded structure.
+
+</details>
+
+<details>
 <summary><strong>v0.1.34: Prediction level compatibility</strong> - Supports CodexRadar's newer compound prediction levels such as `medium_low` and `medium_high`.</summary>
 
 - `medium_low` renders as `中低` in Chinese and `medium-low` in English.
@@ -355,7 +364,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.34
+./scripts/check_release_readiness.sh 0.1.35
 ```
 
 Build release packages:
@@ -363,7 +372,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.34
+./scripts/package_release.sh 0.1.35
 ```
 
 Update README menu bar and menu screenshots:

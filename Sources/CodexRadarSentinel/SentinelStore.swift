@@ -458,6 +458,88 @@ final class SentinelStore: NSObject, ObservableObject {
             "cost_usd": 39.943747,
             "model": "gpt-5.5",
             "reasoning_effort": "xhigh"
+          },
+          "comparisons": {
+            "gpt_55_high": {
+              "label": "GPT-5.5 high",
+              "model": "gpt-5.5",
+              "reasoning_effort": "high",
+              "latest": {
+                "date": "2026-06-15",
+                "tasks": 12,
+                "passed": 8,
+                "iq_score": 100,
+                "status": "green",
+                "wall_seconds": 1510,
+                "wall_time_human": "25分钟",
+                "input_tokens": 31436454,
+                "cached_input_tokens": 29755264,
+                "output_tokens": 225425,
+                "cost_usd": 30.05,
+                "model": "gpt-5.5",
+                "reasoning_effort": "high"
+              }
+            },
+            "gpt_55_medium": {
+              "label": "GPT-5.5 medium",
+              "model": "gpt-5.5",
+              "reasoning_effort": "medium",
+              "latest": {
+                "date": "2026-06-15",
+                "tasks": 12,
+                "passed": 9,
+                "iq_score": 112.5,
+                "status": "green",
+                "wall_seconds": 1260,
+                "wall_time_human": "21分钟",
+                "input_tokens": 23890000,
+                "cached_input_tokens": 22230000,
+                "output_tokens": 218000,
+                "cost_usd": 22.56,
+                "model": "gpt-5.5",
+                "reasoning_effort": "medium"
+              }
+            },
+            "gpt_54_xhigh": {
+              "label": "GPT-5.4 xhigh",
+              "model": "gpt-5.4",
+              "reasoning_effort": "xhigh",
+              "latest": {
+                "date": "2026-06-15",
+                "tasks": 12,
+                "passed": 6,
+                "iq_score": 75,
+                "status": "red",
+                "wall_seconds": 2300,
+                "wall_time_human": "38分钟",
+                "input_tokens": 30900000,
+                "cached_input_tokens": 29420000,
+                "output_tokens": 260000,
+                "cost_usd": 23.57,
+                "model": "gpt-5.4",
+                "reasoning_effort": "xhigh"
+              }
+            },
+            "gpt_54_high": {
+              "label": "GPT-5.4 high",
+              "model": "gpt-5.4",
+              "reasoning_effort": "high",
+              "latest": {
+                "date": "2026-06-15",
+                "tasks": 12,
+                "passed": 6,
+                "iq_score": 75,
+                "status": "red",
+                "wall_seconds": 1810,
+                "wall_time_human": "30分钟",
+                "input_tokens": 24400000,
+                "cached_input_tokens": 22910000,
+                "output_tokens": 205000,
+                "cost_usd": 17.64,
+                "model": "gpt-5.4",
+                "reasoning_effort": "high"
+              }
+            }
           }
         }
         """)
@@ -478,6 +560,34 @@ final class SentinelStore: NSObject, ObservableObject {
               "group": "GPT-5.5",
               "average": 9.4,
               "count": 10
+            },
+            {
+              "id": "gpt-5.5-high",
+              "label": "GPT-5.5 high",
+              "group": "GPT-5.5",
+              "average": 8.2,
+              "count": 12
+            },
+            {
+              "id": "gpt-5.5-medium",
+              "label": "GPT-5.5 medium",
+              "group": "GPT-5.5",
+              "average": 8.9,
+              "count": 8
+            },
+            {
+              "id": "gpt-5.4-xhigh",
+              "label": "GPT-5.4 xhigh",
+              "group": "GPT-5.4",
+              "average": 7.6,
+              "count": 7
+            },
+            {
+              "id": "gpt-5.4-high",
+              "label": "GPT-5.4 high",
+              "group": "GPT-5.4",
+              "average": 7.4,
+              "count": 5
             }
           ],
           "source": "cache"

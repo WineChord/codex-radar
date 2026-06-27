@@ -326,7 +326,7 @@ struct DashboardMenuView: View {
             }
             if let latest = state.modelIQ?.latest {
                 HStack {
-                    labelPair(text("耗时", "Time"), latest.wallTimeText)
+                    labelPair(text("耗时", "Time"), modelIQTimeText(latest))
                     Spacer()
                     labelPair(text("费用", "Cost"), DisplayFormatters.costUSD(latest.costUSD))
                     Spacer()
@@ -335,7 +335,76 @@ struct DashboardMenuView: View {
                     labelPair(text("体感", "Rating"), modelRatingText(state.modelRatings?.rating(for: latest)))
                 }
             }
+            if let rows = state.modelIQ?.latestRows, rows.count > 1 {
+                modelIQComparisonTable(rows)
+            }
         }
+    }
+
+    private func modelIQComparisonTable(_ rows: [ModelIQLatestRow]) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Text(text("多模型", "Models"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("IQ")
+                    .frame(width: 44, alignment: .trailing)
+                Text(text("探针", "Probe"))
+                    .frame(width: 46, alignment: .trailing)
+                Text(text("体感", "Rating"))
+                    .frame(width: 70, alignment: .trailing)
+            }
+            .font(.system(size: metrics.caption, weight: .semibold))
+            .foregroundStyle(.secondary)
+
+            ForEach(rows) { row in
+                HStack(spacing: 6) {
+                    Text(modelIQRowLabel(row))
+                        .font(.system(size: metrics.label, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(DisplayFormatters.iqScore(row.snapshot.iqScore))
+                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                        .foregroundStyle(iqColor(for: row.snapshot))
+                        .frame(width: 44, alignment: .trailing)
+                    Text(modelIQProbeText(row.snapshot))
+                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                        .frame(width: 46, alignment: .trailing)
+                    Text(modelRatingCompactText(state.modelRatings?.rating(for: row.snapshot)))
+                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                        .frame(width: 70, alignment: .trailing)
+                }
+            }
+        }
+        .padding(8)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func modelIQRowLabel(_ row: ModelIQLatestRow) -> String {
+        if let label = row.label, !label.isEmpty {
+            return label
+        }
+        let parts = [row.snapshot.model, row.snapshot.reasoningEffort].compactMap { $0 }
+        return parts.isEmpty ? text("未知模型", "Unknown") : parts.joined(separator: " ")
+    }
+
+    private func modelIQProbeText(_ snapshot: ModelIQSnapshot) -> String {
+        let passed = snapshot.passed.map(String.init) ?? "?"
+        let tasks = snapshot.tasks.map(String.init) ?? "?"
+        return "\(passed)/\(tasks)"
+    }
+
+    private func iqColor(for snapshot: ModelIQSnapshot) -> Color {
+        guard let score = snapshot.iqScore else {
+            return .secondary
+        }
+        if score < 60 {
+            return .red
+        }
+        if snapshot.status?.lowercased() == "red" || score < 90 {
+            return .orange
+        }
+        return .green
     }
 
     private func modelRatingText(_ rating: ModelRating?) -> String {
@@ -349,6 +418,24 @@ struct DashboardMenuView: View {
             return score
         }
         return text("\(score) · \(count)票", "\(score) · \(count) votes")
+    }
+
+    private func modelRatingCompactText(_ rating: ModelRating?) -> String {
+        guard let rating,
+              let average = rating.average,
+              average.isFinite else {
+            return DisplayFormatters.percentPlaceholder
+        }
+        return String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), average)
+    }
+
+    private func modelIQTimeText(_ snapshot: ModelIQSnapshot) -> String {
+        switch language {
+        case .zhHans:
+            return snapshot.wallTimeHuman ?? DisplayFormatters.minutesFromSeconds(snapshot.wallSeconds)
+        case .en:
+            return DisplayFormatters.minutesFromSeconds(snapshot.wallSeconds)
+        }
     }
 
     private func errorSection(_ error: String) -> some View {

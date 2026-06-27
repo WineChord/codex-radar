@@ -21,11 +21,18 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(iq.latest?.tasks, 12)
         XCTAssertEqual(iq.latest?.costUSD, 39.94)
         XCTAssertEqual(iq.latest?.cacheHitRateText, "95.0%")
+        XCTAssertEqual(iq.latestRows.map(\.label), [
+            "GPT-5.5 xhigh",
+            "GPT-5.5 high",
+            "GPT-5.4 high"
+        ])
+        XCTAssertEqual(iq.latestRows.compactMap { $0.snapshot.iqScore }, [62.5, 75.0, 87.5])
 
         let ratings = try decoder.decode(ModelRatingsEnvelope.self, from: Data(modelRatingsJSON.utf8))
         let rating = ratings.rating(for: iq.latest)
         XCTAssertEqual(rating?.average, 9.4)
         XCTAssertEqual(rating?.count, 10)
+        XCTAssertEqual(ratings.rating(for: iq.latestRows.last?.snapshot)?.average, 8.1)
     }
 
     func testDecodesEmbeddedCurrentPayload() throws {
@@ -155,6 +162,38 @@ private let modelIQJSON = """
     "cached_input_tokens": 37026944,
     "output_tokens": 386860,
     "cost_usd": 39.94
+  },
+  "comparisons": {
+    "gpt_55_high": {
+      "label": "GPT-5.5 high",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "latest": {
+        "date": "2026-06-04",
+        "model": "gpt-5.5",
+        "reasoning_effort": "high",
+        "tasks": 12,
+        "valid_tasks": 12,
+        "passed": 6,
+        "iq_score": 75,
+        "status": "red"
+      }
+    },
+    "gpt_54_high": {
+      "label": "GPT-5.4 high",
+      "model": "gpt-5.4",
+      "reasoning_effort": "high",
+      "latest": {
+        "date": "2026-06-04",
+        "model": "gpt-5.4",
+        "reasoning_effort": "high",
+        "tasks": 12,
+        "valid_tasks": 12,
+        "passed": 7,
+        "iq_score": 87.5,
+        "status": "yellow"
+      }
+    }
   }
 }
 """
@@ -173,6 +212,13 @@ private let modelRatingsJSON = """
       "group": "GPT-5.5",
       "average": 9.4,
       "count": 10
+    },
+    {
+      "id": "gpt-5.4-high",
+      "label": "GPT-5.4 high",
+      "group": "GPT-5.4",
+      "average": 8.1,
+      "count": 4
     }
   ],
   "source": "cache",

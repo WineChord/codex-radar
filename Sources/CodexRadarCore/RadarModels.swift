@@ -210,10 +210,129 @@ public struct RadarPrediction: Decodable, Equatable {
 public struct ModelIQEnvelope: Decodable, Equatable {
     public let updatedAt: String?
     public let latest: ModelIQSnapshot?
+    public let comparisons: [String: ModelIQComparison]
+
+    public var latestRows: [ModelIQLatestRow] {
+        var rows = [ModelIQLatestRow]()
+        if let latest {
+            rows.append(ModelIQLatestRow(label: Self.modelLabel(latest), snapshot: latest))
+        }
+        rows.append(contentsOf: comparisons.values
+            .sorted(by: Self.sortComparisons)
+            .compactMap { comparison in
+                guard let latest = comparison.latest else {
+                    return nil
+                }
+                return ModelIQLatestRow(
+                    label: comparison.label ?? Self.modelLabel(latest),
+                    snapshot: latest
+                )
+            })
+        return rows
+    }
 
     enum CodingKeys: String, CodingKey {
         case updatedAt = "updated_at"
         case latest
+        case comparisons
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        latest = try container.decodeIfPresent(ModelIQSnapshot.self, forKey: .latest)
+        comparisons = try container.decodeIfPresent([String: ModelIQComparison].self, forKey: .comparisons) ?? [:]
+    }
+
+    private static func sortComparisons(_ lhs: ModelIQComparison, _ rhs: ModelIQComparison) -> Bool {
+        if lhs.modelVersionRank != rhs.modelVersionRank {
+            return lhs.modelVersionRank > rhs.modelVersionRank
+        }
+        if lhs.effortRank != rhs.effortRank {
+            return lhs.effortRank < rhs.effortRank
+        }
+        return (lhs.label ?? "") < (rhs.label ?? "")
+    }
+
+    private static func modelLabel(_ snapshot: ModelIQSnapshot) -> String? {
+        guard let model = snapshot.model else {
+            return snapshot.reasoningEffort
+        }
+        let prefix = model.uppercased().hasPrefix("GPT-") ? model.uppercased() : model
+        guard let effort = snapshot.reasoningEffort else {
+            return prefix
+        }
+        return "\(prefix) \(effort)"
+    }
+}
+
+public struct ModelIQComparison: Decodable, Equatable {
+    public let label: String?
+    public let model: String?
+    public let reasoningEffort: String?
+    public let latest: ModelIQSnapshot?
+    public let recentDays: [ModelIQSnapshot]
+
+    enum CodingKeys: String, CodingKey {
+        case label
+        case model
+        case reasoningEffort = "reasoning_effort"
+        case latest
+        case recentDays = "recent_days"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        label = try container.decodeIfPresent(String.self, forKey: .label)
+        model = try container.decodeIfPresent(String.self, forKey: .model)
+        reasoningEffort = try container.decodeIfPresent(String.self, forKey: .reasoningEffort)
+        latest = try container.decodeIfPresent(ModelIQSnapshot.self, forKey: .latest)
+        recentDays = try container.decodeIfPresent([ModelIQSnapshot].self, forKey: .recentDays) ?? []
+    }
+
+    fileprivate var modelVersionRank: Double {
+        let source = model ?? latest?.model ?? label ?? ""
+        let pattern = #"(\d+(?:\.\d+)?)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: source, range: NSRange(source.startIndex..<source.endIndex, in: source)),
+              let range = Range(match.range(at: 1), in: source),
+              let version = Double(source[range]) else {
+            return 0
+        }
+        return version
+    }
+
+    fileprivate var effortRank: Int {
+        let effort = (reasoningEffort ?? latest?.reasoningEffort ?? label ?? "").lowercased()
+        if effort.contains("xhigh") {
+            return 0
+        }
+        if effort.contains("high") {
+            return 1
+        }
+        if effort.contains("medium") {
+            return 2
+        }
+        if effort.contains("low") {
+            return 3
+        }
+        return 9
+    }
+}
+
+public struct ModelIQLatestRow: Equatable, Identifiable {
+    public let label: String?
+    public let snapshot: ModelIQSnapshot
+
+    public var id: String {
+        [
+            label,
+            snapshot.model,
+            snapshot.reasoningEffort,
+            snapshot.date
+        ]
+        .compactMap { $0 }
+        .joined(separator: "-")
     }
 }
 
