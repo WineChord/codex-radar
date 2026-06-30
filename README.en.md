@@ -63,6 +63,9 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 </details>
 
 <details>
+<summary><strong>Older releases</strong> - Expand for earlier feature history.</summary>
+
+<details>
 <summary><strong>v0.1.30: Polling hang guard</strong> - CodexRadar requests now time out after 15 seconds, so one stuck request cannot stop future menu-bar refreshes.</summary>
 
 - CodexRadar has an official speed window open today, and the app correctly shows `speed` after refresh.
@@ -197,6 +200,8 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 - Always-on weekly quota, Codex IQ, and CodexRadar signal.
 - Red menu-bar emphasis and macOS notification when a speed window opens.
 - Reset events, prediction, IQ, and local quota status in one dropdown.
+
+</details>
 
 </details>
 

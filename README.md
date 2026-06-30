@@ -63,6 +63,9 @@
 </details>
 
 <details>
+<summary><strong>历史版本</strong> - 展开查看更早的功能记录。</summary>
+
+<details>
 <summary><strong>v0.1.30：防止轮询卡住</strong> - CodexRadar 请求增加 15 秒超时，避免一次网络卡住导致状态栏不再刷新。</summary>
 
 - 今天 CodexRadar 官方速蹬窗口已开启，重启 app 后状态栏正确显示 `速蹬`。
@@ -197,6 +200,8 @@
 - 常驻显示周额度、Codex IQ 和 CodexRadar 信号。
 - 速蹬窗口开启时状态栏变红，并发送 macOS 通知。
 - reset 事件、预测、IQ、额度状态都在同一个下拉菜单里看。
+
+</details>
 
 </details>
 
