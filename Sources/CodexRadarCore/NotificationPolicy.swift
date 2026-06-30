@@ -315,12 +315,36 @@ public struct NotificationPolicy {
     }
 
     private func resetCloseKey(current: DashboardState) -> String? {
-        guard let window = current.current?.lastWindow,
-              window.status?.lowercased() == "closed",
-              let closedAt = window.closedAt else {
+        guard let window = current.current?.lastWindow else {
             return nil
         }
-        return "\(window.id ?? "unknown"):\(closedAt)"
+        let status = window.status?.lowercased()
+        if status == "closed", let closedAt = window.closedAt {
+            return "\(window.id ?? "unknown"):\(closedAt)"
+        }
+        let action = current.current?.recommendedAction?.lowercased()
+        let text = [
+            action,
+            status,
+            window.title,
+            window.summary,
+            window.windowHuman
+        ]
+        .compactMap { $0?.lowercased() }
+        .joined(separator: " ")
+        let isResetCompleted = action == "reset_completed"
+            || status?.contains("confirmed") == true
+            || text.contains("已完成重置")
+            || text.contains("已重置")
+            || text.contains("reset completed")
+        guard isResetCompleted else {
+            return nil
+        }
+        let eventAt = window.closedAt
+            ?? window.openedAt
+            ?? current.current?.checkedAt
+            ?? "unknown"
+        return "\(window.id ?? window.sourceURL ?? "reset"):\(eventAt):\(action ?? status ?? "completed")"
     }
 
     private func predictionKey(current: DashboardState) -> String? {

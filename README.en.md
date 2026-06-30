@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.36: reset payload compatibility</strong> - When current.json temporarily omits Model IQ, the app backfills IQ from the CodexRadar homepage.</summary>
+
+- Preserves the `reset_completed / community_confirmed` entitlement state while restoring the public homepage Model IQ and multi-model table.
+- `reset_completed` now also enters the “CodexRadar recorded reset” notification path instead of relying only on the old `closed_at` shape.
+- Supports CodexRadar homepage Model IQ dates such as `6.29_pm`.
+
+</details>
+
+<details>
 <summary><strong>v0.1.35: Multi-model IQ alignment</strong> - The dropdown now mirrors CodexRadar's new GPT-5.4 high and multi-model comparison view.</summary>
 
 - The menu-bar title stays compact and still uses the primary model IQ.
@@ -364,7 +373,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.35
+./scripts/check_release_readiness.sh 0.1.36
 ```
 
 Build release packages:
@@ -372,7 +381,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.35
+./scripts/package_release.sh 0.1.36
 ```
 
 Update README menu bar and menu screenshots:

@@ -140,6 +140,42 @@ final class NotificationPolicyTests: XCTestCase {
         XCTAssertNil(memory.lastSpeedOpenKey)
     }
 
+    func testCommunityConfirmedResetNotifiesAfterInitialization() throws {
+        var memory = NotificationMemory(initialized: true)
+        let current = try JSONDecoder().decode(RadarCurrent.self, from: Data("""
+        {
+          "schema_version": "2.0",
+          "monitored_at": "2026-06-30T09:58:33+08:00",
+          "window_open": true,
+          "status": "community_confirmed",
+          "recommended_action": "reset_completed",
+          "window": {
+            "open": true,
+            "status": "community_confirmed",
+            "action": "reset_completed",
+            "message": "社区反馈已完成重置",
+            "title": "Codex 用量限制重置",
+            "scope": "Codex 用户",
+            "opened_at": "2026-06-30T07:39:41+08:00"
+          }
+        }
+        """.utf8))
+        let state = DashboardState(
+            rateLimits: try sampleDashboard(weeklyUsed: 12),
+            current: current,
+            prediction: nil,
+            modelIQ: nil
+        )
+
+        let first = NotificationPolicy().evaluate(previous: nil, current: state, memory: &memory)
+        let second = NotificationPolicy().evaluate(previous: state, current: state, memory: &memory)
+
+        XCTAssertFalse(state.activeSpeedWindow)
+        XCTAssertTrue(state.activeEntitlementEvent)
+        XCTAssertEqual(first.map(\.title), ["CodexRadar 记录到 reset"])
+        XCTAssertTrue(second.isEmpty)
+    }
+
     func testCurrentWindowPayloadMessageNotifiesAsSpeedWindow() throws {
         var memory = NotificationMemory()
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data("""

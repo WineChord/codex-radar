@@ -15,6 +15,42 @@ public struct RadarCurrent: Decodable, Equatable {
         RadarDateParser.date(from: checkedAt)
     }
 
+    public init(
+        schemaVersion: String?,
+        checkedAt: String?,
+        status: String?,
+        windowOpen: Bool,
+        recommendedAction: String?,
+        lastWindow: RadarWindow?,
+        prediction: RadarPredictionSummary?,
+        predictionDetail: RadarPrediction?,
+        modelIQ: ModelIQEnvelope?
+    ) {
+        self.schemaVersion = schemaVersion
+        self.checkedAt = checkedAt
+        self.status = status
+        self.windowOpen = windowOpen
+        self.recommendedAction = recommendedAction
+        self.lastWindow = lastWindow
+        self.prediction = prediction
+        self.predictionDetail = predictionDetail
+        self.modelIQ = modelIQ
+    }
+
+    public func withModelIQ(_ modelIQ: ModelIQEnvelope?) -> RadarCurrent {
+        RadarCurrent(
+            schemaVersion: schemaVersion,
+            checkedAt: checkedAt,
+            status: status,
+            windowOpen: windowOpen,
+            recommendedAction: recommendedAction,
+            lastWindow: lastWindow,
+            prediction: prediction,
+            predictionDetail: predictionDetail,
+            modelIQ: modelIQ ?? self.modelIQ
+        )
+    }
+
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
         case checkedAt = "checked_at"

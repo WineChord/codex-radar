@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.36：reset payload 兼容</strong> - current.json 临时不带 Model IQ 时，自动从 CodexRadar 首页补齐 IQ。</summary>
+
+- 保留 `reset_completed / community_confirmed` 的权益状态，同时补回首页公开的 Model IQ 和多模型表格。
+- `reset_completed` 现在也会进入“CodexRadar 记录到 reset”提醒路径，不再只依赖旧的 `closed_at`。
+- 兼容 CodexRadar 首页新的 `6.29_pm` 这类 Model IQ 日期格式。
+
+</details>
+
+<details>
 <summary><strong>v0.1.35：多模型 IQ 对齐</strong> - 下拉菜单同步 CodexRadar 新增的 GPT-5.4 high 和多模型对比。</summary>
 
 - 状态栏仍保持紧凑，只显示主模型 IQ，不会因为多模型监控变宽。
@@ -364,7 +373,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.35
+./scripts/check_release_readiness.sh 0.1.36
 ```
 
 构建 release 包：
@@ -372,7 +381,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.35
+./scripts/package_release.sh 0.1.36
 ```
 
 更新 README 状态栏和菜单截图：

@@ -70,6 +70,30 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.modelIQ?.latest?.cacheHitRateText, "94.3%")
     }
 
+    func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
+        let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(currentWithoutIQJSON.utf8))
+        let merged = try CodexRadarClient.currentByMergingHomepageModelIQ(
+            current,
+            html: homepageDotDateHTML,
+            checkedAt: Date(timeIntervalSince1970: 1_782_762_000)
+        )
+
+        XCTAssertTrue(merged.windowOpen)
+        XCTAssertEqual(merged.status, "community_confirmed")
+        XCTAssertEqual(merged.recommendedAction, "reset_completed")
+        XCTAssertEqual(merged.lastWindow?.status, "community_confirmed")
+        XCTAssertEqual(merged.modelIQ?.latest?.date, "2026-06-29-pm")
+        XCTAssertEqual(merged.modelIQ?.latest?.model, "GPT-5.5")
+        XCTAssertEqual(merged.modelIQ?.latest?.reasoningEffort, "xhigh")
+        XCTAssertEqual(merged.modelIQ?.latest?.iqScore, 75)
+        XCTAssertEqual(merged.modelIQ?.latestRows.map(\.label), [
+            "GPT-5.5 xhigh",
+            "GPT-5.5 high",
+            "GPT-5.4 high"
+        ])
+        XCTAssertEqual(merged.modelIQ?.latestRows.compactMap { $0.snapshot.iqScore }, [75, 87.5, 75])
+    }
+
     func testDashboardMapsCompoundPredictionLevels() throws {
         let prediction = try JSONDecoder().decode(RadarPrediction.self, from: Data("""
         {
@@ -122,6 +146,20 @@ private let homepageHTML = """
 <title>6月13日 GPT-5.5 xhigh: IQ指数 87.5, 7/12, 费用 $42.41, 耗时 170分钟, cache命中率 94.5%</title>
 <title>6月14日 GPT-5.4 xhigh: IQ指数 75.0, 6/12, 费用 $21.33, 耗时 206分钟, cache命中率 95.7%</title>
 <title>6月14日 GPT-5.5 xhigh: IQ指数 62.5, 5/12, 费用 $37.59, 耗时 183分钟, cache命中率 94.3%</title>
+</svg>
+</body>
+</html>
+"""
+
+private let homepageDotDateHTML = """
+<!doctype html>
+<html>
+<body>
+<svg>
+<title>6.29_am GPT-5.5 xhigh: IQ指数 87.5, 7/12, 费用 $42.61, 耗时 156分钟, cache命中率 93.4%</title>
+<title>6.29_pm GPT-5.5 xhigh: IQ指数 75.0, 6/12, 费用 $42.00, 耗时 204分钟, cache命中率 95.2%</title>
+<title>6.29_pm GPT-5.5 high: IQ指数 87.5, 7/12, 费用 $26.31, 耗时 109分钟, cache命中率 93.8%</title>
+<title>6.29_pm GPT-5.4 high: IQ指数 75.0, 6/12, 费用 $15.60, 耗时 154分钟, cache命中率 93.7%</title>
 </svg>
 </body>
 </html>
@@ -279,6 +317,34 @@ private let currentV2JSON = """
       "valid_tasks": 12,
       "wall_seconds": 2605
     }
+  }
+}
+"""
+
+private let currentWithoutIQJSON = """
+{
+  "schema_version": "2.0",
+  "service": "codex-reset-radar",
+  "monitored_at": "2026-06-30T09:58:33.409085+08:00",
+  "window_open": true,
+  "status": "community_confirmed",
+  "recommended_action": "reset_completed",
+  "window": {
+    "open": true,
+    "status": "community_confirmed",
+    "action": "reset_completed",
+    "message": "社区反馈已完成重置",
+    "title": "Codex 用量限制重置",
+    "scope": "Codex 用户",
+    "opened_at": "2026-06-30T07:39:41+08:00",
+    "closed_at": null,
+    "source_url": "https://x.com/thsottiaux/status/2071740419030053227"
+  },
+  "prediction": {
+    "level": "high",
+    "probability_24h": 0.4,
+    "probability_48h": 0.53,
+    "updated_at": "2026-06-30T05:17:30.069406+08:00"
   }
 }
 """

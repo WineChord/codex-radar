@@ -31,7 +31,13 @@ public struct CodexRadarClient {
     public func fetchCurrent() async throws -> RadarCurrent {
         let data = try await fetchData(AppConstants.currentPath)
         do {
-            return try decoder.decode(RadarCurrent.self, from: data)
+            let current = try decoder.decode(RadarCurrent.self, from: data)
+            guard current.modelIQ?.latest?.iqScore == nil,
+                  let homepageHTML = try? await fetchHomepageHTML(),
+                  let supplemented = try? Self.currentByMergingHomepageModelIQ(current, html: homepageHTML) else {
+                return current
+            }
+            return supplemented
         } catch {
             guard let html = String(data: data, encoding: .utf8),
                   html.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<") else {
@@ -51,7 +57,7 @@ public struct CodexRadarClient {
     }
 
     private func fetchData(_ path: String) async throws -> Data {
-        let url = baseURL.appending(path: path)
+        let url = path.isEmpty ? baseURL : baseURL.appending(path: path)
         let (data, response) = try await withTimeout(seconds: AppConstants.requestTimeoutSeconds) {
             try await session.data(from: url)
         }
@@ -62,6 +68,14 @@ public struct CodexRadarClient {
             throw ClientError.invalidStatus(httpResponse.statusCode)
         }
         return data
+    }
+
+    private func fetchHomepageHTML() async throws -> String {
+        let data = try await fetchData("")
+        guard let html = String(data: data, encoding: .utf8) else {
+            throw ClientError.homepageFallbackUnavailable
+        }
+        return html
     }
 
     private func withTimeout<T>(
@@ -85,7 +99,7 @@ public struct CodexRadarClient {
     }
 
     static func currentFromHomepageHTML(_ html: String, checkedAt: Date = Date()) throws -> RadarCurrent {
-        guard let modelIQ = parseHomepageModelIQ(html: html, checkedAt: checkedAt) else {
+        guard let modelIQ = parseHomepageModelIQEnvelope(html: html, checkedAt: checkedAt) else {
             throw ClientError.homepageFallbackUnavailable
         }
         let checkedAtString = isoString(checkedAt)
@@ -113,15 +127,29 @@ public struct CodexRadarClient {
             ],
             "model_iq": [
                 "updated_at": checkedAtString,
-                "latest": modelIQ
+                "latest": modelIQ["latest"] ?? [:],
+                "comparisons": modelIQ["comparisons"] ?? [:]
             ]
         ]
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try JSONDecoder().decode(RadarCurrent.self, from: data)
     }
 
-    private static func parseHomepageModelIQ(html: String, checkedAt: Date) -> [String: Any]? {
-        let pattern = #"<title>\s*(\d{1,2})月(\d{1,2})日\s+([^:]+):\s*IQ指数\s*([0-9]+(?:\.[0-9]+)?),\s*(\d+)/(\d+)(?:,\s*费用\s*\$([0-9]+(?:\.[0-9]+)?),\s*耗时\s*([0-9]+)分钟,\s*cache命中率\s*([0-9]+(?:\.[0-9]+)?)%)?"#
+    static func currentByMergingHomepageModelIQ(
+        _ current: RadarCurrent,
+        html: String,
+        checkedAt: Date = Date()
+    ) throws -> RadarCurrent {
+        guard let modelIQ = parseHomepageModelIQEnvelope(html: html, checkedAt: checkedAt) else {
+            throw ClientError.homepageFallbackUnavailable
+        }
+        let data = try JSONSerialization.data(withJSONObject: modelIQ)
+        let envelope = try JSONDecoder().decode(ModelIQEnvelope.self, from: data)
+        return current.withModelIQ(envelope)
+    }
+
+    private static func parseHomepageModelIQEnvelope(html: String, checkedAt: Date) -> [String: Any]? {
+        let pattern = #"<title>\s*(?:(\d{1,2})月(\d{1,2})日|(\d{1,2})\.(\d{1,2})(?:[_-]([A-Za-z]+))?)\s+([^:]+):\s*IQ指数\s*([0-9]+(?:\.[0-9]+)?),\s*(\d+)/(\d+)(?:,\s*费用\s*\$([0-9]+(?:\.[0-9]+)?),\s*耗时\s*([0-9]+)分钟,\s*cache命中率\s*([0-9]+(?:\.[0-9]+)?)%)?"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return nil
         }
@@ -129,23 +157,26 @@ public struct CodexRadarClient {
         let matches = regex.matches(in: html, range: range)
         let year = Calendar(identifier: .gregorian).component(.year, from: checkedAt)
         let snapshots: [HomepageIQSnapshot] = matches.compactMap { match in
-            guard match.numberOfRanges >= 7,
-                  let month = Int(capture(match, 1, in: html)),
-                  let day = Int(capture(match, 2, in: html)),
-                  let score = Double(capture(match, 4, in: html)),
-                  let passed = Int(capture(match, 5, in: html)),
-                  let tasks = Int(capture(match, 6, in: html)) else {
+            let monthText = capture(match, 1, in: html).isEmpty ? capture(match, 3, in: html) : capture(match, 1, in: html)
+            let dayText = capture(match, 2, in: html).isEmpty ? capture(match, 4, in: html) : capture(match, 2, in: html)
+            guard match.numberOfRanges >= 10,
+                  let month = Int(monthText),
+                  let day = Int(dayText),
+                  let score = Double(capture(match, 7, in: html)),
+                  let passed = Int(capture(match, 8, in: html)),
+                  let tasks = Int(capture(match, 9, in: html)) else {
                 return nil
             }
-            let cost = Double(capture(match, 7, in: html))
-            let minutes = Int(capture(match, 8, in: html))
-            let cacheHitRate = Double(capture(match, 9, in: html))
-            let modelParts = capture(match, 3, in: html).split(separator: " ", omittingEmptySubsequences: true)
+            let cost = Double(capture(match, 10, in: html))
+            let minutes = Int(capture(match, 11, in: html))
+            let cacheHitRate = Double(capture(match, 12, in: html))
+            let modelParts = capture(match, 6, in: html).split(separator: " ", omittingEmptySubsequences: true)
             let model = modelParts.first.map(String.init)
             let effort = modelParts.dropFirst().isEmpty ? nil : modelParts.dropFirst().joined(separator: " ")
             return HomepageIQSnapshot(
                 month: month,
                 day: day,
+                phase: capture(match, 5, in: html).lowercased(),
                 model: model,
                 reasoningEffort: effort,
                 score: score,
@@ -157,57 +188,27 @@ public struct CodexRadarClient {
             )
         }
         guard let latest = snapshots.max(by: { lhs, rhs in
-            if lhs.month != rhs.month {
-                return lhs.month < rhs.month
-            }
-            if lhs.day != rhs.day {
-                return lhs.day < rhs.day
-            }
-            return lhs.modelPriority < rhs.modelPriority
+            lhs.sortKey < rhs.sortKey
         }) else {
             return nil
         }
-        let failed = max(0, latest.tasks - latest.passed)
-        var payload: [String: Any] = [
-            "date": String(format: "%04d-%02d-%02d", year, latest.month, latest.day),
-            "tasks": latest.tasks,
-            "valid_tasks": latest.tasks,
-            "passed": latest.passed,
-            "failed": failed,
-            "pass_rate": latest.tasks > 0 ? Double(latest.passed) / Double(latest.tasks) : 0,
-            "iq_score": latest.score,
-            "score": latest.score,
-            "status": modelIQStatus(latest.score)
+        let latestByModel = Dictionary(grouping: snapshots, by: \.modelKey)
+            .compactMapValues { snapshots in
+                snapshots.max { $0.sortKey < $1.sortKey }
+            }
+        let comparisons = latestByModel
+            .filter { $0.key != latest.modelKey }
+            .reduce(into: [String: Any]()) { result, item in
+                result[item.key] = item.value.comparisonPayload(year: year)
+            }
+        return [
+            "updated_at": isoString(checkedAt),
+            "latest": latest.snapshotPayload(year: year),
+            "comparisons": comparisons
         ]
-        if let wallSeconds = latest.wallSeconds {
-            payload["wall_seconds"] = wallSeconds
-            payload["wall_time_human"] = "\(wallSeconds / 60)分钟"
-        }
-        if let costUSD = latest.costUSD {
-            payload["cost_usd"] = costUSD
-        }
-        if let cacheHitRate = latest.cacheHitRate {
-            let inputTokens = 1_000_000
-            payload["input_tokens"] = inputTokens
-            payload["cached_input_tokens"] = Int(round(Double(inputTokens) * cacheHitRate / 100))
-        }
-        if let model = latest.model {
-            payload["model"] = model
-        }
-        if let effort = latest.reasoningEffort {
-            payload["reasoning_effort"] = effort
-        }
-        return payload
     }
 
-    private static func capture(_ match: NSTextCheckingResult, _ index: Int, in text: String) -> String {
-        guard let range = Range(match.range(at: index), in: text) else {
-            return ""
-        }
-        return String(text[range])
-    }
-
-    private static func modelIQStatus(_ score: Double) -> String {
+    fileprivate static func modelIQStatus(_ score: Double) -> String {
         if score < 80 {
             return "red"
         }
@@ -215,6 +216,13 @@ public struct CodexRadarClient {
             return "yellow"
         }
         return "green"
+    }
+
+    private static func capture(_ match: NSTextCheckingResult, _ index: Int, in text: String) -> String {
+        guard let range = Range(match.range(at: index), in: text) else {
+            return ""
+        }
+        return String(text[range])
     }
 
     private static func isoString(_ date: Date) -> String {
@@ -227,6 +235,7 @@ public struct CodexRadarClient {
 private struct HomepageIQSnapshot {
     let month: Int
     let day: Int
+    let phase: String
     let model: String?
     let reasoningEffort: String?
     let score: Double
@@ -236,13 +245,129 @@ private struct HomepageIQSnapshot {
     let wallSeconds: Int?
     let cacheHitRate: Double?
 
-    var modelPriority: Int {
-        if model?.contains("5.5") == true {
+    var sortKey: Int {
+        month * 1_000_000 + day * 10_000 + phaseRank * 1_000 + modelPriority
+    }
+
+    var modelKey: String {
+        let raw = [model, reasoningEffort]
+            .compactMap { $0 }
+            .joined(separator: "-")
+            .lowercased()
+        let slug = raw.replacingOccurrences(
+            of: "[^a-z0-9]+",
+            with: "_",
+            options: .regularExpression
+        )
+        return slug.trimmingCharacters(in: CharacterSet(charactersIn: "_")).isEmpty ? "unknown" : slug
+    }
+
+    func snapshotPayload(year: Int) -> [String: Any] {
+        let failed = max(0, tasks - passed)
+        var payload: [String: Any] = [
+            "date": dateText(year: year),
+            "tasks": tasks,
+            "valid_tasks": tasks,
+            "passed": passed,
+            "failed": failed,
+            "pass_rate": tasks > 0 ? Double(passed) / Double(tasks) : 0,
+            "iq_score": score,
+            "score": score,
+            "status": CodexRadarClient.modelIQStatus(score)
+        ]
+        if let wallSeconds {
+            payload["wall_seconds"] = wallSeconds
+            payload["wall_time_human"] = "\(wallSeconds / 60)分钟"
+        }
+        if let costUSD {
+            payload["cost_usd"] = costUSD
+        }
+        if let cacheHitRate {
+            let inputTokens = 1_000_000
+            payload["input_tokens"] = inputTokens
+            payload["cached_input_tokens"] = Int(round(Double(inputTokens) * cacheHitRate / 100))
+        }
+        if let model {
+            payload["model"] = model
+        }
+        if let reasoningEffort {
+            payload["reasoning_effort"] = reasoningEffort
+        }
+        return payload
+    }
+
+    func comparisonPayload(year: Int) -> [String: Any] {
+        var payload: [String: Any] = [
+            "label": modelLabel,
+            "latest": snapshotPayload(year: year)
+        ]
+        if let model {
+            payload["model"] = model
+        }
+        if let reasoningEffort {
+            payload["reasoning_effort"] = reasoningEffort
+        }
+        return payload
+    }
+
+    private var phaseRank: Int {
+        switch phase {
+        case "pm":
+            return 2
+        case "am":
+            return 1
+        default:
+            return 0
+        }
+    }
+
+    private var modelPriority: Int {
+        Int(modelVersion * 10) * 10 + effortPriority
+    }
+
+    private var modelVersion: Double {
+        guard let model else {
+            return 0
+        }
+        let pattern = #"(\d+(?:\.\d+)?)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: model, range: NSRange(model.startIndex..<model.endIndex, in: model)),
+              let range = Range(match.range(at: 1), in: model),
+              let version = Double(model[range]) else {
+            return 0
+        }
+        return version
+    }
+
+    private var effortPriority: Int {
+        let effort = reasoningEffort?.lowercased() ?? ""
+        if effort.contains("xhigh") {
+            return 3
+        }
+        if effort.contains("high") {
             return 2
         }
-        if model?.contains("5") == true {
+        if effort.contains("medium") {
             return 1
         }
         return 0
+    }
+
+    private var modelLabel: String {
+        let normalizedModel: String
+        if let model {
+            normalizedModel = model.lowercased().hasPrefix("gpt-") ? model.uppercased() : model
+        } else {
+            normalizedModel = "Unknown"
+        }
+        guard let reasoningEffort else {
+            return normalizedModel
+        }
+        return "\(normalizedModel) \(reasoningEffort)"
+    }
+
+    private func dateText(year: Int) -> String {
+        let base = String(format: "%04d-%02d-%02d", year, month, day)
+        return phase.isEmpty ? base : "\(base)-\(phase)"
     }
 }
