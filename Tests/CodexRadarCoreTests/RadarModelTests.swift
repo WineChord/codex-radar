@@ -27,6 +27,11 @@ final class RadarModelTests: XCTestCase {
             "GPT-5.4 high"
         ])
         XCTAssertEqual(iq.latestRows.compactMap { $0.snapshot.iqScore }, [62.5, 75.0, 87.5])
+        XCTAssertEqual(iq.quotaRadar?.rows.count, 3)
+        XCTAssertEqual(iq.quotaRadar?.rows.first?.tier, "20x Pro")
+        XCTAssertEqual(iq.quotaRadar?.rows.first?.fiveHourUSD, 276.44)
+        XCTAssertEqual(iq.quotaRadar?.rows.first?.sevenDayUSD, 1658.63)
+        XCTAssertEqual(iq.quotaRadar?.sevenDayTrendDelta20x ?? 0, 24.35, accuracy: 0.001)
 
         let ratings = try decoder.decode(ModelRatingsEnvelope.self, from: Data(modelRatingsJSON.utf8))
         let rating = ratings.rating(for: iq.latest)
@@ -232,6 +237,23 @@ private let modelIQJSON = """
         "status": "yellow"
       }
     }
+  },
+  "quota_radar": {
+    "date": "2026-07-01-am",
+    "updated_at": "2026-06-30T22:27:57Z",
+    "basis_date": "2026-07-01-am",
+    "basis_window_label": "7d",
+    "cost_usd": 132.690071,
+    "total_tokens": 176492670,
+    "rows": [
+      { "tier": "20x Pro", "basis": "measured 7d", "five_h": 276.44, "seven_d": 1658.63 },
+      { "tier": "5x Pro", "basis": "model /4", "five_h": 69.11, "seven_d": 414.66 },
+      { "tier": "Plus", "basis": "model /20", "five_h": 13.82, "seven_d": 82.93 }
+    ],
+    "trend": [
+      { "date": "2026-06-30-pm", "five_h_20x": 272.38, "seven_d_20x": 1634.28 },
+      { "date": "2026-07-01-am", "five_h_20x": 276.44, "seven_d_20x": 1658.63 }
+    ]
   }
 }
 """

@@ -16,6 +16,7 @@ final class LiveCodexRadarContractTests: XCTestCase {
         XCTAssertNotNil(current.modelIQ?.latest?.iqScore)
         XCTAssertNotEqual(DisplayFormatters.iqScore(current.modelIQ?.latest?.iqScore), DisplayFormatters.percentPlaceholder)
         XCTAssertGreaterThanOrEqual(current.modelIQ?.latestRows.count ?? 0, 1)
+        XCTAssertGreaterThanOrEqual(current.modelIQ?.quotaRadar?.rows.count ?? 0, 1)
         if current.modelIQ?.comparisons.isEmpty == false {
             XCTAssertGreaterThan(current.modelIQ?.latestRows.count ?? 0, 1)
         }

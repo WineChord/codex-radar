@@ -72,6 +72,7 @@ struct DashboardMenuView: View {
             Divider()
             quotaSection
             quotaPacingSection
+            codexRadarQuotaSection
             Divider()
             radarSection
             if showsPredictionSection {
@@ -258,16 +259,31 @@ struct DashboardMenuView: View {
         }
     }
 
+    @ViewBuilder
+    private var codexRadarQuotaSection: some View {
+        if let quotaRadar = state.modelIQ?.quotaRadar,
+           !quotaRadar.rows.isEmpty {
+            VStack(alignment: .leading, spacing: 7) {
+                sectionTitle(text("CodexRadar 额度雷达", "CodexRadar Quota Radar"), systemImage: "chart.bar.xaxis")
+                quotaRadarTable(quotaRadar)
+                Text(quotaRadarSummary(quotaRadar))
+                    .font(.system(size: metrics.caption))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
+        }
+    }
+
     private var radarTitle: String {
         if codexRadarSignalRetired {
-            return text("模型质量雷达", "Model quality radar")
+            return text("额度与模型质量雷达", "Quota and quality radar")
         }
         return state.current?.lastWindow?.title ?? text("还没有加载 CodexRadar 状态", "No CodexRadar status loaded")
     }
 
     private var radarFocus: String {
         if codexRadarSignalRetired {
-            return "Model IQ"
+            return text("额度雷达 + Model IQ", "Quota Radar + Model IQ")
         }
         return state.current?.lastWindow?.windowHuman ?? text("未知", "unknown")
     }
@@ -282,8 +298,8 @@ struct DashboardMenuView: View {
     private var radarSummary: String {
         if codexRadarSignalRetired {
             return text(
-                "CodexRadar 已转向模型质量：Model IQ、速度、费用、cache 命中率和社区体感分。本应用不再把速蹬/Prediction 当作 live 主信号。",
-                "CodexRadar now focuses on model quality: Model IQ, speed, cost, cache hit rate, and community ratings. This app no longer treats speed windows or Prediction as live primary signals."
+                "CodexRadar 已转向额度雷达与模型质量：公开额度估算、Model IQ、速度、费用、cache 命中率和社区体感分。本应用不再把速蹬/Prediction 当作 live 主信号。",
+                "CodexRadar now focuses on quota radar and model quality: public quota estimates, Model IQ, speed, cost, cache hit rate, and community ratings. This app no longer treats speed windows or Prediction as live primary signals."
             )
         }
         return state.current?.lastWindow?.summary ?? text(
@@ -378,6 +394,94 @@ struct DashboardMenuView: View {
         }
         .padding(8)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func quotaRadarTable(_ quotaRadar: QuotaRadar) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Text(text("档位", "Tier"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("5h")
+                    .frame(width: 66, alignment: .trailing)
+                Text("7d")
+                    .frame(width: 78, alignment: .trailing)
+                Text(text("来源", "Basis"))
+                    .frame(width: 62, alignment: .trailing)
+            }
+            .font(.system(size: metrics.caption, weight: .semibold))
+            .foregroundStyle(.secondary)
+
+            ForEach(quotaRadar.rows) { row in
+                HStack(spacing: 6) {
+                    Text(row.tier ?? text("未知档位", "Unknown"))
+                        .font(.system(size: metrics.label, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(DisplayFormatters.costUSD(row.fiveHourUSD))
+                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                        .frame(width: 66, alignment: .trailing)
+                    Text(DisplayFormatters.costUSD(row.sevenDayUSD))
+                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                        .frame(width: 78, alignment: .trailing)
+                    Text(quotaRadarBasisText(row.basis))
+                        .font(.system(size: metrics.label, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(width: 62, alignment: .trailing)
+                }
+            }
+        }
+        .padding(8)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func quotaRadarBasisText(_ basis: String?) -> String {
+        guard let basis, !basis.isEmpty else {
+            return text("未知", "unknown")
+        }
+        let lowercased = basis.lowercased()
+        if lowercased.contains("measured") {
+            if lowercased.contains("7d") {
+                return text("7d实测", "7d measured")
+            }
+            if lowercased.contains("5h") {
+                return text("5h实测", "5h measured")
+            }
+            return text("实测", "measured")
+        }
+        if lowercased.contains("model") || lowercased.contains("/") {
+            return text("推测", "estimate")
+        }
+        return basis
+    }
+
+    private func quotaRadarSummary(_ quotaRadar: QuotaRadar) -> String {
+        let update = DisplayFormatters.compactDateTime(RadarDateParser.date(from: quotaRadar.updatedAt))
+        let basis = quotaRadar.basisWindowLabel ?? text("未知窗口", "unknown window")
+        let cost = DisplayFormatters.costUSD(quotaRadar.costUSD)
+        let trend = quotaRadar.sevenDayTrendDelta20x.map { delta in
+            quotaRadarDeltaText(delta)
+        }
+        if let trend {
+            return text(
+                "更新 \(update)；按 \(basis) 校准，20x Pro 7d 较上一轮 \(trend)。5x/Plus 为按比例推测，不是本机剩余额度。",
+                "Updated \(update); calibrated from \(basis), 20x Pro 7d changed \(trend) from the prior sample. 5x/Plus are scaled estimates, not local remaining quota."
+            )
+        }
+        return text(
+            "更新 \(update)；本次校准消耗约 \(cost)。这是 CodexRadar 的公开额度等价值估算，不是本机剩余额度。",
+            "Updated \(update); calibration cost about \(cost). These are CodexRadar public quota-equivalent estimates, not local remaining quota."
+        )
+    }
+
+    private func quotaRadarDeltaText(_ value: Double) -> String {
+        guard value.isFinite else {
+            return DisplayFormatters.percentPlaceholder
+        }
+        let sign = value >= 0 ? "+" : "-"
+        return "\(sign)\(DisplayFormatters.costUSD(abs(value)))"
     }
 
     private func modelIQRowLabel(_ row: ModelIQLatestRow) -> String {
@@ -1178,7 +1282,7 @@ struct DashboardMenuView: View {
             return text("本机限额中", "Local limit reached")
         }
         if codexRadarSignalRetired {
-            return text("模型质量雷达", "Model quality radar")
+            return text("额度与模型质量雷达", "Quota and quality radar")
         }
         if state.recentResetClosed {
             return text(
@@ -1203,7 +1307,7 @@ struct DashboardMenuView: View {
             return text("本机 Codex 返回限额状态", "Local Codex reports a limit")
         }
         if codexRadarSignalRetired {
-            return text("CodexRadar 已转向 Model IQ", "CodexRadar has moved to Model IQ")
+            return text("CodexRadar 已转向额度雷达 + Model IQ", "CodexRadar has moved to quota radar + Model IQ")
         }
         if state.recentResetClosed {
             return text("本机额度见下方 · 来源 CodexRadar", "Local quota below · source CodexRadar")

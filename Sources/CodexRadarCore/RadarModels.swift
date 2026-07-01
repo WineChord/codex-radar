@@ -247,6 +247,7 @@ public struct ModelIQEnvelope: Decodable, Equatable {
     public let updatedAt: String?
     public let latest: ModelIQSnapshot?
     public let comparisons: [String: ModelIQComparison]
+    public let quotaRadar: QuotaRadar?
 
     public var latestRows: [ModelIQLatestRow] {
         var rows = [ModelIQLatestRow]()
@@ -271,6 +272,7 @@ public struct ModelIQEnvelope: Decodable, Equatable {
         case updatedAt = "updated_at"
         case latest
         case comparisons
+        case quotaRadar = "quota_radar"
     }
 
     public init(from decoder: Decoder) throws {
@@ -278,6 +280,7 @@ public struct ModelIQEnvelope: Decodable, Equatable {
         updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
         latest = try container.decodeIfPresent(ModelIQSnapshot.self, forKey: .latest)
         comparisons = try container.decodeIfPresent([String: ModelIQComparison].self, forKey: .comparisons) ?? [:]
+        quotaRadar = try container.decodeIfPresent(QuotaRadar.self, forKey: .quotaRadar)
     }
 
     private static func sortComparisons(_ lhs: ModelIQComparison, _ rhs: ModelIQComparison) -> Bool {
@@ -299,6 +302,83 @@ public struct ModelIQEnvelope: Decodable, Equatable {
             return prefix
         }
         return "\(prefix) \(effort)"
+    }
+}
+
+public struct QuotaRadar: Decodable, Equatable {
+    public let date: String?
+    public let updatedAt: String?
+    public let basisDate: String?
+    public let basisWindowLabel: String?
+    public let costUSD: Double?
+    public let totalTokens: Int?
+    public let rows: [QuotaRadarRow]
+    public let trend: [QuotaRadarTrendPoint]
+
+    public var sevenDayTrendDelta20x: Double? {
+        guard trend.count >= 2,
+              let previous = trend.dropLast().last?.sevenDay20x,
+              let latest = trend.last?.sevenDay20x else {
+            return nil
+        }
+        return latest - previous
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case updatedAt = "updated_at"
+        case basisDate = "basis_date"
+        case basisWindowLabel = "basis_window_label"
+        case costUSD = "cost_usd"
+        case totalTokens = "total_tokens"
+        case rows
+        case trend
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        date = try container.decodeIfPresent(String.self, forKey: .date)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        basisDate = try container.decodeIfPresent(String.self, forKey: .basisDate)
+        basisWindowLabel = try container.decodeIfPresent(String.self, forKey: .basisWindowLabel)
+        costUSD = try container.decodeIfPresent(Double.self, forKey: .costUSD)
+        totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
+        rows = try container.decodeIfPresent([QuotaRadarRow].self, forKey: .rows) ?? []
+        trend = try container.decodeIfPresent([QuotaRadarTrendPoint].self, forKey: .trend) ?? []
+    }
+}
+
+public struct QuotaRadarRow: Decodable, Equatable, Identifiable {
+    public let tier: String?
+    public let basis: String?
+    public let fiveHourUSD: Double?
+    public let sevenDayUSD: Double?
+
+    public var id: String {
+        tier ?? "\(fiveHourUSD ?? -1)-\(sevenDayUSD ?? -1)"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case tier
+        case basis
+        case fiveHourUSD = "five_h"
+        case sevenDayUSD = "seven_d"
+    }
+}
+
+public struct QuotaRadarTrendPoint: Decodable, Equatable {
+    public let date: String?
+    public let updatedAt: String?
+    public let basisWindowLabel: String?
+    public let fiveHour20x: Double?
+    public let sevenDay20x: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case updatedAt = "updated_at"
+        case basisWindowLabel = "basis_window_label"
+        case fiveHour20x = "five_h_20x"
+        case sevenDay20x = "seven_d_20x"
     }
 }
 

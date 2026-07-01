@@ -540,6 +540,23 @@ final class SentinelStore: NSObject, ObservableObject {
                 "reasoning_effort": "high"
               }
             }
+          },
+          "quota_radar": {
+            "date": "2026-07-01-am",
+            "updated_at": "2026-07-01T06:27:57+08:00",
+            "basis_date": "2026-07-01-am",
+            "basis_window_label": "7d",
+            "cost_usd": 132.690071,
+            "total_tokens": 176492670,
+            "rows": [
+              { "tier": "20x Pro", "basis": "measured 7d", "five_h": 276.44, "seven_d": 1658.63 },
+              { "tier": "5x Pro", "basis": "model /4", "five_h": 69.11, "seven_d": 414.66 },
+              { "tier": "Plus", "basis": "model /20", "five_h": 13.82, "seven_d": 82.93 }
+            ],
+            "trend": [
+              { "date": "2026-06-30-pm", "seven_d_20x": 1634.28, "five_h_20x": 272.38 },
+              { "date": "2026-07-01-am", "seven_d_20x": 1658.63, "five_h_20x": 276.44 }
+            ]
           }
         }
         """)
