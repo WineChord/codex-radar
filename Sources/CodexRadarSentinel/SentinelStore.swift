@@ -443,19 +443,19 @@ final class SentinelStore: NSObject, ObservableObject {
     private static func documentationModelIQ() -> ModelIQEnvelope? {
         decodeDocumentationJSON("""
         {
-          "updated_at": "2026-06-15T08:25:00+08:00",
+          "updated_at": "2026-07-03T07:42:00+08:00",
           "latest": {
-            "date": "2026-06-15",
-            "tasks": 12,
-            "passed": 9,
-            "iq_score": 112.5,
+            "date": "2026-07-03-am",
+            "tasks": 10,
+            "passed": 7,
+            "iq_score": 105,
             "status": "green",
-            "wall_seconds": 2944,
-            "wall_time_human": "49分钟",
-            "input_tokens": 38991839,
-            "cached_input_tokens": 37026944,
-            "output_tokens": 386860,
-            "cost_usd": 39.943747,
+            "wall_seconds": 1490,
+            "wall_time_human": "25分钟",
+            "input_tokens": 28911470,
+            "cached_input_tokens": 27069952,
+            "output_tokens": 297285,
+            "cost_usd": 31.661116,
             "model": "gpt-5.5",
             "reasoning_effort": "xhigh"
           },
@@ -465,17 +465,17 @@ final class SentinelStore: NSObject, ObservableObject {
               "model": "gpt-5.5",
               "reasoning_effort": "high",
               "latest": {
-                "date": "2026-06-15",
-                "tasks": 12,
-                "passed": 8,
-                "iq_score": 100,
-                "status": "green",
-                "wall_seconds": 1510,
-                "wall_time_human": "25分钟",
-                "input_tokens": 31436454,
-                "cached_input_tokens": 29755264,
-                "output_tokens": 225425,
-                "cost_usd": 30.05,
+                "date": "2026-07-03-am",
+                "tasks": 10,
+                "passed": 6,
+                "iq_score": 90,
+                "status": "yellow",
+                "wall_seconds": 5900,
+                "wall_time_human": "98分钟",
+                "input_tokens": 21400000,
+                "cached_input_tokens": 19800000,
+                "output_tokens": 230000,
+                "cost_usd": 22.92,
                 "model": "gpt-5.5",
                 "reasoning_effort": "high"
               }
@@ -485,19 +485,39 @@ final class SentinelStore: NSObject, ObservableObject {
               "model": "gpt-5.5",
               "reasoning_effort": "medium",
               "latest": {
-                "date": "2026-06-15",
-                "tasks": 12,
-                "passed": 9,
-                "iq_score": 112.5,
-                "status": "green",
-                "wall_seconds": 1260,
-                "wall_time_human": "21分钟",
-                "input_tokens": 23890000,
-                "cached_input_tokens": 22230000,
-                "output_tokens": 218000,
-                "cost_usd": 22.56,
+                "date": "2026-07-03-am",
+                "tasks": 10,
+                "passed": 5,
+                "iq_score": 75,
+                "status": "red",
+                "wall_seconds": 5820,
+                "wall_time_human": "97分钟",
+                "input_tokens": 18700000,
+                "cached_input_tokens": 17600000,
+                "output_tokens": 210000,
+                "cost_usd": 19.52,
                 "model": "gpt-5.5",
                 "reasoning_effort": "medium"
+              }
+            },
+            "gpt_55_low": {
+              "label": "GPT-5.5 low",
+              "model": "gpt-5.5",
+              "reasoning_effort": "low",
+              "latest": {
+                "date": "2026-07-03-am",
+                "tasks": 10,
+                "passed": 4,
+                "iq_score": 60,
+                "status": "red",
+                "wall_seconds": 3180,
+                "wall_time_human": "53分钟",
+                "input_tokens": 15100000,
+                "cached_input_tokens": 13900000,
+                "output_tokens": 168000,
+                "cost_usd": 14.94,
+                "model": "gpt-5.5",
+                "reasoning_effort": "low"
               }
             },
             "gpt_54_xhigh": {
@@ -505,17 +525,17 @@ final class SentinelStore: NSObject, ObservableObject {
               "model": "gpt-5.4",
               "reasoning_effort": "xhigh",
               "latest": {
-                "date": "2026-06-15",
-                "tasks": 12,
+                "date": "2026-07-03-am",
+                "tasks": 10,
                 "passed": 6,
-                "iq_score": 75,
-                "status": "red",
-                "wall_seconds": 2300,
-                "wall_time_human": "38分钟",
-                "input_tokens": 30900000,
-                "cached_input_tokens": 29420000,
-                "output_tokens": 260000,
-                "cost_usd": 23.57,
+                "iq_score": 90,
+                "status": "yellow",
+                "wall_seconds": 9840,
+                "wall_time_human": "164分钟",
+                "input_tokens": 24100000,
+                "cached_input_tokens": 23100000,
+                "output_tokens": 255000,
+                "cost_usd": 18.41,
                 "model": "gpt-5.4",
                 "reasoning_effort": "xhigh"
               }
@@ -525,37 +545,37 @@ final class SentinelStore: NSObject, ObservableObject {
               "model": "gpt-5.4",
               "reasoning_effort": "high",
               "latest": {
-                "date": "2026-06-15",
-                "tasks": 12,
-                "passed": 6,
+                "date": "2026-07-03-am",
+                "tasks": 10,
+                "passed": 5,
                 "iq_score": 75,
                 "status": "red",
-                "wall_seconds": 1810,
-                "wall_time_human": "30分钟",
-                "input_tokens": 24400000,
-                "cached_input_tokens": 22910000,
-                "output_tokens": 205000,
-                "cost_usd": 17.64,
+                "wall_seconds": 7020,
+                "wall_time_human": "117分钟",
+                "input_tokens": 20500000,
+                "cached_input_tokens": 19400000,
+                "output_tokens": 188000,
+                "cost_usd": 15.04,
                 "model": "gpt-5.4",
                 "reasoning_effort": "high"
               }
             }
           },
           "quota_radar": {
-            "date": "2026-07-01-am",
-            "updated_at": "2026-07-01T06:27:57+08:00",
-            "basis_date": "2026-07-01-am",
+            "date": "2026-07-03-am",
+            "updated_at": "2026-07-03T07:16:00+08:00",
+            "basis_date": "2026-07-03-am",
             "basis_window_label": "7d",
-            "cost_usd": 132.690071,
-            "total_tokens": 176492670,
+            "cost_usd": 121.89,
+            "total_tokens": 29208755,
             "rows": [
-              { "tier": "20x Pro", "basis": "measured 7d", "five_h": 276.44, "seven_d": 1658.63 },
-              { "tier": "5x Pro", "basis": "model /4", "five_h": 69.11, "seven_d": 414.66 },
-              { "tier": "Plus", "basis": "model /20", "five_h": 13.82, "seven_d": 82.93 }
+              { "tier": "20x Pro", "basis": "measured 7d", "five_h": 338.58, "seven_d": 2031.48 },
+              { "tier": "5x Pro", "basis": "model /4", "five_h": 84.65, "seven_d": 507.87 },
+              { "tier": "Plus", "basis": "model /20", "five_h": 16.93, "seven_d": 101.57 }
             ],
             "trend": [
-              { "date": "2026-06-30-pm", "seven_d_20x": 1634.28, "five_h_20x": 272.38 },
-              { "date": "2026-07-01-am", "seven_d_20x": 1658.63, "five_h_20x": 276.44 }
+              { "date": "2026-07-02_n", "seven_d_20x": 1809.48, "five_h_20x": 301.58 },
+              { "date": "2026-07-03-am", "seven_d_20x": 2031.48, "five_h_20x": 338.58 }
             ]
           }
         }
@@ -566,45 +586,52 @@ final class SentinelStore: NSObject, ObservableObject {
         decodeDocumentationJSON("""
         {
           "ok": true,
-          "day": "2026-06-15",
+          "day": "2026-07-03",
           "timezone": "Asia/Shanghai",
           "refresh_seconds": 60,
-          "updated_at": "2026-06-15T02:02:03.291Z",
+          "updated_at": "2026-07-03T02:04:35.319Z",
           "models": [
             {
               "id": "gpt-5.5-xhigh",
               "label": "GPT-5.5 xhigh",
               "group": "GPT-5.5",
-              "average": 9.4,
-              "count": 10
+              "average": 6,
+              "count": 158
             },
             {
               "id": "gpt-5.5-high",
               "label": "GPT-5.5 high",
               "group": "GPT-5.5",
-              "average": 8.2,
-              "count": 12
+              "average": 6.7,
+              "count": 119
             },
             {
               "id": "gpt-5.5-medium",
               "label": "GPT-5.5 medium",
               "group": "GPT-5.5",
-              "average": 8.9,
+              "average": 7.5,
+              "count": 41
+            },
+            {
+              "id": "gpt-5.5-low",
+              "label": "GPT-5.5 low",
+              "group": "GPT-5.5",
+              "average": 6.1,
               "count": 8
             },
             {
               "id": "gpt-5.4-xhigh",
               "label": "GPT-5.4 xhigh",
               "group": "GPT-5.4",
-              "average": 7.6,
-              "count": 7
+              "average": 6.4,
+              "count": 22
             },
             {
               "id": "gpt-5.4-high",
               "label": "GPT-5.4 high",
               "group": "GPT-5.4",
-              "average": 7.4,
-              "count": 5
+              "average": 6.3,
+              "count": 21
             }
           ],
           "source": "cache"
@@ -614,14 +641,36 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private static func documentationCurrent(language: AppLanguage) -> RadarCurrent? {
         let title = language.text(
-            "CodexRadar 已转向模型质量雷达",
-            "CodexRadar has moved to model quality"
+            "CodexRadar 重置雷达研判",
+            "CodexRadar reset judgement"
         )
         let window = language.text("无窗", "none")
-        let scope = language.text("模型质量雷达", "model quality radar")
+        let scope = language.text("重置雷达 / 额度雷达 / Model IQ", "reset radar / quota radar / Model IQ")
         let summary = language.text(
-            "CodexRadar 当前聚焦 Model IQ；旧 reset 预测、速蹬窗口提醒和历史窗口已下架。",
-            "CodexRadar currently focuses on Model IQ; legacy reset prediction, speed-window alerts, and historical windows are retired."
+            "CodexRadar 当前公开 reset 研判、额度雷达与 Model IQ；旧速蹬窗口提醒仍按兼容路径处理。",
+            "CodexRadar currently publishes reset judgement, quota radar, and Model IQ; legacy speed-window alerts remain supported through compatibility paths."
+        )
+        let resetUpdated = language.text("7月3日08:08研判", "Jul 3 08:08")
+        let resetTitle = language.text("发卡路径占优", "Reset cards likely")
+        let cardLabel = language.text("发重置卡", "Reset card")
+        let cardLevel = language.text("高 · 基本已触发", "High · likely active")
+        let cardSummary = language.text(
+            "CodexRadar 记录到官方回复更像已经在发可保存的重置卡，而不是新的全量硬重置。",
+            "CodexRadar records official wording that looks more like saved reset cards than a new global hard reset."
+        )
+        let hardResetLabel = language.text("硬重置", "Hard reset")
+        let hardResetLevel = language.text("低到中低", "Low to medium-low")
+        let hardResetSummary = language.text(
+            "硬重置会直接改写所有人的当前额度窗口；当前证据更偏向发卡路径。",
+            "A hard reset would rewrite everyone's active quota window; current evidence favors the card path."
+        )
+        let reasonOne = language.text(
+            "官方信号强：Tibo 回复提到 reset 应在 little piggy bank 里，并且人人都有。",
+            "Official signal is strong: Tibo says the reset should be in the little piggy bank and is for everyone."
+        )
+        let reasonTwo = language.text(
+            "社区反证仍在：仍有人反馈按钮消失、未收到 banked reset 或额度窗口异常。",
+            "Community counterexamples remain: some users still report missing buttons, no banked reset, or odd quota windows."
         )
         return decodeDocumentationJSON("""
         {
@@ -646,26 +695,38 @@ final class SentinelStore: NSObject, ObservableObject {
             "reasoning_summary": "\(summary)",
             "updated_at": "2026-06-15T07:00:00+08:00"
           },
+          "reset_judgement": {
+            "updated_label": "\(resetUpdated)",
+            "title": "\(resetTitle)",
+            "cards": [
+              { "label": "\(cardLabel)", "level": "\(cardLevel)", "summary": "\(cardSummary)" },
+              { "label": "\(hardResetLabel)", "level": "\(hardResetLevel)", "summary": "\(hardResetSummary)" }
+            ],
+            "reasons": [
+              "\(reasonOne)",
+              "\(reasonTwo)"
+            ]
+          },
           "model_iq": {
-            "updated_at": "2026-06-15T07:00:00+08:00",
+            "updated_at": "2026-07-03T07:42:00+08:00",
             "latest": {
-              "date": "2026-06-15",
+              "date": "2026-07-03-am",
               "model": "GPT-5.5",
               "reasoning_effort": "xhigh",
-              "tasks": 12,
-              "valid_tasks": 12,
-              "passed": 9,
+              "tasks": 10,
+              "valid_tasks": 10,
+              "passed": 7,
               "failed": 3,
-              "pass_rate": 0.75,
-              "iq_score": 112.5,
-              "score": 112.5,
+              "pass_rate": 0.7,
+              "iq_score": 105,
+              "score": 105,
               "status": "green",
-              "wall_seconds": 2944,
-              "wall_time_human": "49分钟",
-              "input_tokens": 38991839,
-              "cached_input_tokens": 37026944,
-              "output_tokens": 386860,
-              "cost_usd": 39.943747
+              "wall_seconds": 1490,
+              "wall_time_human": "25分钟",
+              "input_tokens": 28911470,
+              "cached_input_tokens": 27069952,
+              "output_tokens": 297285,
+              "cost_usd": 31.661116
             }
           }
         }

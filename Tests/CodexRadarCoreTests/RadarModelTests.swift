@@ -73,6 +73,12 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.modelIQ?.latest?.costUSD, 37.59)
         XCTAssertEqual(current.modelIQ?.latest?.wallTimeText, "183分钟")
         XCTAssertEqual(current.modelIQ?.latest?.cacheHitRateText, "94.3%")
+        XCTAssertEqual(current.resetJudgement?.updatedLabel, "7月3日08:08研判")
+        XCTAssertEqual(current.resetJudgement?.title, "发卡路径占优")
+        XCTAssertEqual(current.resetJudgement?.cards.count, 2)
+        XCTAssertEqual(current.resetJudgement?.cards.first?.label, "发重置卡")
+        XCTAssertEqual(current.resetJudgement?.cards.first?.level, "高 · 基本已触发")
+        XCTAssertEqual(current.resetJudgement?.reasons.count, 2)
     }
 
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
@@ -147,6 +153,31 @@ private let homepageHTML = """
 <html>
 <body>
 <p>Tibo 的重置机制已转向“重置卡手工重置”，原重置预测、速蹬窗口提醒和历史窗口已下架。</p>
+<section class="reset-judgement" aria-label="重置雷达研判">
+  <div class="reset-judgement-head">
+    <div>
+      <span>重置雷达</span>
+      <h2>重置雷达研判 <em>7月3日08:08研判</em></h2>
+    </div>
+    <strong>发卡路径占优</strong>
+  </div>
+  <div class="reset-judgement-grid">
+    <article class="reset-judgement-card reset-judgement-card-high">
+      <span>发重置卡</span>
+      <strong>高 · 基本已触发</strong>
+      <p>Tibo 最新回复明确说 reset 应该在用户的 little piggy bank 里，并且 it is for everyone。</p>
+    </article>
+    <article class="reset-judgement-card reset-judgement-card-low">
+      <span>硬重置</span>
+      <strong>低到中低</strong>
+      <p>硬重置会直接改写所有人的当前额度窗口，短期更可能发卡而不是全员额度周期清零。</p>
+    </article>
+  </div>
+  <ul class="reset-judgement-reasons">
+    <li>官方信号强：Tibo 最新回复说 reset 应在 little piggy bank 里，并且人人都有。</li>
+    <li>社区反证仍在：本轮仍有人反馈 reset 按钮消失、未收到 banked reset。</li>
+  </ul>
+</section>
 <svg>
 <title>6月13日 GPT-5.5 xhigh: IQ指数 87.5, 7/12, 费用 $42.41, 耗时 170分钟, cache命中率 94.5%</title>
 <title>6月14日 GPT-5.4 xhigh: IQ指数 75.0, 6/12, 费用 $21.33, 耗时 206分钟, cache命中率 95.7%</title>

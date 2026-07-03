@@ -2,11 +2,20 @@
 
 [中文](README.md) | English
 
-Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now focuses on quota radar and model quality. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar quota estimates and Model IQ together with the user's local Codex quota state, while keeping compatibility if the old reset/speed endpoints return.
+Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides reset radar, quota radar, and model quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar reset judgement, quota estimates, and Model IQ together with the user's local Codex quota state, while keeping compatibility if the old reset/speed endpoints return.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
 ## News
+
+<details>
+<summary><strong>v0.1.38: Reset Radar alignment</strong> - The dropdown now mirrors the reset judgement restored on the CodexRadar homepage.</summary>
+
+- Adds a `CodexRadar Reset Radar` section with the reset-card and hard-reset paths, their levels, and compact summaries.
+- When `current.json` does not yet include the judgement, the app parses the public CodexRadar homepage; the menu-bar title stays compact.
+- The live contract check now covers `reset_judgement`, so future CodexRadar homepage changes do not silently disappear from the menu.
+
+</details>
 
 <details>
 <summary><strong>v0.1.37: Quota Radar alignment</strong> - The dropdown now mirrors CodexRadar's public quota estimates.</summary>
@@ -54,6 +63,9 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 </details>
 
 <details>
+<summary><strong>Older releases</strong> - Expand for earlier feature history.</summary>
+
+<details>
 <summary><strong>v0.1.32: Workday pace fix</strong> - The Workdays rule now uses local-calendar day buckets, avoiding overly high target remaining when a reset window starts mid-day.</summary>
 
 - Weekdays weigh `1`; weekends weigh `0.35`.
@@ -61,9 +73,6 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 - For example, when the next reset is `06-25 10:00`, `06-18` counts as a workday budget bucket instead of only counting the few hours after 10:00.
 
 </details>
-
-<details>
-<summary><strong>Older releases</strong> - Expand for earlier feature history.</summary>
 
 <details>
 <summary><strong>v0.1.31: Quota notification cooldown</strong> - Low weekly quota alerts are rate-limited so the same low state does not keep popping up.</summary>
@@ -272,10 +281,11 @@ This image is captured by the app itself from the real SwiftUI menu window on a 
 - Short-window quota remaining, also from the local Codex app-server.
 - Usage pace: the suggested remaining percentage based on the selected strategy, compared with actual weekly quota remaining. For example, if target remaining is 80% and actual remaining is 90%, it tells you there is room to spend more.
   Strategies include: `Time` for smooth even spending; `Daily` for day-level budgeting; `Reserve` to keep a 20% buffer early; `Workdays` for heavier weekday usage and lighter weekends; `Front-load` to spend earlier and avoid unused quota near reset.
-- The currently public Model IQ, quality status, and probe pass count from [CodexRadar](https://codexradar.com/).
+- The Reset Radar judgement visible on [CodexRadar](https://codexradar.com/): reset-card and hard-reset paths with levels, summaries, and reasons.
+- The currently public Model IQ, quality status, and probe pass count from CodexRadar.
 - The Quota Radar visible on CodexRadar: 20x Pro / 5x Pro / Plus 5h and 7d USD-equivalent estimates. These are public estimates, not local remaining quota.
 - The model-quality direction visible on CodexRadar: speed, cost, cache hit rate, and community ratings.
-- Compatibility state for CodexRadar's legacy reset/speed/prediction endpoints. Those features are currently retired on CodexRadar, so the app no longer treats them as live primary information.
+- Compatibility state for CodexRadar's legacy speed/prediction endpoints. Those are no longer treated as live primary information unless the compatibility path explicitly returns.
 
 The app defaults to Chinese. English can be selected in the dropdown. Technical terms such as Codex, IQ, Reset, Prediction, and Radar are kept in English where they are clearer.
 
@@ -337,8 +347,8 @@ Accepted values are `live`, `qualityNormal`, `qualityLow`, `speedWindow`, `reset
 
 Codex Radar Sentinel reads these public endpoints:
 
-- [CodexRadar homepage](https://codexradar.com/)
-- [current.json](https://codexradar.com/current.json): may currently return JSON with Quota Radar, Model IQ, official entitlement events, and legacy prediction fields.
+- [CodexRadar homepage](https://codexradar.com/): currently publishes Reset Radar judgement, Quota Radar, Model IQ, and model-quality details.
+- [current.json](https://codexradar.com/current.json): may currently return JSON with Quota Radar, Model IQ, official entitlement events, and legacy prediction fields. When reset judgement is not yet in JSON, the app backfills it from the homepage.
 - [api/model-ratings](https://codexradar.com/api/model-ratings): community ratings. The menu's `Rating` value comes from this endpoint.
 - [feed.xml](https://codexradar.com/feed.xml): reserved for official entitlement alerts; when unavailable or returning the homepage, the app keeps using Model IQ from the homepage/JSON.
 
@@ -388,7 +398,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.37
+./scripts/check_release_readiness.sh 0.1.38
 ```
 
 Build release packages:
@@ -396,7 +406,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.37
+./scripts/package_release.sh 0.1.38
 ```
 
 Update README menu bar and menu screenshots:
@@ -415,6 +425,6 @@ Regenerate the macOS icon:
 
 ## Credits
 
-Codex Radar Sentinel exists because [CodexRadar](https://codexradar.com/) publishes clear public Codex signals. CodexRadar previously published speed windows, resets, reset prediction, RSS events, and model IQ; it now focuses on quota radar and model quality. This app wraps those public signals together with the user's local Codex quota state in a macOS menu bar tool.
+Codex Radar Sentinel exists because [CodexRadar](https://codexradar.com/) publishes clear public Codex signals. CodexRadar previously published speed windows, resets, reset prediction, RSS events, and model IQ; it now provides reset radar, quota radar, and model quality radar. This app wraps those public signals together with the user's local Codex quota state in a macOS menu bar tool.
 
 Codex Radar Sentinel is not affiliated with CodexRadar or OpenAI.

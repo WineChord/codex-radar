@@ -72,6 +72,7 @@ struct DashboardMenuView: View {
             Divider()
             quotaSection
             quotaPacingSection
+            resetJudgementSection
             codexRadarQuotaSection
             Divider()
             radarSection
@@ -260,6 +261,39 @@ struct DashboardMenuView: View {
     }
 
     @ViewBuilder
+    private var resetJudgementSection: some View {
+        if let judgement = state.current?.resetJudgement,
+           !judgement.cards.isEmpty {
+            VStack(alignment: .leading, spacing: 7) {
+                sectionTitle(text("CodexRadar 重置雷达", "CodexRadar Reset Radar"), systemImage: "arrow.clockwise.circle")
+                HStack(alignment: .firstTextBaseline) {
+                    Text(judgement.title ?? text("重置雷达研判", "Reset judgement"))
+                        .font(.system(size: metrics.body, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                    Spacer(minLength: 8)
+                    Text(judgement.updatedLabel ?? "")
+                        .font(.system(size: metrics.caption, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                HStack(spacing: Layout.tileSpacing) {
+                    ForEach(judgement.cards.prefix(2)) { card in
+                        resetJudgementCard(card)
+                    }
+                }
+                if !judgement.reasons.isEmpty {
+                    Text(resetJudgementReasonsText(judgement))
+                        .font(.system(size: metrics.caption))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
     private var codexRadarQuotaSection: some View {
         if let quotaRadar = state.modelIQ?.quotaRadar,
            !quotaRadar.rows.isEmpty {
@@ -276,14 +310,14 @@ struct DashboardMenuView: View {
 
     private var radarTitle: String {
         if codexRadarSignalRetired {
-            return text("额度与模型质量雷达", "Quota and quality radar")
+            return text("重置、额度与模型雷达", "Reset, quota and model radar")
         }
         return state.current?.lastWindow?.title ?? text("还没有加载 CodexRadar 状态", "No CodexRadar status loaded")
     }
 
     private var radarFocus: String {
         if codexRadarSignalRetired {
-            return text("额度雷达 + Model IQ", "Quota Radar + Model IQ")
+            return text("重置雷达 + 额度雷达 + Model IQ", "Reset + Quota + Model IQ")
         }
         return state.current?.lastWindow?.windowHuman ?? text("未知", "unknown")
     }
@@ -298,8 +332,8 @@ struct DashboardMenuView: View {
     private var radarSummary: String {
         if codexRadarSignalRetired {
             return text(
-                "CodexRadar 已转向额度雷达与模型质量：公开额度估算、Model IQ、速度、费用、cache 命中率和社区体感分。本应用不再把速蹬/Prediction 当作 live 主信号。",
-                "CodexRadar now focuses on quota radar and model quality: public quota estimates, Model IQ, speed, cost, cache hit rate, and community ratings. This app no longer treats speed windows or Prediction as live primary signals."
+                "CodexRadar 当前公开重置雷达、额度雷达与模型质量：reset 研判、公开额度估算、Model IQ、速度、费用、cache 命中率和社区体感分。",
+                "CodexRadar currently publishes reset judgement, quota radar, and model quality: reset calls, public quota estimates, Model IQ, speed, cost, cache hit rate, and community ratings."
             )
         }
         return state.current?.lastWindow?.summary ?? text(
@@ -435,6 +469,52 @@ struct DashboardMenuView: View {
         }
         .padding(8)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func resetJudgementCard(_ card: ResetJudgementCard) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(card.label ?? text("未知路径", "Unknown path"))
+                .font(.system(size: metrics.caption, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text(card.level ?? text("未知", "unknown"))
+                .font(.system(size: metrics.label, weight: .semibold))
+                .foregroundStyle(resetJudgementLevelColor(card.level))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Text(card.summary ?? "")
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(resetJudgementCardBackground(card.level), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func resetJudgementLevelColor(_ level: String?) -> Color {
+        let normalized = level?.lowercased() ?? ""
+        if normalized.contains("高") || normalized.contains("high") {
+            return .green
+        }
+        if normalized.contains("低") || normalized.contains("low") {
+            return .orange
+        }
+        return .accentColor
+    }
+
+    private func resetJudgementCardBackground(_ level: String?) -> Color {
+        resetJudgementLevelColor(level).opacity(0.10)
+    }
+
+    private func resetJudgementReasonsText(_ judgement: ResetJudgement) -> String {
+        let reasons = judgement.reasons.prefix(2)
+        guard !reasons.isEmpty else {
+            return text("CodexRadar 暂无原因摘要。", "No CodexRadar reason summary yet.")
+        }
+        return reasons.joined(separator: " ")
     }
 
     private func quotaRadarBasisText(_ basis: String?) -> String {
@@ -1282,7 +1362,7 @@ struct DashboardMenuView: View {
             return text("本机限额中", "Local limit reached")
         }
         if codexRadarSignalRetired {
-            return text("额度与模型质量雷达", "Quota and quality radar")
+            return text("重置、额度与模型雷达", "Reset, quota and model radar")
         }
         if state.recentResetClosed {
             return text(
@@ -1307,7 +1387,7 @@ struct DashboardMenuView: View {
             return text("本机 Codex 返回限额状态", "Local Codex reports a limit")
         }
         if codexRadarSignalRetired {
-            return text("CodexRadar 已转向额度雷达 + Model IQ", "CodexRadar has moved to quota radar + Model IQ")
+            return text("CodexRadar 当前公开重置雷达 + 额度雷达 + Model IQ", "CodexRadar publishes reset radar + quota radar + Model IQ")
         }
         if state.recentResetClosed {
             return text("本机额度见下方 · 来源 CodexRadar", "Local quota below · source CodexRadar")

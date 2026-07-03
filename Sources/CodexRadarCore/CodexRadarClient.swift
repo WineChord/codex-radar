@@ -32,9 +32,9 @@ public struct CodexRadarClient {
         let data = try await fetchData(AppConstants.currentPath)
         do {
             let current = try decoder.decode(RadarCurrent.self, from: data)
-            guard current.modelIQ?.latest?.iqScore == nil,
+            guard current.modelIQ?.latest?.iqScore == nil || current.resetJudgement == nil,
                   let homepageHTML = try? await fetchHomepageHTML(),
-                  let supplemented = try? Self.currentByMergingHomepageModelIQ(current, html: homepageHTML) else {
+                  let supplemented = try? Self.currentByMergingHomepageSignals(current, html: homepageHTML) else {
                 return current
             }
             return supplemented
@@ -102,8 +102,9 @@ public struct CodexRadarClient {
         guard let modelIQ = parseHomepageModelIQEnvelope(html: html, checkedAt: checkedAt) else {
             throw ClientError.homepageFallbackUnavailable
         }
+        let resetJudgement = parseHomepageResetJudgement(html: html)
         let checkedAtString = isoString(checkedAt)
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "schema_version": "homepage-fallback-v1",
             "checked_at": checkedAtString,
             "status": "retired",
@@ -131,6 +132,9 @@ public struct CodexRadarClient {
                 "comparisons": modelIQ["comparisons"] ?? [:]
             ]
         ]
+        if let resetJudgement {
+            payload["reset_judgement"] = resetJudgement
+        }
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try JSONDecoder().decode(RadarCurrent.self, from: data)
     }
@@ -146,6 +150,31 @@ public struct CodexRadarClient {
         let data = try JSONSerialization.data(withJSONObject: modelIQ)
         let envelope = try JSONDecoder().decode(ModelIQEnvelope.self, from: data)
         return current.withModelIQ(envelope)
+    }
+
+    static func currentByMergingHomepageSignals(
+        _ current: RadarCurrent,
+        html: String,
+        checkedAt: Date = Date()
+    ) throws -> RadarCurrent {
+        var modelIQEnvelope: ModelIQEnvelope?
+        if current.modelIQ?.latest?.iqScore == nil,
+           let modelIQ = parseHomepageModelIQEnvelope(html: html, checkedAt: checkedAt) {
+            let data = try JSONSerialization.data(withJSONObject: modelIQ)
+            modelIQEnvelope = try JSONDecoder().decode(ModelIQEnvelope.self, from: data)
+        }
+        let resetJudgementData = parseHomepageResetJudgement(html: html)
+        let resetJudgement: ResetJudgement?
+        if let resetJudgementData {
+            let data = try JSONSerialization.data(withJSONObject: resetJudgementData)
+            resetJudgement = try JSONDecoder().decode(ResetJudgement.self, from: data)
+        } else {
+            resetJudgement = nil
+        }
+        return current.withSignals(
+            modelIQ: modelIQEnvelope,
+            resetJudgement: resetJudgement
+        )
     }
 
     private static func parseHomepageModelIQEnvelope(html: String, checkedAt: Date) -> [String: Any]? {
@@ -208,6 +237,39 @@ public struct CodexRadarClient {
         ]
     }
 
+    private static func parseHomepageResetJudgement(html: String) -> [String: Any]? {
+        guard let section = firstCapture(
+            #"<section\s+class="reset-judgement"[^>]*>(.*?)</section>"#,
+            in: html
+        ) else {
+            return nil
+        }
+        let title = firstCapture(#"<div\s+class="reset-judgement-head">.*?<strong>(.*?)</strong>"#, in: section)
+        let updatedLabel = firstCapture(#"<h2>.*?<em>(.*?)</em>.*?</h2>"#, in: section)
+        let cards = allMatches(
+            #"<article\s+class="reset-judgement-card[^"]*">\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*<p>(.*?)</p>"#,
+            in: section
+        ).map { groups in
+            [
+                "label": cleanHTMLText(groups[safe: 0]),
+                "level": cleanHTMLText(groups[safe: 1]),
+                "summary": cleanHTMLText(groups[safe: 2])
+            ]
+        }
+        guard !cards.isEmpty else {
+            return nil
+        }
+        let reasons = allMatches(#"<li>(.*?)</li>"#, in: section)
+            .compactMap { groups in cleanHTMLText(groups.first) }
+            .filter { !$0.isEmpty }
+        return [
+            "updated_label": cleanHTMLText(updatedLabel),
+            "title": cleanHTMLText(title),
+            "cards": cards,
+            "reasons": reasons
+        ]
+    }
+
     fileprivate static func modelIQStatus(_ score: Double) -> String {
         if score < 80 {
             return "red"
@@ -223,6 +285,55 @@ public struct CodexRadarClient {
             return ""
         }
         return String(text[range])
+    }
+
+    private static func firstCapture(_ pattern: String, in text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
+            return nil
+        }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, range: range),
+              match.numberOfRanges > 1,
+              let captureRange = Range(match.range(at: 1), in: text) else {
+            return nil
+        }
+        return String(text[captureRange])
+    }
+
+    private static func allMatches(_ pattern: String, in text: String) -> [[String]] {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
+            return []
+        }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.matches(in: text, range: range).map { match in
+            (1..<match.numberOfRanges).map { index in
+                guard let captureRange = Range(match.range(at: index), in: text) else {
+                    return ""
+                }
+                return String(text[captureRange])
+            }
+        }
+    }
+
+    private static func cleanHTMLText(_ value: String?) -> String {
+        guard var value else {
+            return ""
+        }
+        value = value.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        let entities = [
+            "&amp;": "&",
+            "&lt;": "<",
+            "&gt;": ">",
+            "&quot;": "\"",
+            "&#39;": "'",
+            "&nbsp;": " "
+        ]
+        for (entity, replacement) in entities {
+            value = value.replacingOccurrences(of: entity, with: replacement)
+        }
+        return value
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func isoString(_ date: Date) -> String {
@@ -369,5 +480,11 @@ private struct HomepageIQSnapshot {
     private func dateText(year: Int) -> String {
         let base = String(format: "%04d-%02d-%02d", year, month, day)
         return phase.isEmpty ? base : "\(base)-\(phase)"
+    }
+}
+
+private extension Collection {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

@@ -10,6 +10,7 @@ public struct RadarCurrent: Decodable, Equatable {
     public let prediction: RadarPredictionSummary?
     public let predictionDetail: RadarPrediction?
     public let modelIQ: ModelIQEnvelope?
+    public let resetJudgement: ResetJudgement?
 
     public var checkedDate: Date? {
         RadarDateParser.date(from: checkedAt)
@@ -24,7 +25,8 @@ public struct RadarCurrent: Decodable, Equatable {
         lastWindow: RadarWindow?,
         prediction: RadarPredictionSummary?,
         predictionDetail: RadarPrediction?,
-        modelIQ: ModelIQEnvelope?
+        modelIQ: ModelIQEnvelope?,
+        resetJudgement: ResetJudgement? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.checkedAt = checkedAt
@@ -35,9 +37,17 @@ public struct RadarCurrent: Decodable, Equatable {
         self.prediction = prediction
         self.predictionDetail = predictionDetail
         self.modelIQ = modelIQ
+        self.resetJudgement = resetJudgement
     }
 
     public func withModelIQ(_ modelIQ: ModelIQEnvelope?) -> RadarCurrent {
+        withSignals(modelIQ: modelIQ)
+    }
+
+    public func withSignals(
+        modelIQ: ModelIQEnvelope? = nil,
+        resetJudgement: ResetJudgement? = nil
+    ) -> RadarCurrent {
         RadarCurrent(
             schemaVersion: schemaVersion,
             checkedAt: checkedAt,
@@ -47,7 +57,8 @@ public struct RadarCurrent: Decodable, Equatable {
             lastWindow: lastWindow,
             prediction: prediction,
             predictionDetail: predictionDetail,
-            modelIQ: modelIQ ?? self.modelIQ
+            modelIQ: modelIQ ?? self.modelIQ,
+            resetJudgement: resetJudgement ?? self.resetJudgement
         )
     }
 
@@ -63,6 +74,7 @@ public struct RadarCurrent: Decodable, Equatable {
         case recentWindows = "recent_windows"
         case prediction
         case modelIQ = "model_iq"
+        case resetJudgement = "reset_judgement"
     }
 
     public init(from decoder: Decoder) throws {
@@ -90,6 +102,39 @@ public struct RadarCurrent: Decodable, Equatable {
         predictionDetail = try container.decodeIfPresent(RadarPrediction.self, forKey: .prediction)
         prediction = predictionDetail.map(RadarPredictionSummary.init)
         modelIQ = try container.decodeIfPresent(ModelIQEnvelope.self, forKey: .modelIQ)
+        resetJudgement = try container.decodeIfPresent(ResetJudgement.self, forKey: .resetJudgement)
+    }
+}
+
+public struct ResetJudgement: Decodable, Equatable {
+    public let updatedLabel: String?
+    public let title: String?
+    public let cards: [ResetJudgementCard]
+    public let reasons: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case updatedLabel = "updated_label"
+        case title
+        case cards
+        case reasons
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        updatedLabel = try container.decodeIfPresent(String.self, forKey: .updatedLabel)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        cards = try container.decodeIfPresent([ResetJudgementCard].self, forKey: .cards) ?? []
+        reasons = try container.decodeIfPresent([String].self, forKey: .reasons) ?? []
+    }
+}
+
+public struct ResetJudgementCard: Decodable, Equatable, Identifiable {
+    public let label: String?
+    public let level: String?
+    public let summary: String?
+
+    public var id: String {
+        label ?? "\(level ?? "")-\(summary ?? "")"
     }
 }
 
