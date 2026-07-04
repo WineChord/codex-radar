@@ -2,11 +2,20 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、额度雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的 reset 研判、额度估算、Model IQ 与本机 Codex 额度状态整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的 reset 研判、重置卡自查 prompt、额度估算、Model IQ 与本机 Codex 额度状态整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
+
+<details>
+<summary><strong>v0.1.39：重置卡自查</strong> - 下拉菜单同步 CodexRadar 的“重置卡过期时间自查”社区知识。</summary>
+
+- 新增 `重置卡自查` 小节，可一键复制 CodexRadar 提供的 reset credit 过期时间自查 prompt。
+- 文案明确 Sentinel 只复制文本，不读取 `~/.codex/auth.json`、token 或 cookie；用户需要主动在 Codex 里运行。
+- live contract 现在会检查 `community_knowledge`，避免 CodexRadar 社区知识卡结构变化后菜单静默缺失。
+
+</details>
 
 <details>
 <summary><strong>v0.1.38：重置雷达对齐</strong> - 下拉菜单同步 CodexRadar 首页恢复的 reset 研判。</summary>
@@ -54,6 +63,9 @@
 </details>
 
 <details>
+<summary><strong>历史版本</strong> - 展开查看更早的功能记录。</summary>
+
+<details>
 <summary><strong>v0.1.33：中国节假日/调休</strong> - 工作日策略默认启用 2026 中国法定节假日和调休补班。</summary>
 
 - `使用中国节假日/调休` 默认开启，只影响 `工作日` 应剩策略。
@@ -61,9 +73,6 @@
 - 已内置 2026 国务院办公厅节假日安排，例如端午 `06-19` 至 `06-21` 会按假日节奏处理。
 
 </details>
-
-<details>
-<summary><strong>历史版本</strong> - 展开查看更早的功能记录。</summary>
 
 <details>
 <summary><strong>v0.1.32：工作日节奏修正</strong> - 工作日策略改为按本机日历的天级预算计算，避免 reset 当天中途开始时建议剩余过高。</summary>
@@ -282,6 +291,7 @@
 - 用量节奏：按所选策略计算当前建议剩余百分比，并和实际周额度剩余对比；例如建议应剩 80%、实际还剩 90%，就会提示可以多用一点。
   策略包括：`按时间` 平滑均匀用完；`每日` 按天级预算推进；`留余` 前期保留 20% 缓冲；`工作日` 工作日多用、周末少用；`先用` 前半程更积极，避免 reset 前剩太多。
 - [CodexRadar](https://codexradar.com/) 首页可见的重置雷达研判：发重置卡、硬重置两条路径的等级、摘要和原因。
+- CodexRadar 首页可见的社区知识：`重置卡过期时间自查` prompt。菜单只负责复制文本，不读取本机凭证。
 - CodexRadar 当前公开的 Model IQ、模型质量状态和探针通过数。
 - CodexRadar 首页可见的额度雷达：20x Pro / 5x Pro / Plus 的 5h 和 7d 美元等价值估算。它不是本机剩余额度，只是公开估算。
 - CodexRadar 首页可见的模型质量方向：速度、费用、cache 命中率和社区体感分。
@@ -347,7 +357,7 @@ CODEX_RADAR_PREVIEW=qualityLow swift run CodexRadarSentinel
 
 Codex Radar Sentinel 读取这些公开入口：
 
-- [CodexRadar homepage](https://codexradar.com/)：当前公开重置雷达研判、额度雷达、Model IQ 和模型质量细节。
+- [CodexRadar homepage](https://codexradar.com/)：当前公开重置雷达研判、重置卡自查社区知识、额度雷达、Model IQ 和模型质量细节。
 - [current.json](https://codexradar.com/current.json)：当前可能返回 JSON，包含额度雷达、Model IQ、官方权益事件和 legacy prediction 字段；当 reset 研判暂未进入 JSON 时，app 会从首页补齐。
 - [api/model-ratings](https://codexradar.com/api/model-ratings)：社区体感分，菜单里的 `体感` 来自这里。
 - [feed.xml](https://codexradar.com/feed.xml)：后续用于官方权益提醒；不可用或返回首页时，app 会继续以首页/JSON 里的 Model IQ 为准。
@@ -398,7 +408,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.38
+./scripts/check_release_readiness.sh 0.1.39
 ```
 
 构建 release 包：
@@ -406,7 +416,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.38
+./scripts/package_release.sh 0.1.39
 ```
 
 更新 README 状态栏和菜单截图：
@@ -425,6 +435,6 @@ swift build -c release
 
 ## 鸣谢
 
-Codex Radar Sentinel 之所以能成立，是因为 [CodexRadar](https://codexradar.com/) 持续提供清晰的公开 Codex 信号。CodexRadar 早期提供速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、额度雷达与模型质量雷达。本应用只是把这些公开信号和用户本机 Codex 额度状态整合成一个 macOS 菜单栏工具。
+Codex Radar Sentinel 之所以能成立，是因为 [CodexRadar](https://codexradar.com/) 持续提供清晰的公开 Codex 信号。CodexRadar 早期提供速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达与模型质量雷达。本应用只是把这些公开信号和用户本机 Codex 额度状态整合成一个 macOS 菜单栏工具。
 
 Codex Radar Sentinel 与 CodexRadar 或 OpenAI 没有关联。

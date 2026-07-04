@@ -443,19 +443,19 @@ final class SentinelStore: NSObject, ObservableObject {
     private static func documentationModelIQ() -> ModelIQEnvelope? {
         decodeDocumentationJSON("""
         {
-          "updated_at": "2026-07-03T07:42:00+08:00",
+          "updated_at": "2026-07-04T08:28:00+08:00",
           "latest": {
-            "date": "2026-07-03-am",
+            "date": "2026-07-04-am",
             "tasks": 10,
             "passed": 7,
             "iq_score": 105,
             "status": "green",
-            "wall_seconds": 1490,
-            "wall_time_human": "25分钟",
-            "input_tokens": 28911470,
-            "cached_input_tokens": 27069952,
-            "output_tokens": 297285,
-            "cost_usd": 31.661116,
+            "wall_seconds": 1740,
+            "wall_time_human": "29分钟",
+            "input_tokens": 34478832,
+            "cached_input_tokens": 32158592,
+            "output_tokens": 325178,
+            "cost_usd": 37.435836,
             "model": "gpt-5.5",
             "reasoning_effort": "xhigh"
           },
@@ -465,17 +465,17 @@ final class SentinelStore: NSObject, ObservableObject {
               "model": "gpt-5.5",
               "reasoning_effort": "high",
               "latest": {
-                "date": "2026-07-03-am",
+                "date": "2026-07-04-am",
                 "tasks": 10,
-                "passed": 6,
-                "iq_score": 90,
-                "status": "yellow",
-                "wall_seconds": 5900,
-                "wall_time_human": "98分钟",
-                "input_tokens": 21400000,
-                "cached_input_tokens": 19800000,
-                "output_tokens": 230000,
-                "cost_usd": 22.92,
+                "passed": 7,
+                "iq_score": 105,
+                "status": "green",
+                "wall_seconds": 1920,
+                "wall_time_human": "32分钟",
+                "input_tokens": 22100000,
+                "cached_input_tokens": 20600000,
+                "output_tokens": 240000,
+                "cost_usd": 23.472451,
                 "model": "gpt-5.5",
                 "reasoning_effort": "high"
               }
@@ -485,17 +485,17 @@ final class SentinelStore: NSObject, ObservableObject {
               "model": "gpt-5.5",
               "reasoning_effort": "medium",
               "latest": {
-                "date": "2026-07-03-am",
+                "date": "2026-07-04-am",
                 "tasks": 10,
-                "passed": 5,
-                "iq_score": 75,
+                "passed": 4,
+                "iq_score": 60,
                 "status": "red",
-                "wall_seconds": 5820,
-                "wall_time_human": "97分钟",
+                "wall_seconds": 1680,
+                "wall_time_human": "28分钟",
                 "input_tokens": 18700000,
                 "cached_input_tokens": 17600000,
                 "output_tokens": 210000,
-                "cost_usd": 19.52,
+                "cost_usd": 18.026109,
                 "model": "gpt-5.5",
                 "reasoning_effort": "medium"
               }
@@ -505,17 +505,17 @@ final class SentinelStore: NSObject, ObservableObject {
               "model": "gpt-5.5",
               "reasoning_effort": "low",
               "latest": {
-                "date": "2026-07-03-am",
+                "date": "2026-07-04-am",
                 "tasks": 10,
-                "passed": 4,
-                "iq_score": 60,
-                "status": "red",
-                "wall_seconds": 3180,
-                "wall_time_human": "53分钟",
+                "passed": 6,
+                "iq_score": 90,
+                "status": "yellow",
+                "wall_seconds": 1800,
+                "wall_time_human": "30分钟",
                 "input_tokens": 15100000,
                 "cached_input_tokens": 13900000,
                 "output_tokens": 168000,
-                "cost_usd": 14.94,
+                "cost_usd": 15.211229,
                 "model": "gpt-5.5",
                 "reasoning_effort": "low"
               }
@@ -525,17 +525,17 @@ final class SentinelStore: NSObject, ObservableObject {
               "model": "gpt-5.4",
               "reasoning_effort": "xhigh",
               "latest": {
-                "date": "2026-07-03-am",
+                "date": "2026-07-04-am",
                 "tasks": 10,
                 "passed": 6,
                 "iq_score": 90,
                 "status": "yellow",
-                "wall_seconds": 9840,
-                "wall_time_human": "164分钟",
+                "wall_seconds": 1620,
+                "wall_time_human": "27分钟",
                 "input_tokens": 24100000,
                 "cached_input_tokens": 23100000,
                 "output_tokens": 255000,
-                "cost_usd": 18.41,
+                "cost_usd": 20.198679,
                 "model": "gpt-5.4",
                 "reasoning_effort": "xhigh"
               }
@@ -545,37 +545,37 @@ final class SentinelStore: NSObject, ObservableObject {
               "model": "gpt-5.4",
               "reasoning_effort": "high",
               "latest": {
-                "date": "2026-07-03-am",
+                "date": "2026-07-04-am",
                 "tasks": 10,
-                "passed": 5,
-                "iq_score": 75,
+                "passed": 4,
+                "iq_score": 60,
                 "status": "red",
-                "wall_seconds": 7020,
-                "wall_time_human": "117分钟",
+                "wall_seconds": 1560,
+                "wall_time_human": "26分钟",
                 "input_tokens": 20500000,
                 "cached_input_tokens": 19400000,
                 "output_tokens": 188000,
-                "cost_usd": 15.04,
+                "cost_usd": 12.207529,
                 "model": "gpt-5.4",
                 "reasoning_effort": "high"
               }
             }
           },
           "quota_radar": {
-            "date": "2026-07-03-am",
-            "updated_at": "2026-07-03T07:16:00+08:00",
-            "basis_date": "2026-07-03-am",
-            "basis_window_label": "7d",
-            "cost_usd": 121.89,
-            "total_tokens": 29208755,
+            "date": "2026-07-04-am",
+            "updated_at": "2026-07-04T08:28:21+08:00",
+            "basis_date": "2026-07-04-am",
+            "basis_window_label": "5h",
+            "cost_usd": 126.551833,
+            "total_tokens": 154872137,
             "rows": [
-              { "tier": "20x Pro", "basis": "measured 7d", "five_h": 338.58, "seven_d": 2031.48 },
-              { "tier": "5x Pro", "basis": "model /4", "five_h": 84.65, "seven_d": 507.87 },
-              { "tier": "Plus", "basis": "model /20", "five_h": 16.93, "seven_d": 101.57 }
+              { "tier": "20x Pro", "basis": "measured", "five_h": 301.31, "seven_d": 1807.86 },
+              { "tier": "5x Pro", "basis": "model /4", "five_h": 75.33, "seven_d": 451.97 },
+              { "tier": "Plus", "basis": "model /20", "five_h": 15.07, "seven_d": 90.39 }
             ],
             "trend": [
-              { "date": "2026-07-02_n", "seven_d_20x": 1809.48, "five_h_20x": 301.58 },
-              { "date": "2026-07-03-am", "seven_d_20x": 2031.48, "five_h_20x": 338.58 }
+              { "date": "2026-07-03-pm", "seven_d_20x": 1498.92, "five_h_20x": 249.82 },
+              { "date": "2026-07-04-am", "seven_d_20x": 1807.86, "five_h_20x": 301.31 }
             ]
           }
         }
@@ -586,52 +586,52 @@ final class SentinelStore: NSObject, ObservableObject {
         decodeDocumentationJSON("""
         {
           "ok": true,
-          "day": "2026-07-03",
+          "day": "2026-07-04",
           "timezone": "Asia/Shanghai",
           "refresh_seconds": 60,
-          "updated_at": "2026-07-03T02:04:35.319Z",
+          "updated_at": "2026-07-04T01:57:34.353Z",
           "models": [
             {
               "id": "gpt-5.5-xhigh",
               "label": "GPT-5.5 xhigh",
               "group": "GPT-5.5",
-              "average": 6,
-              "count": 158
+              "average": 6.4,
+              "count": 109
             },
             {
               "id": "gpt-5.5-high",
               "label": "GPT-5.5 high",
               "group": "GPT-5.5",
-              "average": 6.7,
-              "count": 119
+              "average": 7.4,
+              "count": 81
             },
             {
               "id": "gpt-5.5-medium",
               "label": "GPT-5.5 medium",
               "group": "GPT-5.5",
-              "average": 7.5,
-              "count": 41
+              "average": 7,
+              "count": 29
             },
             {
               "id": "gpt-5.5-low",
               "label": "GPT-5.5 low",
               "group": "GPT-5.5",
-              "average": 6.1,
-              "count": 8
+              "average": 7.4,
+              "count": 7
             },
             {
               "id": "gpt-5.4-xhigh",
               "label": "GPT-5.4 xhigh",
               "group": "GPT-5.4",
-              "average": 6.4,
-              "count": 22
+              "average": 6,
+              "count": 12
             },
             {
               "id": "gpt-5.4-high",
               "label": "GPT-5.4 high",
               "group": "GPT-5.4",
-              "average": 6.3,
-              "count": 21
+              "average": 4.9,
+              "count": 9
             }
           ],
           "source": "cache"
@@ -650,7 +650,7 @@ final class SentinelStore: NSObject, ObservableObject {
             "CodexRadar 当前公开 reset 研判、额度雷达与 Model IQ；旧速蹬窗口提醒仍按兼容路径处理。",
             "CodexRadar currently publishes reset judgement, quota radar, and Model IQ; legacy speed-window alerts remain supported through compatibility paths."
         )
-        let resetUpdated = language.text("7月3日08:08研判", "Jul 3 08:08")
+        let resetUpdated = language.text("7月4日08:41研判", "Jul 4 08:41")
         let resetTitle = language.text("发卡路径占优", "Reset cards likely")
         let cardLabel = language.text("发重置卡", "Reset card")
         let cardLevel = language.text("高 · 基本已触发", "High · likely active")
@@ -671,6 +671,11 @@ final class SentinelStore: NSObject, ObservableObject {
         let reasonTwo = language.text(
             "社区反证仍在：仍有人反馈按钮消失、未收到 banked reset 或额度窗口异常。",
             "Community counterexamples remain: some users still report missing buttons, no banked reset, or odd quota windows."
+        )
+        let communityTitle = language.text("重置卡过期时间自查", "Reset credit expiry check")
+        let communityPrompt = language.text(
+            "帮我用本机 Codex 凭证查一下 rate-limit reset credits，读取 ~/.codex/auth.json 里的 tokens.access_token，请求 https://chatgpt.com/backend-api/wham/rate-limit-reset-credits。要求：如果 401，说明是凭证失效或没带对 Authorization header；不要打印 access_token、refresh_token、cookie 或完整唯一 ID；只要展示每张重置卡发放时间和过期时间，从 UTC 转成北京时间，用中文回复。",
+            "Use my local Codex credentials to check rate-limit reset credits from ~/.codex/auth.json tokens.access_token via https://chatgpt.com/backend-api/wham/rate-limit-reset-credits. If it returns 401, explain that the credential is expired or the Authorization header is missing. Do not print access_token, refresh_token, cookies, or full unique IDs. Show only each reset credit issue time and expiry time, converted to local time."
         )
         return decodeDocumentationJSON("""
         {
@@ -707,10 +712,14 @@ final class SentinelStore: NSObject, ObservableObject {
               "\(reasonTwo)"
             ]
           },
+          "community_knowledge": {
+            "title": "\(communityTitle)",
+            "prompt": "\(communityPrompt)"
+          },
           "model_iq": {
-            "updated_at": "2026-07-03T07:42:00+08:00",
+            "updated_at": "2026-07-04T08:28:00+08:00",
             "latest": {
-              "date": "2026-07-03-am",
+              "date": "2026-07-04-am",
               "model": "GPT-5.5",
               "reasoning_effort": "xhigh",
               "tasks": 10,
@@ -721,12 +730,12 @@ final class SentinelStore: NSObject, ObservableObject {
               "iq_score": 105,
               "score": 105,
               "status": "green",
-              "wall_seconds": 1490,
-              "wall_time_human": "25分钟",
-              "input_tokens": 28911470,
-              "cached_input_tokens": 27069952,
-              "output_tokens": 297285,
-              "cost_usd": 31.661116
+              "wall_seconds": 1740,
+              "wall_time_human": "29分钟",
+              "input_tokens": 34478832,
+              "cached_input_tokens": 32158592,
+              "output_tokens": 325178,
+              "cost_usd": 37.435836
             }
           }
         }

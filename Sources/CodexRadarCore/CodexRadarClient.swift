@@ -32,7 +32,7 @@ public struct CodexRadarClient {
         let data = try await fetchData(AppConstants.currentPath)
         do {
             let current = try decoder.decode(RadarCurrent.self, from: data)
-            guard current.modelIQ?.latest?.iqScore == nil || current.resetJudgement == nil,
+            guard current.modelIQ?.latest?.iqScore == nil || current.resetJudgement == nil || current.communityKnowledge == nil,
                   let homepageHTML = try? await fetchHomepageHTML(),
                   let supplemented = try? Self.currentByMergingHomepageSignals(current, html: homepageHTML) else {
                 return current
@@ -103,6 +103,7 @@ public struct CodexRadarClient {
             throw ClientError.homepageFallbackUnavailable
         }
         let resetJudgement = parseHomepageResetJudgement(html: html)
+        let communityKnowledge = parseHomepageCommunityKnowledge(html: html)
         let checkedAtString = isoString(checkedAt)
         var payload: [String: Any] = [
             "schema_version": "homepage-fallback-v1",
@@ -135,6 +136,9 @@ public struct CodexRadarClient {
         if let resetJudgement {
             payload["reset_judgement"] = resetJudgement
         }
+        if let communityKnowledge {
+            payload["community_knowledge"] = communityKnowledge
+        }
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try JSONDecoder().decode(RadarCurrent.self, from: data)
     }
@@ -164,6 +168,7 @@ public struct CodexRadarClient {
             modelIQEnvelope = try JSONDecoder().decode(ModelIQEnvelope.self, from: data)
         }
         let resetJudgementData = parseHomepageResetJudgement(html: html)
+        let communityKnowledgeData = parseHomepageCommunityKnowledge(html: html)
         let resetJudgement: ResetJudgement?
         if let resetJudgementData {
             let data = try JSONSerialization.data(withJSONObject: resetJudgementData)
@@ -171,9 +176,17 @@ public struct CodexRadarClient {
         } else {
             resetJudgement = nil
         }
+        let communityKnowledge: CommunityKnowledge?
+        if let communityKnowledgeData {
+            let data = try JSONSerialization.data(withJSONObject: communityKnowledgeData)
+            communityKnowledge = try JSONDecoder().decode(CommunityKnowledge.self, from: data)
+        } else {
+            communityKnowledge = nil
+        }
         return current.withSignals(
             modelIQ: modelIQEnvelope,
-            resetJudgement: resetJudgement
+            resetJudgement: resetJudgement,
+            communityKnowledge: communityKnowledge
         )
     }
 
@@ -270,6 +283,28 @@ public struct CodexRadarClient {
         ]
     }
 
+    private static func parseHomepageCommunityKnowledge(html: String) -> [String: Any]? {
+        guard let section = firstCapture(
+            #"<section\s+class="community-knowledge"[^>]*>(.*?)</section>"#,
+            in: html
+        ),
+        let card = firstCapture(
+            #"<article\s+class="community-knowledge-card"[^>]*>(.*?)</article>"#,
+            in: section
+        ) else {
+            return nil
+        }
+        let title = cleanHTMLText(firstCapture(#"<h2>(.*?)</h2>"#, in: card))
+        let prompt = cleanHTMLMultilineText(firstCapture(#"<code[^>]*data-site-announcement-prompt[^>]*>(.*?)</code>"#, in: card))
+        guard !title.isEmpty, !prompt.isEmpty else {
+            return nil
+        }
+        return [
+            "title": title,
+            "prompt": prompt
+        ]
+    }
+
     fileprivate static func modelIQStatus(_ score: Double) -> String {
         if score < 80 {
             return "red"
@@ -333,6 +368,31 @@ public struct CodexRadarClient {
         }
         return value
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func cleanHTMLMultilineText(_ value: String?) -> String {
+        guard var value else {
+            return ""
+        }
+        value = value.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        let entities = [
+            "&amp;": "&",
+            "&lt;": "<",
+            "&gt;": ">",
+            "&quot;": "\"",
+            "&#39;": "'",
+            "&nbsp;": " "
+        ]
+        for (entity, replacement) in entities {
+            value = value.replacingOccurrences(of: entity, with: replacement)
+        }
+        return value
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

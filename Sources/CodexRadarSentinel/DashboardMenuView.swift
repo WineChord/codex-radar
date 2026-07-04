@@ -1,8 +1,10 @@
+import AppKit
 import CodexRadarCore
 import SwiftUI
 
 struct DashboardMenuView: View {
     @ObservedObject var store: SentinelStore
+    @State private var copiedCommunityPrompt = false
     var scrolling: Bool = true
 
     private enum Layout {
@@ -73,6 +75,7 @@ struct DashboardMenuView: View {
             quotaSection
             quotaPacingSection
             resetJudgementSection
+            communityKnowledgeSection
             codexRadarQuotaSection
             Divider()
             radarSection
@@ -288,6 +291,39 @@ struct DashboardMenuView: View {
                         .font(.system(size: metrics.caption))
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var communityKnowledgeSection: some View {
+        if let knowledge = state.current?.communityKnowledge,
+           let prompt = knowledge.prompt,
+           !prompt.isEmpty {
+            VStack(alignment: .leading, spacing: 7) {
+                sectionTitle(text("重置卡自查", "Reset Credit Check"), systemImage: "creditcard")
+                Text(knowledge.title ?? text("重置卡过期时间自查", "Reset credit expiry check"))
+                    .font(.system(size: metrics.body, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                Text(text(
+                    "复制 CodexRadar 的自查 prompt 到 Codex 中运行，可查看每张 reset credit 的发放与过期时间。Sentinel 只复制文本，不读取凭证。",
+                    "Copy CodexRadar's check prompt into Codex to inspect reset credit issue and expiry times. Sentinel only copies text; it does not read credentials."
+                ))
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                HStack(spacing: Layout.tileSpacing) {
+                    compactActionButton(
+                        title: copiedCommunityPrompt ? text("已复制", "Copied") : text("复制 Prompt", "Copy Prompt"),
+                        systemImage: copiedCommunityPrompt ? "checkmark.circle" : "doc.on.clipboard"
+                    ) {
+                        copyCommunityPrompt(prompt)
+                    }
+                    compactActionButton(title: "Codex", systemImage: "terminal") {
+                        store.openCodexApp()
+                    }
                 }
             }
         }
@@ -515,6 +551,16 @@ struct DashboardMenuView: View {
             return text("CodexRadar 暂无原因摘要。", "No CodexRadar reason summary yet.")
         }
         return reasons.joined(separator: " ")
+    }
+
+    private func copyCommunityPrompt(_ prompt: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(prompt, forType: .string)
+        copiedCommunityPrompt = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            copiedCommunityPrompt = false
+        }
     }
 
     private func quotaRadarBasisText(_ basis: String?) -> String {

@@ -79,6 +79,9 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.resetJudgement?.cards.first?.label, "发重置卡")
         XCTAssertEqual(current.resetJudgement?.cards.first?.level, "高 · 基本已触发")
         XCTAssertEqual(current.resetJudgement?.reasons.count, 2)
+        XCTAssertEqual(current.communityKnowledge?.title, "重置卡过期时间自查")
+        XCTAssertTrue(current.communityKnowledge?.prompt?.contains("rate-limit reset credits") == true)
+        XCTAssertTrue(current.communityKnowledge?.prompt?.contains("不要打印 access_token") == true)
     }
 
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
@@ -153,6 +156,19 @@ private let homepageHTML = """
 <html>
 <body>
 <p>Tibo 的重置机制已转向“重置卡手工重置”，原重置预测、速蹬窗口提醒和历史窗口已下架。</p>
+<section class="community-knowledge" aria-label="Codex 社区知识分享">
+  <div class="community-knowledge-grid">
+    <article class="community-knowledge-card">
+      <div class="community-knowledge-card-main">
+        <h2>重置卡过期时间自查</h2>
+      </div>
+      <code class="site-announcement-prompt community-knowledge-prompt" data-site-announcement-prompt hidden>帮我用本机 Codex 凭证查一下 rate-limit reset credits，读取 ~/.codex/auth.json 里的 tokens.access_token
+要求:
+1. 如果 401，说明是凭证失效或没带对 Authorization header
+2. 不要打印 access_token、refresh_token、cookie 或完整唯一 ID</code>
+    </article>
+  </div>
+</section>
 <section class="reset-judgement" aria-label="重置雷达研判">
   <div class="reset-judgement-head">
     <div>
