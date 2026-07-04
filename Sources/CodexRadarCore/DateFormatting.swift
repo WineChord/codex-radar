@@ -95,7 +95,14 @@ public enum DisplayFormatters {
             return "unknown"
         }
         let date = Date(timeIntervalSince1970: TimeInterval(epochSeconds))
-        let seconds = Int(date.timeIntervalSinceNow)
+        return relativeFuture(date)
+    }
+
+    public static func relativeFuture(_ date: Date?, now: Date = Date()) -> String {
+        guard let date else {
+            return "unknown"
+        }
+        let seconds = Int(date.timeIntervalSince(now))
         if seconds <= 0 {
             return "now"
         }

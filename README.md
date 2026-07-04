@@ -2,11 +2,20 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的 reset 研判、重置卡自查 prompt、额度估算、Model IQ 与本机 Codex 额度状态整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的 reset 研判、重置卡自查知识、额度估算、Model IQ、本机 Codex 额度状态与手动重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
+
+<details>
+<summary><strong>v0.1.40：重置卡过期时间</strong> - 下拉菜单可手动查询并缓存每张 reset credit 的过期时间。</summary>
+
+- `重置卡过期` 区块新增 `查询重置卡`：点击后才读取本机 Codex 登录态并请求 reset credits，不接入 60 秒轮询。
+- 查询结果会缓存到本机设置里，后续打开菜单直接展示；只保存标题、状态、发放时间、过期时间和脱敏 ID 后缀，不保存 token、cookie 或完整唯一 ID。
+- 查询中会显示进度，失败只在该区块显示错误，不影响状态栏额度、CodexRadar 轮询或自动更新。
+
+</details>
 
 <details>
 <summary><strong>v0.1.39：重置卡自查</strong> - 下拉菜单同步 CodexRadar 的“重置卡过期时间自查”社区知识。</summary>
@@ -291,7 +300,8 @@
 - 用量节奏：按所选策略计算当前建议剩余百分比，并和实际周额度剩余对比；例如建议应剩 80%、实际还剩 90%，就会提示可以多用一点。
   策略包括：`按时间` 平滑均匀用完；`每日` 按天级预算推进；`留余` 前期保留 20% 缓冲；`工作日` 工作日多用、周末少用；`先用` 前半程更积极，避免 reset 前剩太多。
 - [CodexRadar](https://codexradar.com/) 首页可见的重置雷达研判：发重置卡、硬重置两条路径的等级、摘要和原因。
-- CodexRadar 首页可见的社区知识：`重置卡过期时间自查` prompt。菜单只负责复制文本，不读取本机凭证。
+- CodexRadar 首页可见的社区知识：`重置卡过期时间自查` prompt。菜单保留复制 prompt 作为兜底路径。
+- 用户手动触发的本机重置卡查询：点击 `查询重置卡` 后读取 `~/.codex/auth.json` 中的 Codex access token，请求 ChatGPT reset credits 接口，并只缓存脱敏后的卡片状态、发放时间和过期时间；不会自动执行，也不会保存 token。
 - CodexRadar 当前公开的 Model IQ、模型质量状态和探针通过数。
 - CodexRadar 首页可见的额度雷达：20x Pro / 5x Pro / Plus 的 5h 和 7d 美元等价值估算。它不是本机剩余额度，只是公开估算。
 - CodexRadar 首页可见的模型质量方向：速度、费用、cache 命中率和社区体感分。
@@ -370,6 +380,8 @@ Codex Radar Sentinel 读取这些公开入口：
 
 当响应里存在 `rateLimitsByLimitId.codex` 时，优先使用这个 bucket。5 小时窗口显示为 `短窗`，10,080 分钟窗口显示为 `周额度`。
 
+本机重置卡过期时间只在点击 `查询重置卡` 后读取：app 会从 `~/.codex/auth.json` 取 Codex access token，把它作为 Authorization header 发给 ChatGPT reset credits 接口，然后只把脱敏后的卡片元数据缓存到本机偏好设置里。
+
 ## 手动安装
 
 从最新 GitHub Release 下载 `.dmg`，打开后把 `Codex Radar Sentinel.app` 拖到 `Applications`。
@@ -408,7 +420,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.39
+./scripts/check_release_readiness.sh 0.1.40
 ```
 
 构建 release 包：
@@ -416,7 +428,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.39
+./scripts/package_release.sh 0.1.40
 ```
 
 更新 README 状态栏和菜单截图：

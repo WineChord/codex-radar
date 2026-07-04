@@ -2,17 +2,26 @@
 
 [中文](README.md) | English
 
-Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides reset radar, community knowledge, quota radar, and model quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar reset judgement, reset-credit check prompt, quota estimates, and Model IQ together with the user's local Codex quota state, while keeping compatibility if the old reset/speed endpoints return.
+Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides reset radar, community knowledge, quota radar, and model quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar reset judgement, reset-credit check knowledge, quota estimates, Model IQ, local Codex quota state, and manual reset-credit expiry checks together, while keeping compatibility if the old reset/speed endpoints return.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
 ## News
 
 <details>
+<summary><strong>v0.1.40: Reset credit expiry</strong> - The dropdown can manually check and cache each reset credit's expiry time.</summary>
+
+- The `Reset Credit Expiry` section adds `Check Credits`: it reads local Codex auth and requests reset credits only after you click, never as part of the 60-second polling loop.
+- Results are cached locally and shown on future menu opens. The cache stores only title, status, issue time, expiry time, and a redacted ID suffix; it never stores tokens, cookies, or full unique IDs.
+- Loading and failure states stay inside this section, so a failed check does not affect the menu-bar quota, CodexRadar polling, or auto-update flow.
+
+</details>
+
+<details>
 <summary><strong>v0.1.39: Reset credit check</strong> - The dropdown now mirrors CodexRadar's reset-credit expiry check community prompt.</summary>
 
 - Adds a `Reset Credit Check` section that copies CodexRadar's prompt for checking reset credit issue and expiry times.
-- The copy makes clear that Sentinel only copies text; it does not read `~/.codex/auth.json`, tokens, or cookies. The user runs the prompt manually in Codex.
+- The copy path remains as a fallback, while v0.1.40 adds the in-app manual check.
 - The live contract check now covers `community_knowledge`, so future CodexRadar community-card changes do not silently disappear from the menu.
 
 </details>
@@ -291,7 +300,8 @@ This image is captured by the app itself from the real SwiftUI menu window on a 
 - Usage pace: the suggested remaining percentage based on the selected strategy, compared with actual weekly quota remaining. For example, if target remaining is 80% and actual remaining is 90%, it tells you there is room to spend more.
   Strategies include: `Time` for smooth even spending; `Daily` for day-level budgeting; `Reserve` to keep a 20% buffer early; `Workdays` for heavier weekday usage and lighter weekends; `Front-load` to spend earlier and avoid unused quota near reset.
 - The Reset Radar judgement visible on [CodexRadar](https://codexradar.com/): reset-card and hard-reset paths with levels, summaries, and reasons.
-- The community knowledge visible on CodexRadar: the reset-credit expiry check prompt. The menu only copies text; it does not read local credentials.
+- The community knowledge visible on CodexRadar: the reset-credit expiry check prompt. The menu keeps copying the prompt as a fallback path.
+- User-triggered local reset-credit checks: after clicking `Check Credits`, the app reads the Codex access token from `~/.codex/auth.json`, requests the ChatGPT reset credits endpoint, and caches only sanitized card status, issue time, and expiry time. It never runs automatically and never stores the token.
 - The currently public Model IQ, quality status, and probe pass count from CodexRadar.
 - The Quota Radar visible on CodexRadar: 20x Pro / 5x Pro / Plus 5h and 7d USD-equivalent estimates. These are public estimates, not local remaining quota.
 - The model-quality direction visible on CodexRadar: speed, cost, cache hit rate, and community ratings.
@@ -370,6 +380,8 @@ For local quota, it reads the Codex app-server:
 
 It selects the `rateLimitsByLimitId.codex` bucket when present. The 5-hour bucket is shown as `Short`; the 10,080-minute bucket is shown as `Weekly`.
 
+For local reset-credit expiry, it only runs after you click `Check Credits`: it reads `~/.codex/auth.json`, sends the access token to ChatGPT's reset credits endpoint as an Authorization header, then stores only sanitized card metadata in local preferences.
+
 ## Manual Install
 
 Download the latest `.dmg` from GitHub Releases, open it, and drag `Codex Radar Sentinel.app` into `Applications`.
@@ -408,7 +420,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.39
+./scripts/check_release_readiness.sh 0.1.40
 ```
 
 Build release packages:
@@ -416,7 +428,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.39
+./scripts/package_release.sh 0.1.40
 ```
 
 Update README menu bar and menu screenshots:

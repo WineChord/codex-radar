@@ -2,6 +2,19 @@ import AppKit
 import CodexRadarCore
 import Foundation
 
+enum ResetCreditLoadPhase: Equatable {
+    case idle
+    case loading(Date)
+    case failed(String)
+
+    var isLoading: Bool {
+        if case .loading = self {
+            return true
+        }
+        return false
+    }
+}
+
 @MainActor
 final class SentinelStore: NSObject, ObservableObject {
     @objc dynamic private(set) var titleForStatusItem: String = DashboardState().statusTitle
@@ -154,6 +167,8 @@ final class SentinelStore: NSObject, ObservableObject {
 
     @Published private(set) var updatePhase: AppUpdatePhase = .idle
     @Published private(set) var latestUpdate: AppUpdateInfo?
+    @Published private(set) var resetCreditSnapshot: ResetCreditSnapshot?
+    @Published private(set) var resetCreditPhase: ResetCreditLoadPhase = .idle
 
     @Published var launchAtLoginEnabled: Bool {
         didSet {
@@ -184,6 +199,7 @@ final class SentinelStore: NSObject, ObservableObject {
         static let notificationMemory = "notificationMemory"
         static let dismissedSpeedAlertKey = "dismissedSpeedAlertKey"
         static let debugPreviewSectionExpanded = "debugPreviewSectionExpanded"
+        static let resetCreditSnapshot = "resetCreditSnapshot"
     }
 
     private static let defaultStatusMetrics: [StatusMetric] = [
@@ -196,12 +212,14 @@ final class SentinelStore: NSObject, ObservableObject {
     private let radarClient: CodexRadarClient
     private let appServerClient: CodexAppServerClient
     private let appUpdater: AppUpdater
+    private let resetCreditClient: ResetCreditClient
     private let notificationPolicy = NotificationPolicy()
     private var notificationMemory: NotificationMemory
     private var pollingTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
     private var updateTask: Task<Void, Never>?
     private var automaticUpdateTask: Task<Void, Never>?
+    private var resetCreditTask: Task<Void, Never>?
     private var emphasizedSpeedAlertKey: String?
     private var speedAlertFirstSeenAt: Date?
 
@@ -209,12 +227,14 @@ final class SentinelStore: NSObject, ObservableObject {
         defaults: UserDefaults = .standard,
         radarClient: CodexRadarClient = CodexRadarClient(),
         appServerClient: CodexAppServerClient = CodexAppServerClient(),
-        appUpdater: AppUpdater = AppUpdater()
+        appUpdater: AppUpdater = AppUpdater(),
+        resetCreditClient: ResetCreditClient = ResetCreditClient()
     ) {
         self.defaults = defaults
         self.radarClient = radarClient
         self.appServerClient = appServerClient
         self.appUpdater = appUpdater
+        self.resetCreditClient = resetCreditClient
         let rawLanguage = defaults.string(forKey: DefaultsKey.appLanguage)
         self.appLanguage = rawLanguage.flatMap(AppLanguage.init(rawValue:)) ?? .zhHans
         let rawTextSize = defaults.string(forKey: DefaultsKey.menuTextSize)
@@ -246,6 +266,7 @@ final class SentinelStore: NSObject, ObservableObject {
         self.launchAtLoginEnabled = defaults.object(forKey: DefaultsKey.launchAtLoginEnabled) as? Bool ?? LaunchAtLoginController.isEnabled
         self.dismissedSpeedAlertKey = defaults.string(forKey: DefaultsKey.dismissedSpeedAlertKey)
         self.notificationMemory = Self.loadNotificationMemory(defaults: defaults)
+        self.resetCreditSnapshot = Self.loadResetCreditSnapshot(defaults: defaults)
         super.init()
     }
 
@@ -340,6 +361,7 @@ final class SentinelStore: NSObject, ObservableObject {
         refreshTask?.cancel()
         updateTask?.cancel()
         automaticUpdateTask?.cancel()
+        resetCreditTask?.cancel()
         Task {
             await appServerClient.shutdown()
         }
@@ -374,6 +396,35 @@ final class SentinelStore: NSObject, ObservableObject {
 
     func quit() {
         NSApplication.shared.terminate(nil)
+    }
+
+    func refreshResetCredits() {
+        guard !resetCreditPhase.isLoading else {
+            return
+        }
+        let client = resetCreditClient
+        resetCreditTask?.cancel()
+        resetCreditPhase = .loading(Date())
+        resetCreditTask = Task { [weak self, client] in
+            do {
+                let snapshot = try await client.fetch()
+                await MainActor.run {
+                    guard let self else {
+                        return
+                    }
+                    self.resetCreditSnapshot = snapshot
+                    self.saveResetCreditSnapshot(snapshot)
+                    self.resetCreditPhase = .idle
+                }
+            } catch {
+                await MainActor.run {
+                    guard let self else {
+                        return
+                    }
+                    self.resetCreditPhase = .failed(error.localizedDescription)
+                }
+            }
+        }
     }
 
     func checkForUpdatesNow(automatic: Bool = false) {
@@ -413,6 +464,8 @@ final class SentinelStore: NSObject, ObservableObject {
         documentationState.modelRatings = Self.documentationModelRatings()
         documentationState.lastUpdatedAt = Self.documentationUpdatedAt
         state = documentationState
+        resetCreditSnapshot = Self.documentationResetCreditSnapshot()
+        resetCreditPhase = .idle
     }
 
     private static let documentationUpdatedAt = Date(timeIntervalSince1970: 1_781_478_000)
@@ -439,6 +492,35 @@ final class SentinelStore: NSObject, ObservableObject {
         }
         return RateLimitDashboard(response: response)
     }
+
+    private static func documentationResetCreditSnapshot() -> ResetCreditSnapshot {
+        let checkedAt = Date(timeIntervalSince1970: 1_783_130_400)
+        let credits = [
+            ResetCredit(
+                idSuffix: "578aba",
+                title: "Full reset (Weekly + 5 hr)",
+                status: "available",
+                resetType: "codex_rate_limits",
+                grantedAt: Date(timeIntervalSince1970: 1_781_229_309),
+                expiresAt: Date(timeIntervalSince1970: 1_783_821_309)
+            ),
+            ResetCredit(
+                idSuffix: "91f04e",
+                title: "Full reset (Weekly + 5 hr)",
+                status: "available",
+                resetType: "codex_rate_limits",
+                grantedAt: Date(timeIntervalSince1970: 1_781_416_800),
+                expiresAt: Date(timeIntervalSince1970: 1_784_008_800)
+            ),
+        ]
+        return ResetCreditSnapshot(
+            checkedAt: checkedAt,
+            credits: credits,
+            availableCount: credits.count,
+            totalEarnedCount: credits.count
+        )
+    }
+
 
     private static func documentationModelIQ() -> ModelIQEnvelope? {
         decodeDocumentationJSON("""
@@ -977,6 +1059,20 @@ final class SentinelStore: NSObject, ObservableObject {
             return NotificationMemory()
         }
         return memory.value
+    }
+
+    private static func loadResetCreditSnapshot(defaults: UserDefaults) -> ResetCreditSnapshot? {
+        guard let data = defaults.data(forKey: DefaultsKey.resetCreditSnapshot) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(ResetCreditSnapshot.self, from: data)
+    }
+
+    private func saveResetCreditSnapshot(_ snapshot: ResetCreditSnapshot) {
+        guard let data = try? JSONEncoder().encode(snapshot) else {
+            return
+        }
+        defaults.set(data, forKey: DefaultsKey.resetCreditSnapshot)
     }
 
     private func saveNotificationMemory() {

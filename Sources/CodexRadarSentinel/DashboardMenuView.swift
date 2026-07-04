@@ -296,37 +296,100 @@ struct DashboardMenuView: View {
         }
     }
 
-    @ViewBuilder
     private var communityKnowledgeSection: some View {
-        if let knowledge = state.current?.communityKnowledge,
-           let prompt = knowledge.prompt,
-           !prompt.isEmpty {
-            VStack(alignment: .leading, spacing: 7) {
-                sectionTitle(text("重置卡自查", "Reset Credit Check"), systemImage: "creditcard")
-                Text(knowledge.title ?? text("重置卡过期时间自查", "Reset credit expiry check"))
-                    .font(.system(size: metrics.body, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                Text(text(
-                    "复制 CodexRadar 的自查 prompt 到 Codex 中运行，可查看每张 reset credit 的发放与过期时间。Sentinel 只复制文本，不读取凭证。",
-                    "Copy CodexRadar's check prompt into Codex to inspect reset credit issue and expiry times. Sentinel only copies text; it does not read credentials."
-                ))
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-                HStack(spacing: Layout.tileSpacing) {
-                    compactActionButton(
-                        title: copiedCommunityPrompt ? text("已复制", "Copied") : text("复制 Prompt", "Copy Prompt"),
-                        systemImage: copiedCommunityPrompt ? "checkmark.circle" : "doc.on.clipboard"
-                    ) {
-                        copyCommunityPrompt(prompt)
-                    }
-                    compactActionButton(title: "Codex", systemImage: "terminal") {
-                        store.openCodexApp()
-                    }
+        VStack(alignment: .leading, spacing: 7) {
+            sectionTitle(text("重置卡过期", "Reset Credit Expiry"), systemImage: "creditcard")
+            Text(state.current?.communityKnowledge?.title ?? text("重置卡过期时间自查", "Reset credit expiry check"))
+                .font(.system(size: metrics.body, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+            Text(text(
+                "点击后读取本机 Codex 登录态并查询 reset credits；不会自动执行，不保存 token，只缓存下方脱敏结果。",
+                "Click to read the local Codex login state and query reset credits. It never runs automatically, never stores tokens, and only caches the sanitized result below."
+            ))
+            .font(.system(size: metrics.caption))
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+
+            resetCreditStatusContent
+
+            HStack(spacing: Layout.tileSpacing) {
+                compactActionButton(
+                    title: resetCreditRefreshButtonTitle,
+                    systemImage: store.resetCreditPhase.isLoading ? "hourglass" : "arrow.clockwise"
+                ) {
+                    store.refreshResetCredits()
+                }
+                compactActionButton(
+                    title: copiedCommunityPrompt ? text("已复制", "Copied") : text("复制 Prompt", "Copy Prompt"),
+                    systemImage: copiedCommunityPrompt ? "checkmark.circle" : "doc.on.clipboard"
+                ) {
+                    copyCommunityPrompt(resetCreditPrompt)
+                }
+                compactActionButton(title: "Codex", systemImage: "terminal") {
+                    store.openCodexApp()
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var resetCreditStatusContent: some View {
+        if case .loading = store.resetCreditPhase {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(text(
+                    "正在读取本机 Codex 登录态，并请求 ChatGPT reset credits...",
+                    "Reading local Codex auth and requesting ChatGPT reset credits..."
+                ))
+                .font(.system(size: metrics.caption, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
+        if case .failed(let message) = store.resetCreditPhase {
+            Text(text("查询失败：\(message)", "Check failed: \(message)"))
+                .font(.system(size: metrics.caption, weight: .medium))
+                .foregroundStyle(.red)
+                .lineLimit(3)
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+
+        if let snapshot = store.resetCreditSnapshot {
+            resetCreditSnapshotView(snapshot)
+        } else if !store.resetCreditPhase.isLoading {
+            Text(text(
+                "还没有缓存结果。点击“查询重置卡”后，这里会显示每张卡的发放时间、过期时间和剩余时间。",
+                "No cached result yet. Click Check Credits to show each credit's issue time, expiry time, and time left."
+            ))
+            .font(.system(size: metrics.caption))
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
+        }
+    }
+
+    private var resetCreditPrompt: String {
+        if let prompt = state.current?.communityKnowledge?.prompt,
+           !prompt.isEmpty {
+            return prompt
+        }
+        return text(
+            "帮我用本机 Codex 凭证查一下 rate-limit reset credits，读取 ~/.codex/auth.json 里的 tokens.access_token，请求 https://chatgpt.com/backend-api/wham/rate-limit-reset-credits。要求：如果 401，说明是凭证失效或没带对 Authorization header；不要打印 access_token、refresh_token、cookie 或完整唯一 ID；只要展示每张重置卡发放时间和过期时间，从 UTC 转成北京时间，用中文回复。",
+            "Use my local Codex credentials to check rate-limit reset credits from ~/.codex/auth.json tokens.access_token via https://chatgpt.com/backend-api/wham/rate-limit-reset-credits. If it returns 401, explain that the credential is expired or the Authorization header is missing. Do not print access_token, refresh_token, cookies, or full unique IDs. Show only each reset credit issue time and expiry time, converted to local time."
+        )
+    }
+
+    private var resetCreditRefreshButtonTitle: String {
+        store.resetCreditPhase.isLoading
+            ? text("查询中", "Checking")
+            : text("查询重置卡", "Check Credits")
     }
 
     @ViewBuilder
@@ -561,6 +624,126 @@ struct DashboardMenuView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             copiedCommunityPrompt = false
         }
+    }
+
+    private func resetCreditSnapshotView(_ snapshot: ResetCreditSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                labelPair(text("上次查询", "Last check"), DisplayFormatters.compactDateTime(snapshot.checkedAt))
+                Spacer()
+                labelPair(text("可用", "Available"), "\(snapshot.effectiveAvailableCount)")
+            }
+            if snapshot.credits.isEmpty {
+                Text(text(
+                    "没有读取到重置卡。可能当前账号没有可展示的 reset credit，或接口返回结构已变化。",
+                    "No reset credits were found. This account may have none to show, or the endpoint shape changed."
+                ))
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+            } else {
+                ForEach(Array(snapshot.credits.indices), id: \.self) { index in
+                    resetCreditRow(snapshot.credits[index], index: index)
+                }
+            }
+        }
+        .padding(8)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func resetCreditRow(_ credit: ResetCredit, index: Int) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(text("重置卡", "Credit")) \(index + 1) · \(resetCreditStatusText(credit))")
+                    .font(.system(size: metrics.caption, weight: .semibold))
+                    .foregroundStyle(resetCreditColor(credit))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                Text(resetCreditTitle(credit))
+                    .font(.system(size: metrics.caption))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Text("\(text("发放", "Issued")) \(DisplayFormatters.compactDateTime(credit.grantedAt))")
+                    .font(.system(size: metrics.caption))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(text("过期", "Expires")) \(DisplayFormatters.compactDateTime(credit.expiresAt))")
+                    .font(.system(size: metrics.caption, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(resetCreditRemainingText(credit))
+                    .font(.system(size: metrics.caption, weight: .medium))
+                    .foregroundStyle(resetCreditColor(credit))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(Color(nsColor: .windowBackgroundColor).opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func resetCreditTitle(_ credit: ResetCredit) -> String {
+        guard let title = credit.title, !title.isEmpty else {
+            return text("Full reset（周额度 + 5h）", "Full reset (Weekly + 5h)")
+        }
+        let normalized = title.lowercased()
+        if normalized.contains("full reset") && normalized.contains("weekly") {
+            return text("Full reset（周额度 + 5h）", "Full reset (Weekly + 5h)")
+        }
+        return title
+    }
+
+    private func resetCreditStatusText(_ credit: ResetCredit) -> String {
+        let normalized = credit.status?.lowercased() ?? ""
+        if credit.redeemedAt != nil || normalized.contains("redeem") {
+            return text("已使用", "used")
+        }
+        if credit.isExpired() {
+            return text("已过期", "expired")
+        }
+        if normalized == "available" {
+            return text("可用", "available")
+        }
+        return credit.status ?? text("未知", "unknown")
+    }
+
+    private func resetCreditRemainingText(_ credit: ResetCredit) -> String {
+        guard let expiresAt = credit.expiresAt else {
+            return text("过期未知", "expiry unknown")
+        }
+        if credit.redeemedAt != nil {
+            return text("已使用", "used")
+        }
+        if credit.isExpired() {
+            return text("已过期", "expired")
+        }
+        let remaining = DisplayFormatters.relativeFuture(expiresAt)
+        return text("剩余 \(remaining)", "\(remaining) left")
+    }
+
+    private func resetCreditColor(_ credit: ResetCredit) -> Color {
+        let normalized = credit.status?.lowercased() ?? ""
+        if credit.redeemedAt != nil || normalized.contains("redeem") {
+            return .secondary
+        }
+        if credit.isExpired() {
+            return .red
+        }
+        if let expiresAt = credit.expiresAt,
+           expiresAt.timeIntervalSinceNow < 3 * 86_400 {
+            return .orange
+        }
+        if credit.isAvailable {
+            return .green
+        }
+        return .accentColor
     }
 
     private func quotaRadarBasisText(_ basis: String?) -> String {
