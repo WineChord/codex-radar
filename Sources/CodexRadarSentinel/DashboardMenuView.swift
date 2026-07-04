@@ -163,13 +163,14 @@ struct DashboardMenuView: View {
     private var statusLegend: some View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("状态栏含义", "Menu Bar"), systemImage: "menubar.rectangle")
-            Text(text(
-                "默认显示“周额度 / IQ / 质量”；可打开 5h 和应剩。",
-                "Default: Weekly / IQ / Quality; enable 5h and Pace when useful."
-            ))
-            .font(.system(size: metrics.caption))
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
+            expandableCaptionText(
+                text(
+                    "默认显示“周额度 / IQ / 质量”；可打开 5h 和应剩。",
+                    "Default: Weekly / IQ / Quality; enable 5h and Pace when useful."
+                ),
+                key: "status-legend",
+                collapsedLines: 2
+            )
             HStack(spacing: 6) {
                 legendTile(metric: .weeklyQuota, color: quotaColor)
                 legendTile(metric: .shortQuota, color: shortQuotaColor)
@@ -230,18 +231,20 @@ struct DashboardMenuView: View {
                         color: quotaPaceColor
                     )
                 }
-                Text(quotaPacingExplanation(pacing))
-                    .font(.system(size: metrics.caption))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                expandableCaptionText(
+                    quotaPacingExplanation(pacing),
+                    key: "quota-pacing-explanation-\(pacing.strategy.rawValue)-\(pacing.roundedTargetRemainingPercent)-\(pacing.roundedCurrentRemainingPercent)",
+                    collapsedLines: 3
+                )
             } else {
-                Text(text(
-                    "还没有读取到周额度 reset 时间，暂时无法计算建议剩余。",
-                    "Weekly reset timing is not loaded yet, so the target remaining quota is unavailable."
-                ))
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+                expandableCaptionText(
+                    text(
+                        "还没有读取到周额度 reset 时间，暂时无法计算建议剩余。",
+                        "Weekly reset timing is not loaded yet, so the target remaining quota is unavailable."
+                    ),
+                    key: "quota-pacing-unavailable",
+                    collapsedLines: 2
+                )
             }
         }
     }
@@ -249,18 +252,25 @@ struct DashboardMenuView: View {
     private var radarSection: some View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle("CodexRadar", systemImage: "dot.radiowaves.left.and.right")
-            Text(radarTitle)
-                .font(.system(size: metrics.body, weight: .medium))
-                .lineLimit(2)
+            expandableMenuText(
+                radarTitle,
+                key: "codex-radar-title-\(radarTitle)",
+                collapsedLines: 2,
+                fontSize: metrics.body,
+                weight: .medium,
+                color: .primary
+            )
             HStack {
                 labelPair(text("当前重点", "Focus"), radarFocus)
                 Spacer()
                 labelPair(text("旧提醒", "Legacy alerts"), radarLegacyStatus)
             }
-            Text(radarSummary)
-            .font(.system(size: metrics.label))
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
+            expandableMenuText(
+                radarSummary,
+                key: "codex-radar-summary-\(radarFocus)-\(radarLegacyStatus)",
+                collapsedLines: 2,
+                fontSize: metrics.label
+            )
         }
     }
 
@@ -305,13 +315,14 @@ struct DashboardMenuView: View {
                 .font(.system(size: metrics.body, weight: .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
-            Text(text(
-                "默认低频自动刷新 reset credits；只读取本机 Codex 登录态，不保存 token，只缓存下方脱敏结果。",
-                "Low-frequency auto refresh is on by default. It reads local Codex auth, never stores tokens, and only caches the sanitized result below."
-            ))
-            .font(.system(size: metrics.caption))
-            .foregroundStyle(.secondary)
-            .lineLimit(3)
+            expandableCaptionText(
+                text(
+                    "默认低频自动刷新 reset credits；只读取本机 Codex 登录态，不保存 token，只缓存下方脱敏结果。",
+                    "Low-frequency auto refresh is on by default. It reads local Codex auth, never stores tokens, and only caches the sanitized result below."
+                ),
+                key: "reset-credit-intro",
+                collapsedLines: 3
+            )
 
             resetCreditStatusContent
 
@@ -319,13 +330,14 @@ struct DashboardMenuView: View {
                 Toggle(text("自动查询重置卡", "Auto check credits"), isOn: $store.resetCreditAutoRefreshEnabled)
                     .toggleStyle(.checkbox)
                     .font(.system(size: metrics.label, weight: .medium))
-                Text(text(
-                    "启动后和缓存超过 6 小时时自动刷新；失败不弹通知、不影响状态栏，旧缓存会继续保留。",
-                    "Refreshes after launch and when the cache is older than 6 hours. Failures stay quiet, keep old cache, and do not affect the menu bar."
-                ))
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
+                expandableCaptionText(
+                    text(
+                        "启动后和缓存超过 6 小时时自动刷新；失败不弹通知、不影响状态栏，旧缓存会继续保留。",
+                        "Refreshes after launch and when the cache is older than 6 hours. Failures stay quiet, keep old cache, and do not affect the menu bar."
+                    ),
+                    key: "reset-credit-auto-description",
+                    collapsedLines: 3
+                )
             }
 
             HStack(spacing: Layout.tileSpacing) {
@@ -354,17 +366,20 @@ struct DashboardMenuView: View {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text(text(
-                    automatic
-                        ? "正在自动刷新重置卡过期时间..."
-                        : "正在读取本机 Codex 登录态，并请求 ChatGPT reset credits...",
-                    automatic
-                        ? "Auto-refreshing reset credit expiry..."
-                        : "Reading local Codex auth and requesting ChatGPT reset credits..."
-                ))
-                .font(.system(size: metrics.caption, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+                expandableMenuText(
+                    text(
+                        automatic
+                            ? "正在自动刷新重置卡过期时间..."
+                            : "正在读取本机 Codex 登录态，并请求 ChatGPT reset credits...",
+                        automatic
+                            ? "Auto-refreshing reset credit expiry..."
+                            : "Reading local Codex auth and requesting ChatGPT reset credits..."
+                    ),
+                    key: "reset-credit-loading-\(automatic)",
+                    collapsedLines: 2,
+                    fontSize: metrics.caption,
+                    weight: .medium
+                )
             }
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -378,17 +393,18 @@ struct DashboardMenuView: View {
         if let snapshot = store.resetCreditSnapshot {
             resetCreditSnapshotView(snapshot)
         } else if !store.resetCreditPhase.isLoading {
-            Text(text(
-                store.resetCreditAutoRefreshEnabled
-                    ? "还没有缓存结果。自动查询会在启动后尝试一次，也可以点“立即刷新”。"
-                    : "还没有缓存结果。打开自动查询或点“立即刷新”后，这里会显示每张卡的发放时间、过期时间和剩余时间。",
-                store.resetCreditAutoRefreshEnabled
-                    ? "No cached result yet. Auto check will try after launch, or click Refresh now."
-                    : "No cached result yet. Turn on auto check or click Refresh now to show issue time, expiry time, and time left."
-            ))
-            .font(.system(size: metrics.caption))
-            .foregroundStyle(.secondary)
-            .lineLimit(3)
+            expandableCaptionText(
+                text(
+                    store.resetCreditAutoRefreshEnabled
+                        ? "还没有缓存结果。自动查询会在启动后尝试一次，也可以点“立即刷新”。"
+                        : "还没有缓存结果。打开自动查询或点“立即刷新”后，这里会显示每张卡的发放时间、过期时间和剩余时间。",
+                    store.resetCreditAutoRefreshEnabled
+                        ? "No cached result yet. Auto check will try after launch, or click Refresh now."
+                        : "No cached result yet. Turn on auto check or click Refresh now to show issue time, expiry time, and time left."
+                ),
+                key: "reset-credit-empty-\(store.resetCreditAutoRefreshEnabled)",
+                collapsedLines: 3
+            )
         }
     }
 
@@ -398,14 +414,19 @@ struct DashboardMenuView: View {
                 .font(.system(size: metrics.caption, weight: .semibold))
                 .foregroundStyle(.red)
                 .lineLimit(1)
-            Text(resetCreditFailureMessage(failure))
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-            Text(resetCreditFailureRecovery(failure))
-                .font(.system(size: metrics.caption, weight: .medium))
-                .foregroundStyle(Color.accentColor)
-                .lineLimit(3)
+            expandableCaptionText(
+                resetCreditFailureMessage(failure),
+                key: "reset-credit-failure-message-\(failure.kind)-\(failure.automatic)",
+                collapsedLines: 3
+            )
+            expandableMenuText(
+                resetCreditFailureRecovery(failure),
+                key: "reset-credit-failure-recovery-\(failure.kind)-\(failure.automatic)",
+                collapsedLines: 3,
+                fontSize: metrics.caption,
+                weight: .medium,
+                color: .accentColor
+            )
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -521,10 +542,11 @@ struct DashboardMenuView: View {
             VStack(alignment: .leading, spacing: 7) {
                 sectionTitle(text("CodexRadar 额度雷达", "CodexRadar Quota Radar"), systemImage: "chart.bar.xaxis")
                 quotaRadarTable(quotaRadar)
-                Text(quotaRadarSummary(quotaRadar))
-                    .font(.system(size: metrics.caption))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                expandableCaptionText(
+                    quotaRadarSummary(quotaRadar),
+                    key: "quota-radar-summary-\(quotaRadar.updatedAt ?? "")-\(quotaRadar.basisWindowLabel ?? "")",
+                    collapsedLines: 3
+                )
             }
         }
     }
@@ -564,7 +586,13 @@ struct DashboardMenuView: View {
     }
 
     private var predictionSection: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        let summary = state.prediction?.reasoningSummary ?? text(
+            "还没有读取到预测摘要。",
+            "No prediction summary loaded."
+        )
+        let level = state.prediction?.level ?? state.current?.prediction?.level ?? ""
+
+        return VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("Prediction 预测", "Prediction"), systemImage: "chart.line.uptrend.xyaxis")
             HStack {
                 labelPair(text("等级", "Level"), predictionLevelText(state.prediction?.level ?? state.current?.prediction?.level))
@@ -573,13 +601,12 @@ struct DashboardMenuView: View {
                 Spacer()
                 labelPair("48h", probability(state.prediction?.probability48h ?? state.current?.prediction?.probability48h))
             }
-            Text(state.prediction?.reasoningSummary ?? text(
-                "还没有读取到预测摘要。",
-                "No prediction summary loaded."
-            ))
-            .font(.system(size: metrics.label))
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
+            expandableMenuText(
+                summary,
+                key: "prediction-summary-\(level)-\(summary)",
+                collapsedLines: 2,
+                fontSize: metrics.label
+            )
         }
     }
 
@@ -742,9 +769,26 @@ struct DashboardMenuView: View {
         key: String,
         collapsedLines: Int
     ) -> some View {
+        expandableMenuText(
+            content,
+            key: key,
+            collapsedLines: collapsedLines,
+            fontSize: metrics.caption
+        )
+    }
+
+    private func expandableMenuText(
+        _ content: String,
+        key: String,
+        collapsedLines: Int,
+        fontSize: CGFloat,
+        weight: Font.Weight? = nil,
+        color: Color = .secondary
+    ) -> some View {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         let isExpanded = expandedTextKeys.contains(key)
         let canExpand = shouldOfferExpansion(trimmed, collapsedLines: collapsedLines)
+        let contentFont = weight.map { Font.system(size: fontSize, weight: $0) } ?? Font.system(size: fontSize)
 
         return Group {
             if canExpand {
@@ -753,8 +797,8 @@ struct DashboardMenuView: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(trimmed)
-                            .font(.system(size: metrics.caption))
-                            .foregroundStyle(.secondary)
+                            .font(contentFont)
+                            .foregroundStyle(color)
                             .lineLimit(isExpanded ? nil : collapsedLines)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -772,8 +816,8 @@ struct DashboardMenuView: View {
                 .help(isExpanded ? text("点击收起", "Click to collapse") : text("点击查看全文", "Click to show full text"))
             } else {
                 Text(trimmed)
-                    .font(.system(size: metrics.caption))
-                    .foregroundStyle(.secondary)
+                    .font(contentFont)
+                    .foregroundStyle(color)
                     .lineLimit(collapsedLines)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -815,16 +859,17 @@ struct DashboardMenuView: View {
             HStack(alignment: .firstTextBaseline) {
                 labelPair(text("上次查询", "Last check"), DisplayFormatters.compactDateTime(snapshot.checkedAt))
                 Spacer()
-                labelPair(text("可用", "Available"), "\(snapshot.effectiveAvailableCount)")
+            labelPair(text("可用", "Available"), "\(snapshot.effectiveAvailableCount)")
             }
             if snapshot.credits.isEmpty {
-                Text(text(
-                    "没有读取到重置卡。可能当前账号没有可展示的 reset credit，或接口返回结构已变化。",
-                    "No reset credits were found. This account may have none to show, or the endpoint shape changed."
-                ))
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
+                expandableCaptionText(
+                    text(
+                        "没有读取到重置卡。可能当前账号没有可展示的 reset credit，或接口返回结构已变化。",
+                        "No reset credits were found. This account may have none to show, or the endpoint shape changed."
+                    ),
+                    key: "reset-credit-empty-snapshot-\(snapshot.checkedAt.timeIntervalSince1970)",
+                    collapsedLines: 3
+                )
             } else {
                 ForEach(Array(snapshot.credits.indices), id: \.self) { index in
                     resetCreditRow(snapshot.credits[index], index: index)
@@ -1038,10 +1083,12 @@ struct DashboardMenuView: View {
     private func errorSection(_ error: String) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("连接", "Connection"), systemImage: "exclamationmark.triangle")
-            Text(error)
-                .font(.system(size: metrics.label))
-                .foregroundStyle(.secondary)
-                .lineLimit(4)
+            expandableMenuText(
+                error,
+                key: "connection-error-\(error)",
+                collapsedLines: 4,
+                fontSize: metrics.label
+            )
         }
     }
 
@@ -1131,21 +1178,23 @@ struct DashboardMenuView: View {
                         isOn: $store.chinaHolidayCalendarEnabled
                     )
                     .toggleStyle(.checkbox)
-                    Text(text(
-                        "默认开启，仅影响“工作日”策略。已内置 2026 年法定假日和调休补班：假日按周末权重，补班按工作日权重。",
-                        "On by default and only affects Workdays. Includes 2026 mainland China public holidays and makeup workdays: holidays use weekend weight; makeup days use weekday weight."
-                    ))
-                    .font(.system(size: metrics.caption))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                    expandableCaptionText(
+                        text(
+                            "默认开启，仅影响“工作日”策略。已内置 2026 年法定假日和调休补班：假日按周末权重，补班按工作日权重。",
+                            "On by default and only affects Workdays. Includes 2026 mainland China public holidays and makeup workdays: holidays use weekend weight; makeup days use weekday weight."
+                        ),
+                        key: "quota-pacing-china-holiday-description",
+                        collapsedLines: 3
+                    )
                 }
-                Text(text(
-                    "这个策略会同时影响下拉菜单里的“建议剩余”和可选状态栏段“应剩”。",
-                    "This rule affects both the Target left value in the dropdown and the optional Pace menu-bar segment."
-                ))
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+                expandableCaptionText(
+                    text(
+                        "这个策略会同时影响下拉菜单里的“建议剩余”和可选状态栏段“应剩”。",
+                        "This rule affects both the Target left value in the dropdown and the optional Pace menu-bar segment."
+                    ),
+                    key: "quota-pacing-effect-description",
+                    collapsedLines: 2
+                )
             }
         }
     }
@@ -1202,13 +1251,14 @@ struct DashboardMenuView: View {
                     }
                     .font(.system(size: metrics.caption, weight: .medium))
                 }
-                Text(text(
-                    "高级选项只影响菜单栏标题；下拉菜单里的精确数值保持完整。",
-                    "Advanced options only change the menu bar title; dropdown values stay complete."
-                ))
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+                expandableCaptionText(
+                    text(
+                        "高级选项只影响菜单栏标题；下拉菜单里的精确数值保持完整。",
+                        "Advanced options only change the menu bar title; dropdown values stay complete."
+                    ),
+                    key: "status-bar-advanced-description",
+                    collapsedLines: 2
+                )
             }
         }
     }
@@ -1225,10 +1275,13 @@ struct DashboardMenuView: View {
                     .font(.system(size: metrics.caption, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
-            Text(updateStatusText)
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(updateStatusColor)
-                .lineLimit(2)
+            expandableMenuText(
+                updateStatusText,
+                key: "update-status-\(updateStatusText)",
+                collapsedLines: 2,
+                fontSize: metrics.caption,
+                color: updateStatusColor
+            )
             HStack(spacing: Layout.tileSpacing) {
                 compactActionButton(title: text("检查更新", "Check"), systemImage: "arrow.clockwise") {
                     store.checkForUpdatesNow()
@@ -1269,13 +1322,14 @@ struct DashboardMenuView: View {
                 }
                 .pickerStyle(.segmented)
                 .font(.system(size: metrics.label))
-                Text(text(
-                    "只预览 UI；真实通知和去重仍使用 live 数据。",
-                    "UI preview only; notifications still use live data."
-                ))
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+                expandableCaptionText(
+                    text(
+                        "只预览 UI；真实通知和去重仍使用 live 数据。",
+                        "UI preview only; notifications still use live data."
+                    ),
+                    key: "debug-preview-description",
+                    collapsedLines: 2
+                )
             }
         }
     }
@@ -1506,12 +1560,10 @@ struct DashboardMenuView: View {
             Text(quotaPacingStrategySummary(strategy))
                 .font(.system(size: metrics.caption))
                 .foregroundStyle(.secondary)
-                .lineLimit(4)
                 .fixedSize(horizontal: false, vertical: true)
             Text(quotaPacingStrategyBestFor(strategy))
                 .font(.system(size: metrics.caption, weight: .medium))
                 .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-                .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(8)

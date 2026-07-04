@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.43: Expandable long text everywhere</strong> - Prediction, radar summaries, and error details can show the full text.</summary>
+
+- Long `Prediction` reasoning now shows a `Full text` affordance so the complete summary can be expanded in place.
+- Similar truncation points were audited: CodexRadar summaries, Quota Radar summaries, usage-pace notes, reset-credit guidance, failure reasons, connection errors, and update status text now share the same expand/collapse behavior.
+- Future menu summaries and explanatory text should use the shared expandable component instead of exposing an ellipsis without a full-text path.
+
+</details>
+
+<details>
 <summary><strong>v0.1.42: Auto reset-credit checks</strong> - Reset credit expiry refreshes automatically at a low frequency.</summary>
 
 - `Reset Credit Expiry` is now on by default: it refreshes after launch and when the cache is older than 6 hours, without joining the 60-second main polling loop.
@@ -438,7 +447,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.42
+./scripts/check_release_readiness.sh 0.1.43
 ```
 
 Build release packages:
@@ -446,7 +455,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.42
+./scripts/package_release.sh 0.1.43
 ```
 
 Update README menu bar and menu screenshots:

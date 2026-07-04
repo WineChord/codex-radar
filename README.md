@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.43：长文本统一可展开</strong> - Prediction、雷达摘要和错误提示都能点开全文。</summary>
+
+- `Prediction 预测` 的长 reasoning 摘要现在会显示 `全文`，点击即可展开完整内容。
+- 系统自查了类似截断点：CodexRadar 总结、额度雷达总结、用量节奏说明、重置卡提示、失败原因、连接错误、更新状态等摘要类文本都接入同一套展开逻辑。
+- 后续新增菜单摘要/说明时，应优先使用统一展开组件，避免只显示省略号却没有查看全文入口。
+
+</details>
+
+<details>
 <summary><strong>v0.1.42：重置卡自动查询</strong> - 默认低频刷新每张 reset credit 的过期时间。</summary>
 
 - `重置卡过期` 现在默认开启自动查询：启动后和缓存超过 6 小时时刷新一次，不接入 60 秒主轮询。
@@ -438,7 +447,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.42
+./scripts/check_release_readiness.sh 0.1.43
 ```
 
 构建 release 包：
@@ -446,7 +455,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.42
+./scripts/package_release.sh 0.1.43
 ```
 
 更新 README 状态栏和菜单截图：
