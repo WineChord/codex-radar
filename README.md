@@ -2,11 +2,20 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的 reset 研判、重置卡自查知识、额度估算、Model IQ、本机 Codex 额度状态与手动重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的 reset 研判、重置卡自查知识、额度估算、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
+
+<details>
+<summary><strong>v0.1.42：重置卡自动查询</strong> - 默认低频刷新每张 reset credit 的过期时间。</summary>
+
+- `重置卡过期` 现在默认开启自动查询：启动后和缓存超过 6 小时时刷新一次，不接入 60 秒主轮询。
+- 仍可一键关闭自动查询，也可以点 `立即刷新` 主动更新；缓存只保存脱敏卡片状态、发放时间、过期时间和 ID 后缀，不保存 token。
+- 失败提示改成可操作文案：未登录、登录态过期、网络失败、接口格式变化会给出不同下一步，并且失败时保留旧缓存、不弹系统通知、不影响状态栏额度。
+
+</details>
 
 <details>
 <summary><strong>v0.1.41：长摘要可展开</strong> - 重置雷达里的截断消息可以点击查看全文。</summary>
@@ -310,7 +319,7 @@
   策略包括：`按时间` 平滑均匀用完；`每日` 按天级预算推进；`留余` 前期保留 20% 缓冲；`工作日` 工作日多用、周末少用；`先用` 前半程更积极，避免 reset 前剩太多。
 - [CodexRadar](https://codexradar.com/) 首页可见的重置雷达研判：发重置卡、硬重置两条路径的等级、摘要和原因。
 - CodexRadar 首页可见的社区知识：`重置卡过期时间自查` prompt。菜单保留复制 prompt 作为兜底路径。
-- 用户手动触发的本机重置卡查询：点击 `查询重置卡` 后读取 `~/.codex/auth.json` 中的 Codex access token，请求 ChatGPT reset credits 接口，并只缓存脱敏后的卡片状态、发放时间和过期时间；不会自动执行，也不会保存 token。
+- 本机重置卡过期查询：默认低频自动刷新，也可以手动点 `立即刷新`；app 会读取 `~/.codex/auth.json` 中的 Codex access token，请求 ChatGPT reset credits 接口，并只缓存脱敏后的卡片状态、发放时间和过期时间，不保存 token。
 - CodexRadar 当前公开的 Model IQ、模型质量状态和探针通过数。
 - CodexRadar 首页可见的额度雷达：20x Pro / 5x Pro / Plus 的 5h 和 7d 美元等价值估算。它不是本机剩余额度，只是公开估算。
 - CodexRadar 首页可见的模型质量方向：速度、费用、cache 命中率和社区体感分。
@@ -389,7 +398,7 @@ Codex Radar Sentinel 读取这些公开入口：
 
 当响应里存在 `rateLimitsByLimitId.codex` 时，优先使用这个 bucket。5 小时窗口显示为 `短窗`，10,080 分钟窗口显示为 `周额度`。
 
-本机重置卡过期时间只在点击 `查询重置卡` 后读取：app 会从 `~/.codex/auth.json` 取 Codex access token，把它作为 Authorization header 发给 ChatGPT reset credits 接口，然后只把脱敏后的卡片元数据缓存到本机偏好设置里。
+本机重置卡过期时间默认低频自动刷新：app 启动后、或缓存超过 6 小时时，会从 `~/.codex/auth.json` 取 Codex access token，把它作为 Authorization header 发给 ChatGPT reset credits 接口，然后只把脱敏后的卡片元数据缓存到本机偏好设置里。你可以在下拉菜单里关闭自动查询；失败时只显示友好提示并保留旧缓存。
 
 ## 手动安装
 
@@ -429,7 +438,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.41
+./scripts/check_release_readiness.sh 0.1.42
 ```
 
 构建 release 包：
@@ -437,7 +446,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.41
+./scripts/package_release.sh 0.1.42
 ```
 
 更新 README 状态栏和菜单截图：

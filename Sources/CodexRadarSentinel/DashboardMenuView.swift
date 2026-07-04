@@ -306,14 +306,27 @@ struct DashboardMenuView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
             Text(text(
-                "点击后读取本机 Codex 登录态并查询 reset credits；不会自动执行，不保存 token，只缓存下方脱敏结果。",
-                "Click to read the local Codex login state and query reset credits. It never runs automatically, never stores tokens, and only caches the sanitized result below."
+                "默认低频自动刷新 reset credits；只读取本机 Codex 登录态，不保存 token，只缓存下方脱敏结果。",
+                "Low-frequency auto refresh is on by default. It reads local Codex auth, never stores tokens, and only caches the sanitized result below."
             ))
             .font(.system(size: metrics.caption))
             .foregroundStyle(.secondary)
             .lineLimit(3)
 
             resetCreditStatusContent
+
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle(text("自动查询重置卡", "Auto check credits"), isOn: $store.resetCreditAutoRefreshEnabled)
+                    .toggleStyle(.checkbox)
+                    .font(.system(size: metrics.label, weight: .medium))
+                Text(text(
+                    "启动后和缓存超过 6 小时时自动刷新；失败不弹通知、不影响状态栏，旧缓存会继续保留。",
+                    "Refreshes after launch and when the cache is older than 6 hours. Failures stay quiet, keep old cache, and do not affect the menu bar."
+                ))
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+            }
 
             HStack(spacing: Layout.tileSpacing) {
                 compactActionButton(
@@ -337,13 +350,17 @@ struct DashboardMenuView: View {
 
     @ViewBuilder
     private var resetCreditStatusContent: some View {
-        if case .loading = store.resetCreditPhase {
+        if case .loading(_, let automatic) = store.resetCreditPhase {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
                 Text(text(
-                    "正在读取本机 Codex 登录态，并请求 ChatGPT reset credits...",
-                    "Reading local Codex auth and requesting ChatGPT reset credits..."
+                    automatic
+                        ? "正在自动刷新重置卡过期时间..."
+                        : "正在读取本机 Codex 登录态，并请求 ChatGPT reset credits...",
+                    automatic
+                        ? "Auto-refreshing reset credit expiry..."
+                        : "Reading local Codex auth and requesting ChatGPT reset credits..."
                 ))
                 .font(.system(size: metrics.caption, weight: .medium))
                 .foregroundStyle(.secondary)
@@ -354,26 +371,129 @@ struct DashboardMenuView: View {
             .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
 
-        if case .failed(let message) = store.resetCreditPhase {
-            Text(text("查询失败：\(message)", "Check failed: \(message)"))
-                .font(.system(size: metrics.caption, weight: .medium))
-                .foregroundStyle(.red)
-                .lineLimit(3)
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        if case .failed(let failure) = store.resetCreditPhase {
+            resetCreditFailureView(failure)
         }
 
         if let snapshot = store.resetCreditSnapshot {
             resetCreditSnapshotView(snapshot)
         } else if !store.resetCreditPhase.isLoading {
             Text(text(
-                "还没有缓存结果。点击“查询重置卡”后，这里会显示每张卡的发放时间、过期时间和剩余时间。",
-                "No cached result yet. Click Check Credits to show each credit's issue time, expiry time, and time left."
+                store.resetCreditAutoRefreshEnabled
+                    ? "还没有缓存结果。自动查询会在启动后尝试一次，也可以点“立即刷新”。"
+                    : "还没有缓存结果。打开自动查询或点“立即刷新”后，这里会显示每张卡的发放时间、过期时间和剩余时间。",
+                store.resetCreditAutoRefreshEnabled
+                    ? "No cached result yet. Auto check will try after launch, or click Refresh now."
+                    : "No cached result yet. Turn on auto check or click Refresh now to show issue time, expiry time, and time left."
             ))
             .font(.system(size: metrics.caption))
             .foregroundStyle(.secondary)
             .lineLimit(3)
+        }
+    }
+
+    private func resetCreditFailureView(_ failure: ResetCreditFailure) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(resetCreditFailureTitle(failure))
+                .font(.system(size: metrics.caption, weight: .semibold))
+                .foregroundStyle(.red)
+                .lineLimit(1)
+            Text(resetCreditFailureMessage(failure))
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+            Text(resetCreditFailureRecovery(failure))
+                .font(.system(size: metrics.caption, weight: .medium))
+                .foregroundStyle(Color.accentColor)
+                .lineLimit(3)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func resetCreditFailureTitle(_ failure: ResetCreditFailure) -> String {
+        if failure.automatic, store.resetCreditSnapshot != nil {
+            return text("自动刷新失败，已保留上次结果", "Auto refresh failed; keeping last result")
+        }
+        if failure.automatic {
+            return text("自动查询暂时失败", "Auto check failed for now")
+        }
+        return text("查询失败", "Check failed")
+    }
+
+    private func resetCreditFailureMessage(_ failure: ResetCreditFailure) -> String {
+        switch failure.kind {
+        case .authFileMissing:
+            return text(
+                "没有找到本机 Codex 登录文件，可能还没有在 Codex 里登录。",
+                "Local Codex auth was not found. You may not be signed in to Codex yet."
+            )
+        case .invalidAuthFile:
+            return text(
+                "本机 Codex 登录文件不是可读取的 JSON。",
+                "The local Codex auth file is not readable JSON."
+            )
+        case .accessTokenMissing:
+            return text(
+                "本机 Codex 登录文件里没有 access token。",
+                "The local Codex auth file does not contain an access token."
+            )
+        case .unauthorized(let status):
+            return text(
+                "ChatGPT 拒绝了这次请求（HTTP \(status)），通常是登录态过期或账号态变化。",
+                "ChatGPT rejected the request (HTTP \(status)), usually because the login state expired or the account state changed."
+            )
+        case .network:
+            return text(
+                "网络请求没有完成，可能是当前网络、代理或 ChatGPT 临时不可达。",
+                "The network request did not finish. It may be the current network, proxy, or a temporary ChatGPT outage."
+            )
+        case .service(let status):
+            return text(
+                "ChatGPT reset credits 接口返回 HTTP \(status)。",
+                "The ChatGPT reset credits endpoint returned HTTP \(status)."
+            )
+        case .responseChanged:
+            return text(
+                "接口返回内容和预期不一致，可能是 ChatGPT 调整了 reset credits 数据格式。",
+                "The response did not match the expected shape. ChatGPT may have changed the reset credits format."
+            )
+        case .unknown:
+            return text(
+                "遇到未知错误：\(failure.detail)",
+                "Unexpected error: \(failure.detail)"
+            )
+        }
+    }
+
+    private func resetCreditFailureRecovery(_ failure: ResetCreditFailure) -> String {
+        switch failure.kind {
+        case .authFileMissing, .invalidAuthFile, .accessTokenMissing:
+            return text(
+                "打开 Codex 并确认已登录，然后点“立即刷新”。",
+                "Open Codex, confirm you are signed in, then click Refresh now."
+            )
+        case .unauthorized:
+            return text(
+                "重新登录 Codex 后再刷新；旧缓存不会被清掉。",
+                "Sign in to Codex again, then refresh. The old cache is not cleared."
+            )
+        case .network, .service:
+            return text(
+                "稍后会自动重试，也可以现在手动刷新；这不会影响状态栏额度。",
+                "It will retry later, or you can refresh now. This does not affect menu-bar quota."
+            )
+        case .responseChanged:
+            return text(
+                "可以先用“复制 Prompt”兜底查看；如果持续失败，说明需要适配新接口。",
+                "Use Copy Prompt as a fallback for now. If it keeps failing, the app needs an endpoint update."
+            )
+        case .unknown:
+            return text(
+                "可以稍后重试；如果持续失败，复制错误信息到 issue 里更容易排查。",
+                "Retry later. If it keeps failing, include this error in an issue for easier debugging."
+            )
         }
     }
 
@@ -391,7 +511,7 @@ struct DashboardMenuView: View {
     private var resetCreditRefreshButtonTitle: String {
         store.resetCreditPhase.isLoading
             ? text("查询中", "Checking")
-            : text("查询重置卡", "Check Credits")
+            : text("立即刷新", "Refresh now")
     }
 
     @ViewBuilder

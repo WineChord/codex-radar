@@ -4,8 +4,8 @@ import Foundation
 
 enum ResetCreditLoadPhase: Equatable {
     case idle
-    case loading(Date)
-    case failed(String)
+    case loading(Date, automatic: Bool)
+    case failed(ResetCreditFailure)
 
     var isLoading: Bool {
         if case .loading = self {
@@ -13,6 +13,24 @@ enum ResetCreditLoadPhase: Equatable {
         }
         return false
     }
+}
+
+struct ResetCreditFailure: Equatable {
+    enum Kind: Equatable {
+        case authFileMissing
+        case invalidAuthFile
+        case accessTokenMissing
+        case unauthorized(Int)
+        case network
+        case service(Int)
+        case responseChanged
+        case unknown
+    }
+
+    let kind: Kind
+    let detail: String
+    let occurredAt: Date
+    let automatic: Bool
 }
 
 @MainActor
@@ -170,6 +188,22 @@ final class SentinelStore: NSObject, ObservableObject {
     @Published private(set) var resetCreditSnapshot: ResetCreditSnapshot?
     @Published private(set) var resetCreditPhase: ResetCreditLoadPhase = .idle
 
+    @Published var resetCreditAutoRefreshEnabled: Bool {
+        didSet {
+            defaults.set(resetCreditAutoRefreshEnabled, forKey: DefaultsKey.resetCreditAutoRefreshEnabled)
+            guard !suppressResetCreditAutoRefreshSideEffects else {
+                return
+            }
+            if resetCreditAutoRefreshEnabled {
+                startResetCreditAutoRefresh()
+                refreshResetCreditsIfNeeded(automatic: true)
+            } else {
+                resetCreditAutoRefreshTask?.cancel()
+                resetCreditAutoRefreshTask = nil
+            }
+        }
+    }
+
     @Published var launchAtLoginEnabled: Bool {
         didSet {
             LaunchAtLoginController.setEnabled(launchAtLoginEnabled)
@@ -200,6 +234,7 @@ final class SentinelStore: NSObject, ObservableObject {
         static let dismissedSpeedAlertKey = "dismissedSpeedAlertKey"
         static let debugPreviewSectionExpanded = "debugPreviewSectionExpanded"
         static let resetCreditSnapshot = "resetCreditSnapshot"
+        static let resetCreditAutoRefreshEnabled = "resetCreditAutoRefreshEnabled"
     }
 
     private static let defaultStatusMetrics: [StatusMetric] = [
@@ -220,6 +255,8 @@ final class SentinelStore: NSObject, ObservableObject {
     private var updateTask: Task<Void, Never>?
     private var automaticUpdateTask: Task<Void, Never>?
     private var resetCreditTask: Task<Void, Never>?
+    private var resetCreditAutoRefreshTask: Task<Void, Never>?
+    private var suppressResetCreditAutoRefreshSideEffects = false
     private var emphasizedSpeedAlertKey: String?
     private var speedAlertFirstSeenAt: Date?
 
@@ -263,6 +300,7 @@ final class SentinelStore: NSObject, ObservableObject {
         self.iqNotificationsEnabled = defaults.object(forKey: DefaultsKey.iqNotificationsEnabled) as? Bool ?? true
         self.notificationSoundEnabled = defaults.object(forKey: DefaultsKey.notificationSoundEnabled) as? Bool ?? false
         self.automaticUpdatesEnabled = defaults.object(forKey: DefaultsKey.automaticUpdatesEnabled) as? Bool ?? true
+        self.resetCreditAutoRefreshEnabled = defaults.object(forKey: DefaultsKey.resetCreditAutoRefreshEnabled) as? Bool ?? true
         self.launchAtLoginEnabled = defaults.object(forKey: DefaultsKey.launchAtLoginEnabled) as? Bool ?? LaunchAtLoginController.isEnabled
         self.dismissedSpeedAlertKey = defaults.string(forKey: DefaultsKey.dismissedSpeedAlertKey)
         self.notificationMemory = Self.loadNotificationMemory(defaults: defaults)
@@ -348,6 +386,7 @@ final class SentinelStore: NSObject, ObservableObject {
     func start() {
         refreshNow()
         startAutomaticUpdateChecks()
+        startResetCreditAutoRefresh()
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: AppConstants.defaultPollIntervalSeconds * 1_000_000_000)
@@ -362,6 +401,7 @@ final class SentinelStore: NSObject, ObservableObject {
         updateTask?.cancel()
         automaticUpdateTask?.cancel()
         resetCreditTask?.cancel()
+        resetCreditAutoRefreshTask?.cancel()
         Task {
             await appServerClient.shutdown()
         }
@@ -399,12 +439,26 @@ final class SentinelStore: NSObject, ObservableObject {
     }
 
     func refreshResetCredits() {
+        refreshResetCredits(automatic: false)
+    }
+
+    func refreshResetCreditsIfNeeded(automatic: Bool) {
+        guard resetCreditAutoRefreshEnabled else {
+            return
+        }
+        guard resetCreditSnapshotIsStale() else {
+            return
+        }
+        refreshResetCredits(automatic: automatic)
+    }
+
+    private func refreshResetCredits(automatic: Bool) {
         guard !resetCreditPhase.isLoading else {
             return
         }
         let client = resetCreditClient
         resetCreditTask?.cancel()
-        resetCreditPhase = .loading(Date())
+        resetCreditPhase = .loading(Date(), automatic: automatic)
         resetCreditTask = Task { [weak self, client] in
             do {
                 let snapshot = try await client.fetch()
@@ -421,7 +475,9 @@ final class SentinelStore: NSObject, ObservableObject {
                     guard let self else {
                         return
                     }
-                    self.resetCreditPhase = .failed(error.localizedDescription)
+                    self.resetCreditPhase = .failed(
+                        self.resetCreditFailure(from: error, automatic: automatic)
+                    )
                 }
             }
         }
@@ -451,6 +507,9 @@ final class SentinelStore: NSObject, ObservableObject {
         predictionNotificationsEnabled = true
         iqNotificationsEnabled = true
         notificationSoundEnabled = false
+        suppressResetCreditAutoRefreshSideEffects = true
+        resetCreditAutoRefreshEnabled = true
+        suppressResetCreditAutoRefreshSideEffects = false
         updatePhase = .upToDate(Date())
 
         var documentationState = DashboardPreviewFactory.state(
@@ -989,6 +1048,99 @@ final class SentinelStore: NSObject, ObservableObject {
                 await self?.checkForUpdates(automatic: true)
             }
         }
+    }
+
+    private func startResetCreditAutoRefresh() {
+        guard resetCreditAutoRefreshEnabled else {
+            return
+        }
+        resetCreditAutoRefreshTask?.cancel()
+        resetCreditAutoRefreshTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: AppConstants.resetCreditAutoRefreshInitialDelaySeconds * 1_000_000_000)
+            self?.refreshResetCreditsIfNeeded(automatic: true)
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: AppConstants.resetCreditAutoRefreshIntervalSeconds * 1_000_000_000)
+                self?.refreshResetCreditsIfNeeded(automatic: true)
+            }
+        }
+    }
+
+    private func resetCreditSnapshotIsStale(now: Date = Date()) -> Bool {
+        guard let resetCreditSnapshot else {
+            return true
+        }
+        return now.timeIntervalSince(resetCreditSnapshot.checkedAt) >= AppConstants.resetCreditCacheStaleSeconds
+    }
+
+    private func resetCreditFailure(from error: Error, automatic: Bool) -> ResetCreditFailure {
+        if let clientError = error as? ResetCreditClient.ClientError {
+            switch clientError {
+            case .authFileNotFound:
+                return ResetCreditFailure(
+                    kind: .authFileMissing,
+                    detail: clientError.localizedDescription,
+                    occurredAt: Date(),
+                    automatic: automatic
+                )
+            case .invalidAuthFile:
+                return ResetCreditFailure(
+                    kind: .invalidAuthFile,
+                    detail: clientError.localizedDescription,
+                    occurredAt: Date(),
+                    automatic: automatic
+                )
+            case .accessTokenNotFound:
+                return ResetCreditFailure(
+                    kind: .accessTokenMissing,
+                    detail: clientError.localizedDescription,
+                    occurredAt: Date(),
+                    automatic: automatic
+                )
+            case .unauthorized(let status):
+                return ResetCreditFailure(
+                    kind: .unauthorized(status),
+                    detail: clientError.localizedDescription,
+                    occurredAt: Date(),
+                    automatic: automatic
+                )
+            case .httpStatus(let status):
+                return ResetCreditFailure(
+                    kind: .service(status),
+                    detail: clientError.localizedDescription,
+                    occurredAt: Date(),
+                    automatic: automatic
+                )
+            case .emptyResponse:
+                return ResetCreditFailure(
+                    kind: .responseChanged,
+                    detail: clientError.localizedDescription,
+                    occurredAt: Date(),
+                    automatic: automatic
+                )
+            }
+        }
+        if let urlError = error as? URLError {
+            return ResetCreditFailure(
+                kind: .network,
+                detail: urlError.localizedDescription,
+                occurredAt: Date(),
+                automatic: automatic
+            )
+        }
+        if error is DecodingError {
+            return ResetCreditFailure(
+                kind: .responseChanged,
+                detail: error.localizedDescription,
+                occurredAt: Date(),
+                automatic: automatic
+            )
+        }
+        return ResetCreditFailure(
+            kind: .unknown,
+            detail: error.localizedDescription,
+            occurredAt: Date(),
+            automatic: automatic
+        )
     }
 
     private func checkForUpdates(automatic: Bool) async {

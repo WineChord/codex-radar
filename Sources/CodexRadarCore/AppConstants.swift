@@ -4,7 +4,7 @@ public enum AppConstants {
     public static let appName = "Codex Radar Sentinel"
     public static let clientName = "codex-radar-sentinel"
     public static let bundleIdentifier = "com.codexradar.sentinel"
-    public static let appVersion = "0.1.41"
+    public static let appVersion = "0.1.42"
 
     public static let codexLimitID = "codex"
     public static let weeklyWindowMinutes = 10_080.0
@@ -20,6 +20,9 @@ public enum AppConstants {
 
     public static let defaultPollIntervalSeconds: UInt64 = 60
     public static let requestTimeoutSeconds: UInt64 = 15
+    public static let resetCreditAutoRefreshInitialDelaySeconds: UInt64 = 8
+    public static let resetCreditAutoRefreshIntervalSeconds: UInt64 = 21_600
+    public static let resetCreditCacheStaleSeconds: TimeInterval = 21_600
     public static let speedAlertEmphasisSeconds: TimeInterval = 1_800
     public static let initialUpdateCheckDelaySeconds: UInt64 = 5
     public static let updateCheckIntervalSeconds: UInt64 = 21_600
