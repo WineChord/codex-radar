@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.44: Full-text affordance only when truncated</strong> - Fully visible text no longer shows an extra control.</summary>
+
+- `Full text / Collapse` now compares the rendered collapsed height with the rendered full height instead of relying on a rough character-count heuristic.
+- If a message already fits, the dropdown simply shows the message; the full-text control appears only when the text is actually truncated.
+- The same behavior is reused across Prediction, Reset Radar, Quota Radar, error details, and future summary/explanation text.
+
+</details>
+
+<details>
 <summary><strong>v0.1.43: Expandable long text everywhere</strong> - Prediction, radar summaries, and error details can show the full text.</summary>
 
 - Long `Prediction` reasoning now shows a `Full text` affordance so the complete summary can be expanded in place.
@@ -447,7 +456,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.43
+./scripts/check_release_readiness.sh 0.1.44
 ```
 
 Build release packages:
@@ -455,7 +464,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.43
+./scripts/package_release.sh 0.1.44
 ```
 
 Update README menu bar and menu screenshots:

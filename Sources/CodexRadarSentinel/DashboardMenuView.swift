@@ -786,62 +786,21 @@ struct DashboardMenuView: View {
         color: Color = .secondary
     ) -> some View {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isExpanded = expandedTextKeys.contains(key)
-        let canExpand = shouldOfferExpansion(trimmed, collapsedLines: collapsedLines)
         let contentFont = weight.map { Font.system(size: fontSize, weight: $0) } ?? Font.system(size: fontSize)
 
-        return Group {
-            if canExpand {
-                Button {
-                    toggleExpandedText(key)
-                } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(trimmed)
-                            .font(contentFont)
-                            .foregroundStyle(color)
-                            .lineLimit(isExpanded ? nil : collapsedLines)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        HStack(spacing: 4) {
-                            Spacer(minLength: 0)
-                            Text(isExpanded ? text("收起", "Collapse") : text("全文", "Full text"))
-                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        }
-                        .font(.system(size: metrics.caption, weight: .medium))
-                        .foregroundStyle(Color.accentColor)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(isExpanded ? text("点击收起", "Click to collapse") : text("点击查看全文", "Click to show full text"))
-            } else {
-                Text(trimmed)
-                    .font(contentFont)
-                    .foregroundStyle(color)
-                    .lineLimit(collapsedLines)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private func shouldOfferExpansion(_ content: String, collapsedLines: Int) -> Bool {
-        content.contains("\n") || visualTextLength(content) > Double(collapsedLines * 32)
-    }
-
-    private func visualTextLength(_ content: String) -> Double {
-        content.reduce(0) { partialResult, character in
-            partialResult + (character.isASCII ? 1 : 2)
-        }
-    }
-
-    private func toggleExpandedText(_ key: String) {
-        withAnimation(.easeInOut(duration: 0.14)) {
-            if expandedTextKeys.contains(key) {
-                expandedTextKeys.remove(key)
-            } else {
-                expandedTextKeys.insert(key)
-            }
-        }
+        return TruncationAwareExpandableText(
+            content: trimmed,
+            key: key,
+            collapsedLines: collapsedLines,
+            contentFont: contentFont,
+            controlFont: .system(size: metrics.caption, weight: .medium),
+            color: color,
+            expandLabel: text("全文", "Full text"),
+            collapseLabel: text("收起", "Collapse"),
+            expandHelp: text("点击查看全文", "Click to show full text"),
+            collapseHelp: text("点击收起", "Click to collapse"),
+            expandedKeys: $expandedTextKeys
+        )
     }
 
     private func copyCommunityPrompt(_ prompt: String) {
@@ -2013,4 +1972,133 @@ struct DashboardMenuView: View {
         }
     }
 
+}
+
+private struct TruncationAwareExpandableText: View {
+    let content: String
+    let key: String
+    let collapsedLines: Int
+    let contentFont: Font
+    let controlFont: Font
+    let color: Color
+    let expandLabel: String
+    let collapseLabel: String
+    let expandHelp: String
+    let collapseHelp: String
+    @Binding var expandedKeys: Set<String>
+    @State private var collapsedHeight: CGFloat = 0
+    @State private var fullHeight: CGFloat = 0
+
+    private var isExpanded: Bool {
+        expandedKeys.contains(key)
+    }
+
+    private var canExpand: Bool {
+        collapsedHeight > 0 && fullHeight > collapsedHeight + 1
+    }
+
+    var body: some View {
+        Group {
+            if canExpand {
+                Button {
+                    toggleExpandedText()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        visibleText
+                            .lineLimit(isExpanded ? nil : collapsedLines)
+                        HStack(spacing: 4) {
+                            Spacer(minLength: 0)
+                            Text(isExpanded ? collapseLabel : expandLabel)
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        }
+                        .font(controlFont)
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(isExpanded ? collapseHelp : expandHelp)
+            } else {
+                visibleText
+                    .lineLimit(collapsedLines)
+            }
+        }
+        .background(measurementViews)
+    }
+
+    private var visibleText: some View {
+        Text(content)
+            .font(contentFont)
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var measurementViews: some View {
+        VStack(spacing: 0) {
+            Text(content)
+                .font(contentFont)
+                .lineLimit(collapsedLines)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: CollapsedTextHeightPreferenceKey.self,
+                            value: proxy.size.height
+                        )
+                    }
+                }
+                .onPreferenceChange(CollapsedTextHeightPreferenceKey.self) { height in
+                    if abs(collapsedHeight - height) > 0.5 {
+                        collapsedHeight = height
+                    }
+                }
+            Text(content)
+                .font(contentFont)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: FullTextHeightPreferenceKey.self,
+                            value: proxy.size.height
+                        )
+                    }
+                }
+                .onPreferenceChange(FullTextHeightPreferenceKey.self) { height in
+                    if abs(fullHeight - height) > 0.5 {
+                        fullHeight = height
+                    }
+                }
+        }
+        .hidden()
+        .accessibilityHidden(true)
+    }
+
+    private func toggleExpandedText() {
+        withAnimation(.easeInOut(duration: 0.14)) {
+            if expandedKeys.contains(key) {
+                expandedKeys.remove(key)
+            } else {
+                expandedKeys.insert(key)
+            }
+        }
+    }
+}
+
+private struct CollapsedTextHeightPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct FullTextHeightPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
 }

@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.44：全文入口按实际截断显示</strong> - 已经完整显示的文本不再多一个“全文”。</summary>
+
+- `全文 / 收起` 不再只按字符数粗略判断，而是比较折叠态和全文的实际渲染高度。
+- 如果当前文本已经完整显示，就只展示正文；只有真实被截断时才出现 `全文` 入口。
+- 这套逻辑仍然复用在 Prediction、Reset Radar、额度雷达、错误提示和后续新增的摘要说明里。
+
+</details>
+
+<details>
 <summary><strong>v0.1.43：长文本统一可展开</strong> - Prediction、雷达摘要和错误提示都能点开全文。</summary>
 
 - `Prediction 预测` 的长 reasoning 摘要现在会显示 `全文`，点击即可展开完整内容。
@@ -447,7 +456,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.43
+./scripts/check_release_readiness.sh 0.1.44
 ```
 
 构建 release 包：
@@ -455,7 +464,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.43
+./scripts/package_release.sh 0.1.44
 ```
 
 更新 README 状态栏和菜单截图：
