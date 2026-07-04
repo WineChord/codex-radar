@@ -5,6 +5,7 @@ import SwiftUI
 struct DashboardMenuView: View {
     @ObservedObject var store: SentinelStore
     @State private var copiedCommunityPrompt = false
+    @State private var expandedTextKeys: Set<String> = []
     var scrolling: Bool = true
 
     private enum Layout {
@@ -287,10 +288,11 @@ struct DashboardMenuView: View {
                     }
                 }
                 if !judgement.reasons.isEmpty {
-                    Text(resetJudgementReasonsText(judgement))
-                        .font(.system(size: metrics.caption))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
+                    expandableCaptionText(
+                        resetJudgementReasonsText(judgement),
+                        key: "reset-judgement-reasons-\(judgement.title ?? "")-\(judgement.updatedLabel ?? "")",
+                        collapsedLines: 3
+                    )
                 }
             }
         }
@@ -582,11 +584,11 @@ struct DashboardMenuView: View {
                 .foregroundStyle(resetJudgementLevelColor(card.level))
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
-            Text(card.summary ?? "")
-                .font(.system(size: metrics.caption))
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
+            expandableCaptionText(
+                card.summary ?? "",
+                key: "reset-judgement-card-\(card.id)",
+                collapsedLines: 3
+            )
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -609,11 +611,73 @@ struct DashboardMenuView: View {
     }
 
     private func resetJudgementReasonsText(_ judgement: ResetJudgement) -> String {
-        let reasons = judgement.reasons.prefix(2)
-        guard !reasons.isEmpty else {
+        guard !judgement.reasons.isEmpty else {
             return text("CodexRadar 暂无原因摘要。", "No CodexRadar reason summary yet.")
         }
-        return reasons.joined(separator: " ")
+        return judgement.reasons.joined(separator: " ")
+    }
+
+    private func expandableCaptionText(
+        _ content: String,
+        key: String,
+        collapsedLines: Int
+    ) -> some View {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isExpanded = expandedTextKeys.contains(key)
+        let canExpand = shouldOfferExpansion(trimmed, collapsedLines: collapsedLines)
+
+        return Group {
+            if canExpand {
+                Button {
+                    toggleExpandedText(key)
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(trimmed)
+                            .font(.system(size: metrics.caption))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(isExpanded ? nil : collapsedLines)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: 4) {
+                            Spacer(minLength: 0)
+                            Text(isExpanded ? text("收起", "Collapse") : text("全文", "Full text"))
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        }
+                        .font(.system(size: metrics.caption, weight: .medium))
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(isExpanded ? text("点击收起", "Click to collapse") : text("点击查看全文", "Click to show full text"))
+            } else {
+                Text(trimmed)
+                    .font(.system(size: metrics.caption))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(collapsedLines)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func shouldOfferExpansion(_ content: String, collapsedLines: Int) -> Bool {
+        content.contains("\n") || visualTextLength(content) > Double(collapsedLines * 32)
+    }
+
+    private func visualTextLength(_ content: String) -> Double {
+        content.reduce(0) { partialResult, character in
+            partialResult + (character.isASCII ? 1 : 2)
+        }
+    }
+
+    private func toggleExpandedText(_ key: String) {
+        withAnimation(.easeInOut(duration: 0.14)) {
+            if expandedTextKeys.contains(key) {
+                expandedTextKeys.remove(key)
+            } else {
+                expandedTextKeys.insert(key)
+            }
+        }
     }
 
     private func copyCommunityPrompt(_ prompt: String) {

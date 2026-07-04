@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.41：长摘要可展开</strong> - 重置雷达里的截断消息可以点击查看全文。</summary>
+
+- `CodexRadar 重置雷达` 的路径卡片摘要和原因摘要默认仍保持紧凑，避免菜单变长。
+- 当文本较长时，下方会出现 `全文`；点击后在原位置展开完整内容，再点 `收起` 恢复。
+- 适合查看 Tibo 回复、社区反证、硬重置说明这类容易被截断的长消息。
+
+</details>
+
+<details>
 <summary><strong>v0.1.40：重置卡过期时间</strong> - 下拉菜单可手动查询并缓存每张 reset credit 的过期时间。</summary>
 
 - `重置卡过期` 区块新增 `查询重置卡`：点击后才读取本机 Codex 登录态并请求 reset credits，不接入 60 秒轮询。
@@ -420,7 +429,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.40
+./scripts/check_release_readiness.sh 0.1.41
 ```
 
 构建 release 包：
@@ -428,7 +437,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.40
+./scripts/package_release.sh 0.1.41
 ```
 
 更新 README 状态栏和菜单截图：

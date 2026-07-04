@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.41: Expand long summaries</strong> - Truncated Reset Radar messages can be clicked to show the full text.</summary>
+
+- Reset Radar card summaries and reason summaries stay compact by default, so the dropdown does not grow unnecessarily.
+- When a message is long, a `Full text` control appears below it; click once to expand in place, then click `Collapse` to return to the compact view.
+- Useful for Tibo replies, community counterexamples, and hard-reset notes that are easy to truncate.
+
+</details>
+
+<details>
 <summary><strong>v0.1.40: Reset credit expiry</strong> - The dropdown can manually check and cache each reset credit's expiry time.</summary>
 
 - The `Reset Credit Expiry` section adds `Check Credits`: it reads local Codex auth and requests reset credits only after you click, never as part of the 60-second polling loop.
@@ -420,7 +429,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.40
+./scripts/check_release_readiness.sh 0.1.41
 ```
 
 Build release packages:
@@ -428,7 +437,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.40
+./scripts/package_release.sh 0.1.41
 ```
 
 Update README menu bar and menu screenshots:
