@@ -2,11 +2,20 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的 reset 研判、重置卡自查知识、额度估算、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、重置卡自查知识、额度估算、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
+
+<details>
+<summary><strong>v0.1.45：CodexRadar 公告同步</strong> - 首页公告会出现在菜单里。</summary>
+
+- 同步 CodexRadar 首页顶部的 `公告`，例如 GPT-5.6 发布概率这类临时公开信号。
+- 公告区靠近菜单顶部，默认保持紧凑；内容过长时沿用动态 `全文` 入口。
+- 有来源链接时会显示可点击来源按钮，但不进入状态栏、不发通知，避免打扰核心额度和质量判断。
+
+</details>
 
 <details>
 <summary><strong>v0.1.44：全文入口按实际截断显示</strong> - 已经完整显示的文本不再多一个“全文”。</summary>
@@ -456,7 +465,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.44
+./scripts/check_release_readiness.sh 0.1.45
 ```
 
 构建 release 包：
@@ -464,7 +473,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.44
+./scripts/package_release.sh 0.1.45
 ```
 
 更新 README 状态栏和菜单截图：

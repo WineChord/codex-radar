@@ -2,11 +2,20 @@
 
 [中文](README.md) | English
 
-Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides reset radar, community knowledge, quota radar, and model quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar reset judgement, reset-credit check knowledge, quota estimates, Model IQ, local Codex quota state, and reset-credit expiry checks together, while keeping compatibility if the old reset/speed endpoints return.
+Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, and model quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, reset-credit check knowledge, quota estimates, Model IQ, local Codex quota state, and reset-credit expiry checks together, while keeping compatibility if the old reset/speed endpoints return.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
 ## News
+
+<details>
+<summary><strong>v0.1.45: CodexRadar notices</strong> - Homepage notices now appear in the menu.</summary>
+
+- Mirrors the `Notice` block from the top of CodexRadar, such as temporary GPT-5.6 release-probability signals.
+- The notice appears near the top of the dropdown and stays compact by default; long notices reuse the dynamic `Full text` affordance.
+- When a source link exists, the menu shows a clickable source button. Notices stay out of the menu bar and do not send notifications.
+
+</details>
 
 <details>
 <summary><strong>v0.1.44: Full-text affordance only when truncated</strong> - Fully visible text no longer shows an extra control.</summary>
@@ -456,7 +465,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.44
+./scripts/check_release_readiness.sh 0.1.45
 ```
 
 Build release packages:
@@ -464,7 +473,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.44
+./scripts/package_release.sh 0.1.45
 ```
 
 Update README menu bar and menu screenshots:

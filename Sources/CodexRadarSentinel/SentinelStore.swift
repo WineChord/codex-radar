@@ -418,6 +418,10 @@ final class SentinelStore: NSObject, ObservableObject {
         NSWorkspace.shared.open(AppConstants.codexRadarBaseURL)
     }
 
+    func openURL(_ url: URL) {
+        NSWorkspace.shared.open(url)
+    }
+
     func openLatestReleaseNotes() {
         NSWorkspace.shared.open(latestUpdate?.releaseURL ?? AppConstants.githubReleasesURL)
     }
@@ -818,6 +822,12 @@ final class SentinelStore: NSObject, ObservableObject {
             "帮我用本机 Codex 凭证查一下 rate-limit reset credits，读取 ~/.codex/auth.json 里的 tokens.access_token，请求 https://chatgpt.com/backend-api/wham/rate-limit-reset-credits。要求：如果 401，说明是凭证失效或没带对 Authorization header；不要打印 access_token、refresh_token、cookie 或完整唯一 ID；只要展示每张重置卡发放时间和过期时间，从 UTC 转成北京时间，用中文回复。",
             "Use my local Codex credentials to check rate-limit reset credits from ~/.codex/auth.json tokens.access_token via https://chatgpt.com/backend-api/wham/rate-limit-reset-credits. If it returns 401, explain that the credential is expired or the Authorization header is missing. Do not print access_token, refresh_token, cookies, or full unique IDs. Show only each reset credit issue time and expiry time, converted to local time."
         )
+        let announcementLabel = language.text("公告", "Notice")
+        let announcementMessage = language.text(
+            "Polymarket GPT-5.6 具体发布日期概率：July 9 72%，July 10 8.1%，Not before Aug 5.1%。",
+            "Polymarket GPT-5.6 release-date odds: July 9 72%, July 10 8.1%, Not before Aug 5.1%."
+        )
+        let announcementUpdated = language.text("数据更新时间 07-07 08:49", "Updated Jul 7 08:49")
         return decodeDocumentationJSON("""
         {
           "schema_version": "homepage-fallback-v1",
@@ -856,6 +866,13 @@ final class SentinelStore: NSObject, ObservableObject {
           "community_knowledge": {
             "title": "\(communityTitle)",
             "prompt": "\(communityPrompt)"
+          },
+          "site_announcement": {
+            "label": "\(announcementLabel)",
+            "message": "\(announcementMessage)",
+            "updated_label": "\(announcementUpdated)",
+            "source_label": "Polymarket",
+            "source_url": "https://polymarket.com/event/gpt-5pt6-released-onptptpt-20260623051439980"
           },
           "model_iq": {
             "updated_at": "2026-07-04T08:28:00+08:00",

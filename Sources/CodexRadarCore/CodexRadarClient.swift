@@ -32,7 +32,7 @@ public struct CodexRadarClient {
         let data = try await fetchData(AppConstants.currentPath)
         do {
             let current = try decoder.decode(RadarCurrent.self, from: data)
-            guard current.modelIQ?.latest?.iqScore == nil || current.resetJudgement == nil || current.communityKnowledge == nil,
+            guard current.modelIQ?.latest?.iqScore == nil || current.resetJudgement == nil || current.communityKnowledge == nil || current.siteAnnouncement == nil,
                   let homepageHTML = try? await fetchHomepageHTML(),
                   let supplemented = try? Self.currentByMergingHomepageSignals(current, html: homepageHTML) else {
                 return current
@@ -104,6 +104,7 @@ public struct CodexRadarClient {
         }
         let resetJudgement = parseHomepageResetJudgement(html: html)
         let communityKnowledge = parseHomepageCommunityKnowledge(html: html)
+        let siteAnnouncement = parseHomepageSiteAnnouncement(html: html)
         let checkedAtString = isoString(checkedAt)
         var payload: [String: Any] = [
             "schema_version": "homepage-fallback-v1",
@@ -139,6 +140,9 @@ public struct CodexRadarClient {
         if let communityKnowledge {
             payload["community_knowledge"] = communityKnowledge
         }
+        if let siteAnnouncement {
+            payload["site_announcement"] = siteAnnouncement
+        }
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try JSONDecoder().decode(RadarCurrent.self, from: data)
     }
@@ -169,6 +173,7 @@ public struct CodexRadarClient {
         }
         let resetJudgementData = parseHomepageResetJudgement(html: html)
         let communityKnowledgeData = parseHomepageCommunityKnowledge(html: html)
+        let siteAnnouncementData = parseHomepageSiteAnnouncement(html: html)
         let resetJudgement: ResetJudgement?
         if let resetJudgementData {
             let data = try JSONSerialization.data(withJSONObject: resetJudgementData)
@@ -183,10 +188,18 @@ public struct CodexRadarClient {
         } else {
             communityKnowledge = nil
         }
+        let siteAnnouncement: SiteAnnouncement?
+        if let siteAnnouncementData {
+            let data = try JSONSerialization.data(withJSONObject: siteAnnouncementData)
+            siteAnnouncement = try JSONDecoder().decode(SiteAnnouncement.self, from: data)
+        } else {
+            siteAnnouncement = nil
+        }
         return current.withSignals(
             modelIQ: modelIQEnvelope,
             resetJudgement: resetJudgement,
-            communityKnowledge: communityKnowledge
+            communityKnowledge: communityKnowledge,
+            siteAnnouncement: siteAnnouncement
         )
     }
 
@@ -303,6 +316,57 @@ public struct CodexRadarClient {
             "title": title,
             "prompt": prompt
         ]
+    }
+
+    private static func parseHomepageSiteAnnouncement(html: String) -> [String: Any]? {
+        guard let section = firstCapture(
+            #"<section\s+class="site-announcement"[^>]*>(.*?)</section>"#,
+            in: html
+        ),
+        let paragraph = firstCapture(#"<p>(.*?)</p>"#, in: section) else {
+            return nil
+        }
+
+        let label = cleanHTMLText(firstCapture(#"<span>(.*?)</span>"#, in: section))
+        let updatedLabel = cleanHTMLText(firstCapture(#"<span\s+class="site-announcement-updated"[^>]*>(.*?)</span>"#, in: paragraph))
+        let source = allMatches(
+            #"<a\s+class="site-announcement-source"\s+href="([^"]+)"[^>]*>(.*?)</a>"#,
+            in: paragraph
+        ).first
+        var messageHTML = paragraph
+        messageHTML = messageHTML.replacingOccurrences(
+            of: #"<a\s+class="site-announcement-source"[^>]*>.*?</a>"#,
+            with: "",
+            options: .regularExpression
+        )
+        messageHTML = messageHTML.replacingOccurrences(
+            of: #"<br\s*/?>\s*<span\s+class="site-announcement-updated"[^>]*>.*?</span>"#,
+            with: "",
+            options: .regularExpression
+        )
+        let message = cleanHTMLText(messageHTML)
+        guard !message.isEmpty else {
+            return nil
+        }
+
+        var payload: [String: Any] = [
+            "label": label.isEmpty ? "公告" : label,
+            "message": message
+        ]
+        if !updatedLabel.isEmpty {
+            payload["updated_label"] = updatedLabel
+        }
+        if let source, source.count >= 2 {
+            let sourceURL = cleanHTMLText(source[0])
+            let sourceLabel = cleanHTMLText(source[1])
+            if !sourceURL.isEmpty {
+                payload["source_url"] = sourceURL
+            }
+            if !sourceLabel.isEmpty {
+                payload["source_label"] = sourceLabel
+            }
+        }
+        return payload
     }
 
     fileprivate static func modelIQStatus(_ score: Double) -> String {

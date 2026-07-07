@@ -72,6 +72,7 @@ struct DashboardMenuView: View {
             }
             header
             statusLegend
+            siteAnnouncementSection
             Divider()
             quotaSection
             quotaPacingSection
@@ -271,6 +272,49 @@ struct DashboardMenuView: View {
                 collapsedLines: 2,
                 fontSize: metrics.label
             )
+        }
+    }
+
+    @ViewBuilder
+    private var siteAnnouncementSection: some View {
+        if let announcement = state.current?.siteAnnouncement,
+           let message = announcement.message?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !message.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    sectionTitle(text("CodexRadar 公告", "CodexRadar Notice"), systemImage: "megaphone")
+                    Spacer(minLength: 8)
+                    if let updatedLabel = announcement.updatedLabel, !updatedLabel.isEmpty {
+                        Text(updatedLabel)
+                            .font(.system(size: metrics.caption, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                    }
+                }
+                expandableCaptionText(
+                    message,
+                    key: "site-announcement-\(announcement.updatedLabel ?? "")-\(message)",
+                    collapsedLines: 2
+                )
+                if let sourceURL = announcement.sourceURL.flatMap(URL.init(string:)) {
+                    Button {
+                        store.openURL(sourceURL)
+                    } label: {
+                        Label(
+                            announcement.sourceLabel ?? text("查看来源", "Open source"),
+                            systemImage: "arrow.up.right.square"
+                        )
+                        .font(.system(size: metrics.caption, weight: .medium))
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help(text("打开公告来源", "Open announcement source"))
+                }
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.accentColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 

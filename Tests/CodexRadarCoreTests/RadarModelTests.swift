@@ -73,6 +73,10 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.modelIQ?.latest?.costUSD, 37.59)
         XCTAssertEqual(current.modelIQ?.latest?.wallTimeText, "183分钟")
         XCTAssertEqual(current.modelIQ?.latest?.cacheHitRateText, "94.3%")
+        XCTAssertEqual(current.siteAnnouncement?.label, "公告 📣")
+        XCTAssertTrue(current.siteAnnouncement?.message?.contains("Polymarket GPT-5.6") == true)
+        XCTAssertEqual(current.siteAnnouncement?.updatedLabel, "数据更新时间 2026-07-07 08:49:36 北京时间")
+        XCTAssertEqual(current.siteAnnouncement?.sourceURL, "https://polymarket.com/event/gpt-5pt6-released-onptptpt-20260623051439980")
         XCTAssertEqual(current.resetJudgement?.updatedLabel, "7月3日08:08研判")
         XCTAssertEqual(current.resetJudgement?.title, "发卡路径占优")
         XCTAssertEqual(current.resetJudgement?.cards.count, 2)
@@ -156,6 +160,10 @@ private let homepageHTML = """
 <html>
 <body>
 <p>Tibo 的重置机制已转向“重置卡手工重置”，原重置预测、速蹬窗口提醒和历史窗口已下架。</p>
+<section class="site-announcement" aria-label="雷达规划公告">
+  <span>公告 📣</span>
+  <p>Polymarket GPT-5.6 具体发布日期概率：July 9 <strong class="site-announcement-odds">72%</strong>，July 10 <strong class="site-announcement-odds">8.1%</strong>。 <a class="site-announcement-source" href="https://polymarket.com/event/gpt-5pt6-released-onptptpt-20260623051439980" target="_blank" rel="noreferrer">来源：Polymarket ↗</a><br><span class="site-announcement-updated">数据更新时间 2026-07-07 08:49:36 北京时间</span></p>
+</section>
 <section class="community-knowledge" aria-label="Codex 社区知识分享">
   <div class="community-knowledge-grid">
     <article class="community-knowledge-card">

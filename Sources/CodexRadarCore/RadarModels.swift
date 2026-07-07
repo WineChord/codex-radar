@@ -12,6 +12,7 @@ public struct RadarCurrent: Decodable, Equatable {
     public let modelIQ: ModelIQEnvelope?
     public let resetJudgement: ResetJudgement?
     public let communityKnowledge: CommunityKnowledge?
+    public let siteAnnouncement: SiteAnnouncement?
 
     public var checkedDate: Date? {
         RadarDateParser.date(from: checkedAt)
@@ -28,7 +29,8 @@ public struct RadarCurrent: Decodable, Equatable {
         predictionDetail: RadarPrediction?,
         modelIQ: ModelIQEnvelope?,
         resetJudgement: ResetJudgement? = nil,
-        communityKnowledge: CommunityKnowledge? = nil
+        communityKnowledge: CommunityKnowledge? = nil,
+        siteAnnouncement: SiteAnnouncement? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.checkedAt = checkedAt
@@ -41,6 +43,7 @@ public struct RadarCurrent: Decodable, Equatable {
         self.modelIQ = modelIQ
         self.resetJudgement = resetJudgement
         self.communityKnowledge = communityKnowledge
+        self.siteAnnouncement = siteAnnouncement
     }
 
     public func withModelIQ(_ modelIQ: ModelIQEnvelope?) -> RadarCurrent {
@@ -50,7 +53,8 @@ public struct RadarCurrent: Decodable, Equatable {
     public func withSignals(
         modelIQ: ModelIQEnvelope? = nil,
         resetJudgement: ResetJudgement? = nil,
-        communityKnowledge: CommunityKnowledge? = nil
+        communityKnowledge: CommunityKnowledge? = nil,
+        siteAnnouncement: SiteAnnouncement? = nil
     ) -> RadarCurrent {
         RadarCurrent(
             schemaVersion: schemaVersion,
@@ -63,7 +67,8 @@ public struct RadarCurrent: Decodable, Equatable {
             predictionDetail: predictionDetail,
             modelIQ: modelIQ ?? self.modelIQ,
             resetJudgement: resetJudgement ?? self.resetJudgement,
-            communityKnowledge: communityKnowledge ?? self.communityKnowledge
+            communityKnowledge: communityKnowledge ?? self.communityKnowledge,
+            siteAnnouncement: siteAnnouncement ?? self.siteAnnouncement
         )
     }
 
@@ -81,6 +86,7 @@ public struct RadarCurrent: Decodable, Equatable {
         case modelIQ = "model_iq"
         case resetJudgement = "reset_judgement"
         case communityKnowledge = "community_knowledge"
+        case siteAnnouncement = "site_announcement"
     }
 
     public init(from decoder: Decoder) throws {
@@ -110,6 +116,23 @@ public struct RadarCurrent: Decodable, Equatable {
         modelIQ = try container.decodeIfPresent(ModelIQEnvelope.self, forKey: .modelIQ)
         resetJudgement = try container.decodeIfPresent(ResetJudgement.self, forKey: .resetJudgement)
         communityKnowledge = try container.decodeIfPresent(CommunityKnowledge.self, forKey: .communityKnowledge)
+        siteAnnouncement = try container.decodeIfPresent(SiteAnnouncement.self, forKey: .siteAnnouncement)
+    }
+}
+
+public struct SiteAnnouncement: Decodable, Equatable {
+    public let label: String?
+    public let message: String?
+    public let updatedLabel: String?
+    public let sourceLabel: String?
+    public let sourceURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case label
+        case message
+        case updatedLabel = "updated_label"
+        case sourceLabel = "source_label"
+        case sourceURL = "source_url"
     }
 }
 
