@@ -36,6 +36,7 @@ public struct NotificationMemory: Equatable {
     public var lastWeeklyRestoreKey: String?
     public var lastWeeklyWarningAt: Date?
     public var lastWeeklyCriticalAt: Date?
+    public var pendingWeeklyRestoreKey: String?
 
     public init(
         initialized: Bool = false,
@@ -47,7 +48,8 @@ public struct NotificationMemory: Equatable {
         lastWeeklyCriticalKey: String? = nil,
         lastWeeklyRestoreKey: String? = nil,
         lastWeeklyWarningAt: Date? = nil,
-        lastWeeklyCriticalAt: Date? = nil
+        lastWeeklyCriticalAt: Date? = nil,
+        pendingWeeklyRestoreKey: String? = nil
     ) {
         self.initialized = initialized
         self.lastSpeedOpenKey = lastSpeedOpenKey
@@ -59,6 +61,7 @@ public struct NotificationMemory: Equatable {
         self.lastWeeklyRestoreKey = lastWeeklyRestoreKey
         self.lastWeeklyWarningAt = lastWeeklyWarningAt
         self.lastWeeklyCriticalAt = lastWeeklyCriticalAt
+        self.pendingWeeklyRestoreKey = pendingWeeklyRestoreKey
     }
 }
 
@@ -213,17 +216,45 @@ public struct NotificationPolicy {
             }
         }
 
+        let currentReset = current.rateLimits?.weeklyBucket?.resetsAt
+        let restoreKey = currentReset.map { "\($0):restored" }
+        if let pendingKey = memory.pendingWeeklyRestoreKey {
+            if let restoreKey,
+               pendingKey == restoreKey,
+               remaining >= AppConstants.restoredRemainingPercent {
+                memory.pendingWeeklyRestoreKey = nil
+                appendWeeklyRestoreEvent(
+                    key: pendingKey,
+                    remaining: remaining,
+                    memory: &memory,
+                    events: &events
+                )
+                return
+            }
+            if pendingKey != restoreKey || remaining < AppConstants.restoredRemainingPercent {
+                memory.pendingWeeklyRestoreKey = nil
+            }
+        }
+
         guard let previousRemaining = previous?.rateLimits?.weeklyRemainingPercent else {
             return
         }
         let previousReset = previous?.rateLimits?.weeklyBucket?.resetsAt
-        let currentReset = current.rateLimits?.weeklyBucket?.resetsAt
         guard previousRemaining <= AppConstants.warningRemainingPercent,
               remaining >= AppConstants.restoredRemainingPercent,
-              previousReset != currentReset else {
+              previousReset != currentReset,
+              let restoreKey else {
             return
         }
-        let key = "\(resetKey):restored"
+        memory.pendingWeeklyRestoreKey = restoreKey
+    }
+
+    private func appendWeeklyRestoreEvent(
+        key: String,
+        remaining: Int,
+        memory: inout NotificationMemory,
+        events: inout [NotificationEvent]
+    ) {
         guard memory.lastWeeklyRestoreKey != key else {
             return
         }

@@ -88,6 +88,63 @@ final class NotificationPolicyTests: XCTestCase {
         XCTAssertEqual(third.map(\.title), ["Codex 周额度偏低"])
     }
 
+    func testWeeklyRestoreRequiresStableConfirmation() throws {
+        var memory = NotificationMemory(initialized: true)
+        let lowState = DashboardState(
+            rateLimits: try sampleDashboard(weeklyUsed: 86, weeklyResetsAt: 1_781_140_743),
+            current: nil,
+            prediction: nil,
+            modelIQ: nil
+        )
+        let restoredState = DashboardState(
+            rateLimits: try sampleDashboard(weeklyUsed: 0, weeklyResetsAt: 1_784_084_696),
+            current: nil,
+            prediction: nil,
+            modelIQ: nil
+        )
+
+        let first = NotificationPolicy().evaluate(previous: lowState, current: restoredState, memory: &memory)
+        XCTAssertTrue(first.isEmpty)
+        XCTAssertEqual(memory.pendingWeeklyRestoreKey, "1784084696:restored")
+        XCTAssertNil(memory.lastWeeklyRestoreKey)
+
+        let second = NotificationPolicy().evaluate(previous: restoredState, current: restoredState, memory: &memory)
+        XCTAssertEqual(second.map(\.title), ["Codex 周额度已恢复"])
+        XCTAssertEqual(memory.lastWeeklyRestoreKey, "1784084696:restored")
+        XCTAssertNil(memory.pendingWeeklyRestoreKey)
+
+        let third = NotificationPolicy().evaluate(previous: restoredState, current: restoredState, memory: &memory)
+        XCTAssertTrue(third.isEmpty)
+    }
+
+    func testWeeklyRestoreCandidateClearsWhenResetReverts() throws {
+        var memory = NotificationMemory(
+            initialized: true,
+            lastWeeklyWarningKey: "1781140743:warning"
+        )
+        let lowState = DashboardState(
+            rateLimits: try sampleDashboard(weeklyUsed: 76, weeklyResetsAt: 1_781_140_743),
+            current: nil,
+            prediction: nil,
+            modelIQ: nil
+        )
+        let transientRestoredState = DashboardState(
+            rateLimits: try sampleDashboard(weeklyUsed: 0, weeklyResetsAt: 1_784_084_696),
+            current: nil,
+            prediction: nil,
+            modelIQ: nil
+        )
+
+        let first = NotificationPolicy().evaluate(previous: lowState, current: transientRestoredState, memory: &memory)
+        XCTAssertTrue(first.isEmpty)
+        XCTAssertEqual(memory.pendingWeeklyRestoreKey, "1784084696:restored")
+
+        let second = NotificationPolicy().evaluate(previous: transientRestoredState, current: lowState, memory: &memory)
+        XCTAssertTrue(second.isEmpty)
+        XCTAssertNil(memory.pendingWeeklyRestoreKey)
+        XCTAssertNil(memory.lastWeeklyRestoreKey)
+    }
+
     func testRetiredCodexRadarPredictionDoesNotNotify() throws {
         var memory = NotificationMemory(initialized: true)
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data("""
