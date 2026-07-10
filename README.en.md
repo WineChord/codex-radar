@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.46: Stable weekly restore alerts</strong> - Avoids false restore notifications from transient quota rollbacks.</summary>
+
+- `Weekly quota restored` now waits for two consecutive samples with the same reset key and a remaining quota above the restored threshold.
+- The pending restore candidate is persisted with app notification state; if the next poll rolls back the reset time or quota, the candidate is cleared.
+- This reduces false positives when the Codex app-server briefly reports a restored weekly window and then reverts.
+
+</details>
+
+<details>
 <summary><strong>v0.1.45: CodexRadar notices</strong> - Homepage notices now appear in the menu.</summary>
 
 - Mirrors the `Notice` block from the top of CodexRadar, such as temporary GPT-5.6 release-probability signals.
@@ -465,7 +474,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.45
+./scripts/check_release_readiness.sh 0.1.46
 ```
 
 Build release packages:
@@ -473,7 +482,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.45
+./scripts/package_release.sh 0.1.46
 ```
 
 Update README menu bar and menu screenshots:

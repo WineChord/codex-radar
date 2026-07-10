@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.46：周额度恢复提醒更稳</strong> - 避免瞬时额度回滚造成误报。</summary>
+
+- `周额度已恢复` 通知现在需要连续两次看到同一个 reset key 且周额度仍高于恢复阈值才会发送。
+- 待确认的恢复信号会随 app 状态持久化；如果下一轮额度或 reset 时间回滚，会自动清掉候选信号。
+- 这能降低 Codex app-server 短暂返回高额度后又恢复旧窗口时的误通知。
+
+</details>
+
+<details>
 <summary><strong>v0.1.45：CodexRadar 公告同步</strong> - 首页公告会出现在菜单里。</summary>
 
 - 同步 CodexRadar 首页顶部的 `公告`，例如 GPT-5.6 发布概率这类临时公开信号。
@@ -465,7 +474,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.45
+./scripts/check_release_readiness.sh 0.1.46
 ```
 
 构建 release 包：
@@ -473,7 +482,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.45
+./scripts/package_release.sh 0.1.46
 ```
 
 更新 README 状态栏和菜单截图：
