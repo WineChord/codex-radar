@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.47: Local quota display restored</strong> - No more `--` when the Codex.app bundled binary path changes.</summary>
+
+- The Codex binary locator now checks standalone/current, `~/.local/bin/codex`, and PATH before falling back to app bundles.
+- Fixes the menu bar weekly quota and 5h quota showing `--` when `/Applications/Codex.app/Contents/Resources/codex` is missing.
+- Adds locator tests for environment overrides, standalone fallback, and PATH fallback.
+
+</details>
+
+<details>
 <summary><strong>v0.1.46: Stable weekly restore alerts</strong> - Avoids false restore notifications from transient quota rollbacks.</summary>
 
 - `Weekly quota restored` now waits for two consecutive samples with the same reset key and a remaining quota above the restored threshold.
@@ -474,7 +483,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.46
+./scripts/check_release_readiness.sh 0.1.47
 ```
 
 Build release packages:
@@ -482,7 +491,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.46
+./scripts/package_release.sh 0.1.47
 ```
 
 Update README menu bar and menu screenshots:

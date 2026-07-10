@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.47：本机额度恢复显示</strong> - Codex.app 内置二进制路径变化时不再显示 `--`。</summary>
+
+- Codex 二进制定位现在会优先查找 standalone/current、`~/.local/bin/codex` 和 PATH，再回退到 App bundle。
+- 修复 `/Applications/Codex.app/Contents/Resources/codex` 不存在时，状态栏周额度和 5h 短窗显示 `--` 的问题。
+- 增加 locator 单测，覆盖环境变量覆盖、standalone fallback 和 PATH fallback。
+
+</details>
+
+<details>
 <summary><strong>v0.1.46：周额度恢复提醒更稳</strong> - 避免瞬时额度回滚造成误报。</summary>
 
 - `周额度已恢复` 通知现在需要连续两次看到同一个 reset key 且周额度仍高于恢复阈值才会发送。
@@ -474,7 +483,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.46
+./scripts/check_release_readiness.sh 0.1.47
 ```
 
 构建 release 包：
@@ -482,7 +491,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.46
+./scripts/package_release.sh 0.1.47
 ```
 
 更新 README 状态栏和菜单截图：

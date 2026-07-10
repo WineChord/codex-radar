@@ -264,14 +264,59 @@ private struct InitializeResult: Decodable {
 
 public enum CodexBinaryLocator {
     public static func findBinary() -> URL? {
-        let environment = ProcessInfo.processInfo.environment
+        findBinary(
+            environment: ProcessInfo.processInfo.environment,
+            homeDirectory: FileManager.default.homeDirectoryForCurrentUser
+        )
+    }
+
+    static func findBinary(
+        environment: [String: String],
+        homeDirectory: URL,
+        systemCandidates: [String] = defaultSystemCandidatePaths,
+        fileManager: FileManager = .default
+    ) -> URL? {
         if let override = environment[AppConstants.codexPathEnvironmentKey],
-           FileManager.default.isExecutableFile(atPath: override) {
+           fileManager.isExecutableFile(atPath: override) {
             return URL(fileURLWithPath: override)
         }
-        if FileManager.default.isExecutableFile(atPath: AppConstants.codexAppBinaryPath) {
-            return URL(fileURLWithPath: AppConstants.codexAppBinaryPath)
+        let candidates = candidatePaths(
+            environment: environment,
+            homeDirectory: homeDirectory,
+            systemCandidates: systemCandidates
+        )
+        if let path = candidates.first(where: { fileManager.isExecutableFile(atPath: $0) }) {
+            return URL(fileURLWithPath: path)
         }
-        return URL(fileURLWithPath: "/usr/bin/env")
+        return nil
     }
+
+    static func candidatePaths(
+        environment: [String: String],
+        homeDirectory: URL,
+        systemCandidates: [String] = defaultSystemCandidatePaths
+    ) -> [String] {
+        let homeCandidates = [
+            homeDirectory
+                .appendingPathComponent(".codex/packages/standalone/current/bin/codex")
+                .path,
+            homeDirectory
+                .appendingPathComponent(".codex/packages/standalone/current/codex")
+                .path,
+            homeDirectory
+                .appendingPathComponent(".local/bin/codex")
+                .path,
+        ]
+        let pathCandidates = (environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map(String.init)
+            .filter { !$0.isEmpty }
+            .map { URL(fileURLWithPath: $0).appendingPathComponent("codex").path }
+        return homeCandidates + pathCandidates + systemCandidates
+    }
+
+    private static let defaultSystemCandidatePaths = [
+        AppConstants.codexAppBinaryPath,
+        AppConstants.chatGPTAppBinaryPath,
+    ]
 }
