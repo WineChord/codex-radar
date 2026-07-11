@@ -41,6 +41,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer -StartWithWin
 
 The default installation directory is `%LOCALAPPDATA%\Programs\CodexRadarSentinel`. The Start Menu shortcut and optional startup value are also per-user; the installer never writes to `Program Files`, HKLM, or another user's profile. During an upgrade it stops only Codex Radar processes running from that installation directory. If installation or startup verification fails, the previous files, shortcut, startup value, and running state are restored.
 
+The way to run locally while developing is:
+```powershell
+Set-Location Path\to\your\codex-radar
+
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release
+```
+
 ## Uninstall
 
 Run the installed uninstaller. It removes the per-user app, shortcut, startup value, and cached settings:
