@@ -106,6 +106,8 @@ public struct DashboardState: Equatable {
         return joined.contains("速蹬")
             || joined.contains("speed-window")
             || joined.contains("speed window")
+            || joined.contains("use_remaining_tokens")
+            || joined.contains("use remaining tokens")
     }
 
     public var activeEntitlementEvent: Bool {

@@ -265,6 +265,39 @@ final class NotificationPolicyTests: XCTestCase {
         XCTAssertEqual(state.statusTitle, "88%/--/速蹬")
         XCTAssertEqual(events.map(\.title), ["速蹬窗口开启"])
     }
+
+    func testUseRemainingTokensActionNotifiesAsSpeedWindow() throws {
+        var memory = NotificationMemory()
+        let current = try JSONDecoder().decode(RadarCurrent.self, from: Data("""
+        {
+          "schema_version": "2.0",
+          "status": "open",
+          "window_open": true,
+          "recommended_action": "use_remaining_tokens",
+          "window": {
+            "open": true,
+            "status": "open",
+            "action": "use_remaining_tokens",
+            "message": "Tibo 已确认 Codex / ChatGPT Work 已重置一次，今天稍后还有一次。",
+            "title": "ChatGPT Work / Codex 两次额度硬重置",
+            "scope": "ChatGPT Work 和 Codex 用户",
+            "opened_at": "2026-07-10T13:30:53+08:00"
+          }
+        }
+        """.utf8))
+        let state = DashboardState(
+            rateLimits: try sampleDashboard(weeklyUsed: 12),
+            current: current,
+            prediction: current.predictionDetail,
+            modelIQ: nil
+        )
+
+        let events = NotificationPolicy().evaluate(previous: nil, current: state, memory: &memory)
+
+        XCTAssertTrue(state.activeSpeedWindow)
+        XCTAssertEqual(state.statusTitle, "88%/--/速蹬")
+        XCTAssertEqual(events.map(\.title), ["速蹬窗口开启"])
+    }
 }
 
 private func current(windowOpen: Bool, status: String) throws -> RadarCurrent {

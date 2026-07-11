@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.48: Official windows no longer missed</strong> - `use_remaining_tokens` enters the speed state.</summary>
+
+- CodexRadar's 2026-07-11 official reset window uses `use_remaining_tokens` as the machine action, even when the title does not literally say speed window.
+- The menu bar now treats this open-window action as `speed`, while still excluding completed entitlement events such as `reset_completed`.
+- Adds a fixture test for the “ChatGPT Work / Codex two hard resets” payload so future schema changes do not silently miss the window again.
+
+</details>
+
+<details>
 <summary><strong>v0.1.47: Local quota display restored</strong> - No more `--` when the Codex.app bundled binary path changes.</summary>
 
 - The Codex binary locator now checks standalone/current, `~/.local/bin/codex`, and PATH before falling back to app bundles.
@@ -483,7 +492,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.47
+./scripts/check_release_readiness.sh 0.1.48
 ```
 
 Build release packages:
@@ -491,7 +500,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.47
+./scripts/package_release.sh 0.1.48
 ```
 
 Update README menu bar and menu screenshots:

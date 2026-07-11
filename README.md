@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.48：官方窗口不漏报</strong> - `use_remaining_tokens` 会进入速蹬状态。</summary>
+
+- CodexRadar 2026-07-11 的官方重置窗口把机器信号写成 `use_remaining_tokens`，标题不一定含“速蹬”。
+- 状态栏现在会把这类 open window 判为 `速蹬`，并继续排除 `reset_completed` 这类已完成权益事件。
+- 新增 fixture 测试覆盖“ChatGPT Work / Codex 两次额度硬重置”payload，避免未来再次漏报。
+
+</details>
+
+<details>
 <summary><strong>v0.1.47：本机额度恢复显示</strong> - Codex.app 内置二进制路径变化时不再显示 `--`。</summary>
 
 - Codex 二进制定位现在会优先查找 standalone/current、`~/.local/bin/codex` 和 PATH，再回退到 App bundle。
@@ -483,7 +492,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.47
+./scripts/check_release_readiness.sh 0.1.48
 ```
 
 构建 release 包：
@@ -491,7 +500,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.47
+./scripts/package_release.sh 0.1.48
 ```
 
 更新 README 状态栏和菜单截图：
