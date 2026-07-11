@@ -41,6 +41,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer -StartWithWin
 
 默认安装目录是 `%LOCALAPPDATA%\Programs\CodexRadarSentinel`。开始菜单快捷方式和可选开机启动项也都属于当前用户；安装器不会写入 `Program Files`、HKLM 或其他用户目录。升级时只停止从这个安装目录运行的 Codex Radar 进程。如果安装或启动检查失败，会恢复原文件、快捷方式、启动项以及升级前的运行状态。
 
+本地开发调试的启动方式是：
+```powershell
+Set-Location Path\to\your\codex-radar
+
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release
+```
+
 ## 卸载
 
 运行安装目录内的卸载脚本。默认会删除当前用户的程序、快捷方式、启动项和缓存设置：
