@@ -2,3 +2,7 @@
 .build/
 dist/
 DerivedData/
+/windows/**/bin/
+/windows/**/obj/
+/artifacts/windows/
+/artifacts/ui-validation/
