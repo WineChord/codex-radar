@@ -1,8 +1,10 @@
 # Codex Radar Sentinel
 
+> **Windows 10/11 support:** a native Windows notification-area implementation now lives in [`windows/`](windows/README.md). It aligns the public radar and local Codex quota features with the macOS app, uses a Windows-styled dashboard, and supports right-click Exit. See the Windows README for development and self-contained publishing commands.
+
 [中文](README.md) | English
 
-Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, and model quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, reset-credit check knowledge, quota estimates, Model IQ, local Codex quota state, and reset-credit expiry checks together, while keeping compatibility if the old reset/speed endpoints return.
+Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, and model quality radar. Codex Radar Sentinel provides a macOS menu-bar app and a Windows 10/11 notification-area app, bringing public CodexRadar notices, reset judgement, reset-credit check knowledge, quota estimates, Model IQ, local Codex quota state, and reset-credit expiry checks together while retaining compatibility if the old reset/speed endpoints return.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
@@ -321,6 +323,14 @@ If you use the Codex desktop app, you can copy this prompt into Codex. Grant Cod
 Directly install Codex Radar Sentinel: download latest macOS package from https://github.com/WineChord/codex-radar/releases/latest, install to /Applications, launch, confirm menu bar; ask for permissions if needed.
 ```
 
+### Windows 10/11
+
+The default per-user install needs no administrator rights. Grant Codex network access, PowerShell execution, write access to `%LOCALAPPDATA%\Programs`, and permission to launch the app.
+
+```text
+Directly install Codex Radar Sentinel (Windows 10/11): first confirm this system is Windows 10 1809+ or Windows 11 and detect its architecture; from https://github.com/WineChord/codex-radar/releases/latest download only the matching CodexRadarSentinel-<version>-Windows-x64.zip or CodexRadarSentinel-<version>-Windows-arm64.zip plus its same-basename .sha256, never a .dmg, -macOS.zip, or package for the other architecture; if the unique matching Windows asset and checksum are absent, stop and tell me instead of substituting another platform or architecture; verify SHA256 and the package release-manifest.json with platform=windows and matching runtime/architecture, install to %LOCALAPPDATA%\Programs\CodexRadarSentinel, launch CodexRadarSentinel.exe, and confirm the radar icon in the notification area; ask me before requesting network, PowerShell, write, or launch permissions.
+```
+
 ## Menu Bar Meaning
 
 The menu bar title is intentionally compact:
@@ -393,9 +403,13 @@ The app sends macOS notifications for:
 
 Notification sound is off by default and can be enabled in the dropdown. Historical reset windows are seeded on first launch, so starting the app after a reset does not replay old reset notifications. If the legacy compatibility endpoint returns later and the first launch happens during an explicit speed window, it still notifies.
 
+The Windows version uses the same notification conditions and shows notification-area balloons; Windows notification and Focus settings continue to control system sounds.
+
 ## Updates
 
 Automatic updates are on by default. The app checks once 5 seconds after launch, then every 6 hours checks the latest GitHub Release, downloads the ZIP, verifies the release SHA256, replaces the installed app bundle, and reopens itself.
+
+The Windows version has a separate updater that accepts only the exact current-architecture Windows ZIP, its same-basename SHA256, and an in-package `platform=windows` manifest before replacing the per-user program directory and reopening itself.
 
 If download, verification, or installation fails, the app keeps the current version running and shows the failure in the menu. The installer also backs up the old app first; if replacement fails, it restores and reopens the old app. Automatic updates pause short-term retries for the same failed version, while manual `Check` can retry immediately.
 
@@ -412,7 +426,7 @@ Turn off `Auto update` in the dropdown if you prefer manual updates only.
 
 ## Codex Skill
 
-This repository includes a repo-managed skill: [CodexRadar Sync](skills/codex-radar-sync/SKILL.md). When the CodexRadar page or JSON payload shape changes, ask Codex to run this skill. It checks the latest CodexRadar homepage and public endpoints, compares field changes, updates Swift decoding and macOS menu mappings, and runs the full UI/data release check before shipping.
+This repository includes a repo-managed skill: [CodexRadar Sync](skills/codex-radar-sync/SKILL.md). When the CodexRadar page or JSON payload shape changes, ask Codex to run this skill. It checks the latest CodexRadar homepage and public endpoints, compares field changes, updates decoding, notifications, and UI mappings in both Swift/macOS and C#/Windows, then applies the platform-specific data, build, and package gates before shipping.
 
 ## Preview Mode
 
@@ -459,6 +473,10 @@ For local reset-credit expiry, low-frequency auto refresh is on by default: afte
 Download the latest `.dmg` from GitHub Releases, open it, and drag `Codex Radar Sentinel.app` into `Applications`.
 
 The `.zip` asset contains the same app bundle for users who prefer to copy it manually.
+
+### Windows 10/11
+
+Follow the [Windows install guide](windows/README.md) with `windows/install.ps1`, or manually verify the same-basename SHA256 and in-package manifest for the current-architecture Windows ZIP before installing it to `%LOCALAPPDATA%\Programs\CodexRadarSentinel`. The Windows installer rejects macOS assets, wrong architectures, and unexpected package files.
 
 ## Run Locally
 
@@ -519,6 +537,6 @@ Regenerate the macOS icon:
 
 ## Credits
 
-Codex Radar Sentinel exists because [CodexRadar](https://codexradar.com/) publishes clear public Codex signals. CodexRadar previously published speed windows, resets, reset prediction, RSS events, and model IQ; it now provides reset radar, community knowledge, quota radar, and model quality radar. This app wraps those public signals together with the user's local Codex quota state in a macOS menu bar tool.
+Codex Radar Sentinel exists because [CodexRadar](https://codexradar.com/) publishes clear public Codex signals. CodexRadar previously published speed windows, resets, reset prediction, RSS events, and model IQ; it now provides reset radar, community knowledge, quota radar, and model quality radar. This app wraps those public signals together with the user's local Codex quota state in macOS menu-bar and Windows notification-area tools.
 
 Codex Radar Sentinel is not affiliated with CodexRadar or OpenAI.
