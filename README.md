@@ -2,11 +2,20 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、重置卡自查知识、额度估算、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
+
+<details>
+<summary><strong>v0.1.49：社区知识卡兼容</strong> - CodexRadar 新的指南卡会单独显示。</summary>
+
+- CodexRadar 首页的社区知识从单个 `code prompt` 变成了可展开的指南卡，例如“如何开启 Max 推理强度”。
+- 菜单新增独立的 `CodexRadar 社区知识` 区，长内容沿用动态 `全文` 展开；`重置卡过期` 区不再冒用非重置卡知识标题。
+- live contract 继续要求社区知识和公告都能从首页兜底补齐，避免 `current.json` 暂时为空时菜单静默缺内容。
+
+</details>
 
 <details>
 <summary><strong>v0.1.48：官方窗口不漏报</strong> - `use_remaining_tokens` 会进入速蹬状态。</summary>

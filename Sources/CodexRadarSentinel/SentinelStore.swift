@@ -822,6 +822,11 @@ final class SentinelStore: NSObject, ObservableObject {
             "帮我用本机 Codex 凭证查一下 rate-limit reset credits，读取 ~/.codex/auth.json 里的 tokens.access_token，请求 https://chatgpt.com/backend-api/wham/rate-limit-reset-credits。要求：如果 401，说明是凭证失效或没带对 Authorization header；不要打印 access_token、refresh_token、cookie 或完整唯一 ID；只要展示每张重置卡发放时间和过期时间，从 UTC 转成北京时间，用中文回复。",
             "Use my local Codex credentials to check rate-limit reset credits from ~/.codex/auth.json tokens.access_token via https://chatgpt.com/backend-api/wham/rate-limit-reset-credits. If it returns 401, explain that the credential is expired or the Authorization header is missing. Do not print access_token, refresh_token, cookies, or full unique IDs. Show only each reset credit issue time and expiry time, converted to local time."
         )
+        let maxReasoningTitle = language.text("如何开启 Max 推理强度", "How to enable Max reasoning")
+        let maxReasoningGuide = language.text(
+            "打开 Codex 设置 → Configuration → Model features → Available reasoning efforts，勾选 Max。之后即可在支持 Max 的模型控制中选择。",
+            "Open Codex Settings → Configuration → Model features → Available reasoning efforts, then enable Max. After that, Max appears in supported model controls."
+        )
         let announcementLabel = language.text("公告", "Notice")
         let announcementMessage = language.text(
             "Polymarket GPT-5.6 具体发布日期概率：July 9 72%，July 10 8.1%，Not before Aug 5.1%。",
@@ -867,6 +872,10 @@ final class SentinelStore: NSObject, ObservableObject {
             "title": "\(communityTitle)",
             "prompt": "\(communityPrompt)"
           },
+          "community_knowledges": [
+            { "title": "\(communityTitle)", "prompt": "\(communityPrompt)" },
+            { "title": "\(maxReasoningTitle)", "prompt": "\(maxReasoningGuide)" }
+          ],
           "site_announcement": {
             "label": "\(announcementLabel)",
             "message": "\(announcementMessage)",

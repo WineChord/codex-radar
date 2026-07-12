@@ -2,11 +2,20 @@
 
 [中文](README.md) | English
 
-Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, and model quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, reset-credit check knowledge, quota estimates, Model IQ, local Codex quota state, and reset-credit expiry checks together, while keeping compatibility if the old reset/speed endpoints return.
+Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, and model quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, community knowledge, quota estimates, Model IQ, local Codex quota state, and reset-credit expiry checks together, while keeping compatibility if the old reset/speed endpoints return.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
 ## News
+
+<details>
+<summary><strong>v0.1.49: Community knowledge cards</strong> - CodexRadar's new guide cards appear separately.</summary>
+
+- CodexRadar's homepage community knowledge changed from a single `code prompt` to expandable guide cards, such as “How to enable Max reasoning effort”.
+- The dropdown adds a dedicated `CodexRadar Community` section with dynamic `Full text` expansion, and `Reset Credit Expiry` no longer borrows titles from unrelated community cards.
+- The live contract still requires community knowledge and notices to be backfilled from the homepage when `current.json` temporarily omits them.
+
+</details>
 
 <details>
 <summary><strong>v0.1.48: Official windows no longer missed</strong> - `use_remaining_tokens` enters the speed state.</summary>

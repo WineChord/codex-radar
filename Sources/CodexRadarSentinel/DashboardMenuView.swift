@@ -73,6 +73,7 @@ struct DashboardMenuView: View {
             header
             statusLegend
             siteAnnouncementSection
+            codexRadarCommunitySection
             Divider()
             quotaSection
             quotaPacingSection
@@ -319,6 +320,35 @@ struct DashboardMenuView: View {
     }
 
     @ViewBuilder
+    private var codexRadarCommunitySection: some View {
+        let cards = codexRadarCommunityCards
+        if !cards.isEmpty {
+            VStack(alignment: .leading, spacing: 7) {
+                sectionTitle(text("CodexRadar 社区知识", "CodexRadar Community"), systemImage: "lightbulb")
+                ForEach(Array(cards.prefix(3).enumerated()), id: \.offset) { index, card in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(card.title ?? text("社区知识", "Community note"))
+                            .font(.system(size: metrics.body, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                        if let prompt = card.prompt?.trimmingCharacters(in: .whitespacesAndNewlines),
+                           !prompt.isEmpty {
+                            expandableCaptionText(
+                                prompt,
+                                key: "codexradar-community-\(index)-\(card.title ?? "")",
+                                collapsedLines: 3
+                            )
+                        }
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
     private var resetJudgementSection: some View {
         if let judgement = state.current?.resetJudgement,
            !judgement.cards.isEmpty {
@@ -355,7 +385,7 @@ struct DashboardMenuView: View {
     private var communityKnowledgeSection: some View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("重置卡过期", "Reset Credit Expiry"), systemImage: "creditcard")
-            Text(state.current?.communityKnowledge?.title ?? text("重置卡过期时间自查", "Reset credit expiry check"))
+            Text(resetCreditCommunityKnowledge?.title ?? text("重置卡过期时间自查", "Reset credit expiry check"))
                 .font(.system(size: metrics.body, weight: .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
@@ -562,8 +592,35 @@ struct DashboardMenuView: View {
         }
     }
 
+    private var codexRadarCommunityCards: [CommunityKnowledge] {
+        let cards = state.current?.communityKnowledges ?? []
+        let fallback = state.current?.communityKnowledge.map { [$0] } ?? []
+        return (cards.isEmpty ? fallback : cards)
+            .filter { !isResetCreditCommunityKnowledge($0) }
+    }
+
+    private var resetCreditCommunityKnowledge: CommunityKnowledge? {
+        if let knowledge = (state.current?.communityKnowledges ?? [])
+            .first(where: isResetCreditCommunityKnowledge) {
+            return knowledge
+        }
+        if let knowledge = state.current?.communityKnowledge,
+           isResetCreditCommunityKnowledge(knowledge) {
+            return knowledge
+        }
+        return nil
+    }
+
+    private func isResetCreditCommunityKnowledge(_ knowledge: CommunityKnowledge) -> Bool {
+        let body = "\(knowledge.title ?? "") \(knowledge.prompt ?? "")".lowercased()
+        return body.contains("重置卡")
+            || body.contains("reset credit")
+            || body.contains("reset credits")
+            || body.contains("rate-limit reset")
+    }
+
     private var resetCreditPrompt: String {
-        if let prompt = state.current?.communityKnowledge?.prompt,
+        if let prompt = resetCreditCommunityKnowledge?.prompt,
            !prompt.isEmpty {
             return prompt
         }

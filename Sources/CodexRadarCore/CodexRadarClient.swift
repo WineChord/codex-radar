@@ -103,7 +103,8 @@ public struct CodexRadarClient {
             throw ClientError.homepageFallbackUnavailable
         }
         let resetJudgement = parseHomepageResetJudgement(html: html)
-        let communityKnowledge = parseHomepageCommunityKnowledge(html: html)
+        let communityKnowledges = parseHomepageCommunityKnowledges(html: html)
+        let communityKnowledge = communityKnowledges.first
         let siteAnnouncement = parseHomepageSiteAnnouncement(html: html)
         let checkedAtString = isoString(checkedAt)
         var payload: [String: Any] = [
@@ -140,6 +141,9 @@ public struct CodexRadarClient {
         if let communityKnowledge {
             payload["community_knowledge"] = communityKnowledge
         }
+        if !communityKnowledges.isEmpty {
+            payload["community_knowledges"] = communityKnowledges
+        }
         if let siteAnnouncement {
             payload["site_announcement"] = siteAnnouncement
         }
@@ -172,7 +176,8 @@ public struct CodexRadarClient {
             modelIQEnvelope = try JSONDecoder().decode(ModelIQEnvelope.self, from: data)
         }
         let resetJudgementData = parseHomepageResetJudgement(html: html)
-        let communityKnowledgeData = parseHomepageCommunityKnowledge(html: html)
+        let communityKnowledgesData = parseHomepageCommunityKnowledges(html: html)
+        let communityKnowledgeData = communityKnowledgesData.first
         let siteAnnouncementData = parseHomepageSiteAnnouncement(html: html)
         let resetJudgement: ResetJudgement?
         if let resetJudgementData {
@@ -188,6 +193,13 @@ public struct CodexRadarClient {
         } else {
             communityKnowledge = nil
         }
+        let communityKnowledges: [CommunityKnowledge]
+        if !communityKnowledgesData.isEmpty {
+            let data = try JSONSerialization.data(withJSONObject: communityKnowledgesData)
+            communityKnowledges = try JSONDecoder().decode([CommunityKnowledge].self, from: data)
+        } else {
+            communityKnowledges = []
+        }
         let siteAnnouncement: SiteAnnouncement?
         if let siteAnnouncementData {
             let data = try JSONSerialization.data(withJSONObject: siteAnnouncementData)
@@ -199,6 +211,7 @@ public struct CodexRadarClient {
             modelIQ: modelIQEnvelope,
             resetJudgement: resetJudgement,
             communityKnowledge: communityKnowledge,
+            communityKnowledges: communityKnowledges.isEmpty ? nil : communityKnowledges,
             siteAnnouncement: siteAnnouncement
         )
     }
@@ -297,25 +310,37 @@ public struct CodexRadarClient {
     }
 
     private static func parseHomepageCommunityKnowledge(html: String) -> [String: Any]? {
+        parseHomepageCommunityKnowledges(html: html).first
+    }
+
+    private static func parseHomepageCommunityKnowledges(html: String) -> [[String: Any]] {
         guard let section = firstCapture(
             #"<section\s+class="community-knowledge"[^>]*>(.*?)</section>"#,
             in: html
-        ),
-        let card = firstCapture(
-            #"<article\s+class="community-knowledge-card"[^>]*>(.*?)</article>"#,
-            in: section
         ) else {
-            return nil
+            return []
         }
-        let title = cleanHTMLText(firstCapture(#"<h2>(.*?)</h2>"#, in: card))
-        let prompt = cleanHTMLMultilineText(firstCapture(#"<code[^>]*data-site-announcement-prompt[^>]*>(.*?)</code>"#, in: card))
-        guard !title.isEmpty, !prompt.isEmpty else {
-            return nil
+
+        return allMatches(
+            #"<article\s+class="[^"]*community-knowledge-card[^"]*"[^>]*>(.*?)</article>"#,
+            in: section
+        ).compactMap { groups in
+            guard let card = groups.first else {
+                return nil
+            }
+            let title = cleanHTMLText(firstCapture(#"<h2>(.*?)</h2>"#, in: card))
+            let prompt = cleanHTMLMultilineText(firstCapture(
+                #"<(?:code|div)[^>]*data-site-announcement-prompt[^>]*>(.*?)</(?:code|div)>"#,
+                in: card
+            ))
+            guard !title.isEmpty, !prompt.isEmpty else {
+                return nil
+            }
+            return [
+                "title": title,
+                "prompt": prompt
+            ]
         }
-        return [
-            "title": title,
-            "prompt": prompt
-        ]
     }
 
     private static func parseHomepageSiteAnnouncement(html: String) -> [String: Any]? {

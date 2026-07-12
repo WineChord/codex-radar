@@ -84,8 +84,43 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.resetJudgement?.cards.first?.level, "高 · 基本已触发")
         XCTAssertEqual(current.resetJudgement?.reasons.count, 2)
         XCTAssertEqual(current.communityKnowledge?.title, "重置卡过期时间自查")
+        XCTAssertEqual(current.communityKnowledges.count, 1)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("rate-limit reset credits") == true)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("不要打印 access_token") == true)
+    }
+
+    func testBuildsCommunityKnowledgeFromGuideDiv() throws {
+        let html = """
+        <html>
+          <head>
+            <title>7月12日 Sol max: IQ指数 105.0, 7/10, 费用 $58.4, 耗时 30分钟, cache命中率 97.6%</title>
+          </head>
+          <body>
+            <section class="community-knowledge" aria-label="Codex 社区知识分享">
+              <div class="community-knowledge-grid">
+                <article class="community-knowledge-card">
+                  <div class="community-knowledge-card-main">
+                    <h2>如何开启 Max 推理强度</h2>
+                  </div>
+                  <div class="community-knowledge-guide" data-site-announcement-prompt hidden>
+                    <p>打开 Codex 设置 → Configuration → Model features → Available reasoning efforts，勾选 Max。</p>
+                    <img src="assets/codex-enable-max-reasoning-20260711.png" alt="在 Codex Configuration 的 Available reasoning efforts 中开启 Max">
+                  </div>
+                </article>
+              </div>
+            </section>
+          </body>
+        </html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_783_824_000)
+        )
+
+        XCTAssertEqual(current.communityKnowledge?.title, "如何开启 Max 推理强度")
+        XCTAssertEqual(current.communityKnowledges.count, 1)
+        XCTAssertTrue(current.communityKnowledge?.prompt?.contains("Available reasoning efforts") == true)
     }
 
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
