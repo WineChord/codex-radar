@@ -535,15 +535,14 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private static func documentationRateLimits() -> RateLimitDashboard? {
         let now = Int(Date().timeIntervalSince1970)
-        let shortReset = now + 16_740
         let weeklyReset = now + 565_200
         guard let response: RateLimitResponse = decodeDocumentationJSON("""
         {
           "rateLimits": {
             "limitId": "codex",
             "limitName": null,
-            "primary": { "usedPercent": 1, "windowDurationMins": 300, "resetsAt": \(shortReset) },
-            "secondary": { "usedPercent": 4, "windowDurationMins": 10080, "resetsAt": \(weeklyReset) },
+            "primary": { "usedPercent": 4, "windowDurationMins": 10080, "resetsAt": \(weeklyReset) },
+            "secondary": null,
             "credits": null,
             "planType": "pro",
             "rateLimitReachedType": null
@@ -707,20 +706,20 @@ final class SentinelStore: NSObject, ObservableObject {
             }
           },
           "quota_radar": {
-            "date": "2026-07-04-am",
-            "updated_at": "2026-07-04T08:28:21+08:00",
-            "basis_date": "2026-07-04-am",
-            "basis_window_label": "5h",
-            "cost_usd": 126.551833,
-            "total_tokens": 154872137,
+            "date": "2026-07-13-pm",
+            "updated_at": "2026-07-13T14:04:47+08:00",
+            "basis_date": "2026-07-13-pm",
+            "basis_window_label": "7d",
+            "cost_usd": 205.269295,
+            "total_tokens": 368693293,
             "rows": [
-              { "tier": "20x Pro", "basis": "measured", "five_h": 301.31, "seven_d": 1807.86 },
-              { "tier": "5x Pro", "basis": "model /4", "five_h": 75.33, "seven_d": 451.97 },
-              { "tier": "Plus", "basis": "model /20", "five_h": 15.07, "seven_d": 90.39 }
+              { "tier": "20x Pro", "basis": "measured 7d", "five_h": 311.01, "seven_d": 1866.08 },
+              { "tier": "5x Pro", "basis": "model /4", "five_h": 77.75, "seven_d": 466.52 },
+              { "tier": "Plus", "basis": "model /20", "five_h": 15.55, "seven_d": 93.30 }
             ],
             "trend": [
-              { "date": "2026-07-03-pm", "seven_d_20x": 1498.92, "five_h_20x": 249.82 },
-              { "date": "2026-07-04-am", "seven_d_20x": 1807.86, "five_h_20x": 301.31 }
+              { "date": "2026-07-12-pm", "seven_d_20x": 2055.86, "five_h_20x": 342.64 },
+              { "date": "2026-07-13-pm", "seven_d_20x": 1866.08, "five_h_20x": 311.01 }
             ]
           }
         }

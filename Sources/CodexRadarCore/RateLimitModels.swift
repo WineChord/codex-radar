@@ -47,7 +47,7 @@ public struct RateLimitDashboard: Equatable {
     }
 
     public var shortBucket: RateLimitWindow? {
-        return bestWindow(near: AppConstants.fiveHourWindowMinutes) ?? shortestWindow
+        bestWindow(near: AppConstants.fiveHourWindowMinutes)
     }
 
     public var weeklyRemainingPercent: Int? {
@@ -70,12 +70,6 @@ public struct RateLimitDashboard: Equatable {
 
     private var longestWindow: RateLimitWindow? {
         windows.max {
-            ($0.windowDurationMins ?? 0) < ($1.windowDurationMins ?? 0)
-        }
-    }
-
-    private var shortestWindow: RateLimitWindow? {
-        windows.min {
             ($0.windowDurationMins ?? 0) < ($1.windowDurationMins ?? 0)
         }
     }

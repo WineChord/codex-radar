@@ -480,6 +480,13 @@ public struct QuotaRadar: Decodable, Equatable {
         return latest - previous
     }
 
+    public var showsFiveHourValues: Bool {
+        if let basisWindowLabel {
+            return basisWindowLabel.lowercased().contains("5h")
+        }
+        return rows.contains { $0.fiveHourUSD != nil }
+    }
+
     enum CodingKeys: String, CodingKey {
         case date
         case updatedAt = "updated_at"

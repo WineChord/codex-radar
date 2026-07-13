@@ -50,3 +50,5 @@ If any menu-bar segment shows `--` while CodexRadar has a visible value on the w
 - As of app v0.1.30, CodexRadar HTTP requests must use `AppConstants.requestTimeoutSeconds`; otherwise one stuck endpoint can block future polling cycles and leave the status bar stale during an active window.
 - Legacy CodexRadar schema v2 embedded Prediction and model IQ in `current.json`; keep those decoders because older fixtures and possible future JSON restoration still depend on them.
 - `model_iq.latest.score` / homepage IQ values can be decimal, for example `62.5`; do not decode IQ as an integer.
+- As of 2026-07-14, CodexRadar describes the 5h limit as temporarily inactive and renders only the active 7d Quota Radar column. `current.json` may still carry derived `five_h` row values while `basis_window_label` is `7d`; follow the basis label for UI visibility instead of exposing values the site intentionally hides.
+- The local Codex app-server may return only a 10,080-minute weekly window while 5h is paused. Never infer 5h from the shortest available window; show local 5h UI only for an explicitly returned window near 300 minutes so it can disappear and return dynamically.

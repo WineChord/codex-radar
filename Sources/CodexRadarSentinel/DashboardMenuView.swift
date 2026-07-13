@@ -167,21 +167,37 @@ struct DashboardMenuView: View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("状态栏含义", "Menu Bar"), systemImage: "menubar.rectangle")
             expandableCaptionText(
-                text(
-                    "默认显示“周额度 / IQ / 质量”；可打开 5h 和应剩。",
-                    "Default: Weekly / IQ / Quality; enable 5h and Pace when useful."
-                ),
+                statusLegendDescription,
                 key: "status-legend",
                 collapsedLines: 2
             )
             HStack(spacing: 6) {
                 legendTile(metric: .weeklyQuota, color: quotaColor)
-                legendTile(metric: .shortQuota, color: shortQuotaColor)
+                if hasLocalShortQuota {
+                    legendTile(metric: .shortQuota, color: shortQuotaColor)
+                }
                 legendTile(metric: .quotaPace, color: quotaPaceColor)
                 legendTile(metric: .codexIQ, color: iqColor)
                 legendTile(metric: .signal, color: signalColor)
             }
         }
+    }
+
+    private var hasLocalShortQuota: Bool {
+        state.rateLimits?.shortBucket != nil
+    }
+
+    private var statusLegendDescription: String {
+        if hasLocalShortQuota {
+            return text(
+                "默认显示“周额度 / IQ / 质量”；可打开 5h 和应剩。",
+                "Default: Weekly / IQ / Quality; enable 5h and Pace when useful."
+            )
+        }
+        return text(
+            "默认显示“周额度 / IQ / 质量”；5h 当前暂停，已自动隐藏；可打开应剩。",
+            "Default: Weekly / IQ / Quality. The 5h window is currently paused and hidden automatically; Pace remains optional."
+        )
     }
 
     private var quotaSection: some View {
@@ -193,11 +209,13 @@ struct DashboardMenuView: View {
                     value: DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent),
                     resetAt: state.rateLimits?.weeklyBucket?.resetsAt
                 )
-                quotaTile(
-                    title: text("短窗", "Short"),
-                    value: DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent),
-                    resetAt: state.rateLimits?.shortBucket?.resetsAt
-                )
+                if hasLocalShortQuota {
+                    quotaTile(
+                        title: text("短窗", "Short"),
+                        value: DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent),
+                        resetAt: state.rateLimits?.shortBucket?.resetsAt
+                    )
+                }
             }
             if let planType = state.rateLimits?.snapshot.planType {
                 Text("\(text("套餐", "Plan")) \(planType)")
@@ -825,12 +843,15 @@ struct DashboardMenuView: View {
     }
 
     private func quotaRadarTable(_ quotaRadar: QuotaRadar) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        let showsFiveHourValues = quotaRadar.showsFiveHourValues
+        return VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Text(text("档位", "Tier"))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text("5h")
-                    .frame(width: 66, alignment: .trailing)
+                if showsFiveHourValues {
+                    Text("5h")
+                        .frame(width: 66, alignment: .trailing)
+                }
                 Text("7d")
                     .frame(width: 78, alignment: .trailing)
                 Text(text("来源", "Basis"))
@@ -846,9 +867,11 @@ struct DashboardMenuView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(DisplayFormatters.costUSD(row.fiveHourUSD))
-                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                        .frame(width: 66, alignment: .trailing)
+                    if showsFiveHourValues {
+                        Text(DisplayFormatters.costUSD(row.fiveHourUSD))
+                            .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                            .frame(width: 66, alignment: .trailing)
+                    }
                     Text(DisplayFormatters.costUSD(row.sevenDayUSD))
                         .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
                         .frame(width: 78, alignment: .trailing)
@@ -1300,19 +1323,29 @@ struct DashboardMenuView: View {
                     .font(.system(size: metrics.caption, weight: .medium))
                     .foregroundStyle(.secondary)
                 LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: Layout.tileSpacing),
-                        GridItem(.flexible(), spacing: Layout.tileSpacing),
-                        GridItem(.flexible(), spacing: Layout.tileSpacing),
-                    ],
+                    columns: Array(
+                        repeating: GridItem(.flexible(), spacing: Layout.tileSpacing),
+                        count: hasLocalShortQuota ? 3 : 2
+                    ),
                     alignment: .leading,
                     spacing: 7
                 ) {
                     metricToggle(.weeklyQuota)
-                    metricToggle(.shortQuota)
+                    if hasLocalShortQuota {
+                        metricToggle(.shortQuota)
+                    }
                     metricToggle(.quotaPace)
                     metricToggle(.codexIQ)
                     metricToggle(.signal)
+                }
+                if !hasLocalShortQuota {
+                    Text(text(
+                        "Codex 当前未返回 5h 短窗，已自动隐藏；恢复后选项会自动出现。",
+                        "Codex is not currently returning a 5h window, so it is hidden automatically and will reappear when available."
+                    ))
+                    .font(.system(size: metrics.caption))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 quotaPacingOptions
                 Toggle(
