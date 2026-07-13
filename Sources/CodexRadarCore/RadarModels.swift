@@ -14,6 +14,7 @@ public struct RadarCurrent: Decodable, Equatable {
     public let communityKnowledge: CommunityKnowledge?
     public let communityKnowledges: [CommunityKnowledge]
     public let siteAnnouncement: SiteAnnouncement?
+    public let fastRadar: FastRadar?
 
     public var checkedDate: Date? {
         RadarDateParser.date(from: checkedAt)
@@ -32,7 +33,8 @@ public struct RadarCurrent: Decodable, Equatable {
         resetJudgement: ResetJudgement? = nil,
         communityKnowledge: CommunityKnowledge? = nil,
         communityKnowledges: [CommunityKnowledge] = [],
-        siteAnnouncement: SiteAnnouncement? = nil
+        siteAnnouncement: SiteAnnouncement? = nil,
+        fastRadar: FastRadar? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.checkedAt = checkedAt
@@ -47,6 +49,7 @@ public struct RadarCurrent: Decodable, Equatable {
         self.communityKnowledge = communityKnowledge
         self.communityKnowledges = communityKnowledges
         self.siteAnnouncement = siteAnnouncement
+        self.fastRadar = fastRadar
     }
 
     public func withModelIQ(_ modelIQ: ModelIQEnvelope?) -> RadarCurrent {
@@ -58,7 +61,8 @@ public struct RadarCurrent: Decodable, Equatable {
         resetJudgement: ResetJudgement? = nil,
         communityKnowledge: CommunityKnowledge? = nil,
         communityKnowledges: [CommunityKnowledge]? = nil,
-        siteAnnouncement: SiteAnnouncement? = nil
+        siteAnnouncement: SiteAnnouncement? = nil,
+        fastRadar: FastRadar? = nil
     ) -> RadarCurrent {
         RadarCurrent(
             schemaVersion: schemaVersion,
@@ -73,7 +77,8 @@ public struct RadarCurrent: Decodable, Equatable {
             resetJudgement: resetJudgement ?? self.resetJudgement,
             communityKnowledge: communityKnowledge ?? self.communityKnowledge,
             communityKnowledges: communityKnowledges ?? self.communityKnowledges,
-            siteAnnouncement: siteAnnouncement ?? self.siteAnnouncement
+            siteAnnouncement: siteAnnouncement ?? self.siteAnnouncement,
+            fastRadar: fastRadar ?? self.fastRadar
         )
     }
 
@@ -93,6 +98,7 @@ public struct RadarCurrent: Decodable, Equatable {
         case communityKnowledge = "community_knowledge"
         case communityKnowledges = "community_knowledges"
         case siteAnnouncement = "site_announcement"
+        case fastRadar = "fast_radar"
     }
 
     public init(from decoder: Decoder) throws {
@@ -127,6 +133,7 @@ public struct RadarCurrent: Decodable, Equatable {
             ?? decodedCommunityKnowledge.map { [$0] }
             ?? []
         siteAnnouncement = try container.decodeIfPresent(SiteAnnouncement.self, forKey: .siteAnnouncement)
+        fastRadar = try container.decodeIfPresent(FastRadar.self, forKey: .fastRadar)
     }
 }
 
@@ -186,6 +193,60 @@ public struct CommunityKnowledge: Decodable, Equatable {
         case title
         case prompt
     }
+}
+
+public struct FastRadar: Decodable, Equatable {
+    public let title: String?
+    public let updatedLabel: String?
+    public let subtitle: String?
+    public let summary: [FastRadarSummaryItem]
+    public let rows: [FastRadarRow]
+    public let method: String?
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case updatedLabel = "updated_label"
+        case subtitle
+        case summary
+        case rows
+        case method
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        updatedLabel = try container.decodeIfPresent(String.self, forKey: .updatedLabel)
+        subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
+        summary = try container.decodeIfPresent([FastRadarSummaryItem].self, forKey: .summary) ?? []
+        rows = try container.decodeIfPresent([FastRadarRow].self, forKey: .rows) ?? []
+        method = try container.decodeIfPresent(String.self, forKey: .method)
+    }
+}
+
+public struct FastRadarSummaryItem: Decodable, Equatable, Identifiable {
+    public let label: String?
+    public let value: String?
+
+    public var id: String {
+        "\(label ?? "")-\(value ?? "")"
+    }
+}
+
+public struct FastRadarRow: Decodable, Equatable, Identifiable {
+    public let model: String?
+    public let e2e: FastRadarMetric?
+    public let ttft: FastRadarMetric?
+    public let tps: FastRadarMetric?
+
+    public var id: String {
+        model ?? "\(e2e?.value ?? "")-\(ttft?.value ?? "")-\(tps?.value ?? "")"
+    }
+}
+
+public struct FastRadarMetric: Decodable, Equatable {
+    public let label: String?
+    public let range: String?
+    public let value: String?
 }
 
 public struct RadarWindow: Decodable, Equatable {

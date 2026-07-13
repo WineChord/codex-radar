@@ -21,6 +21,8 @@ final class LiveCodexRadarContractTests: XCTestCase {
         XCTAssertNotNil(current.communityKnowledge?.prompt)
         XCTAssertGreaterThanOrEqual(current.communityKnowledges.count, 1)
         XCTAssertNotNil(current.siteAnnouncement?.message)
+        XCTAssertGreaterThanOrEqual(current.fastRadar?.summary.count ?? 0, 1)
+        XCTAssertGreaterThanOrEqual(current.fastRadar?.rows.count ?? 0, 1)
         if current.modelIQ?.comparisons.isEmpty == false {
             XCTAssertGreaterThan(current.modelIQ?.latestRows.count ?? 0, 1)
         }

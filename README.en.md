@@ -2,11 +2,20 @@
 
 [中文](README.md) | English
 
-Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, and model quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, community knowledge, quota estimates, Model IQ, local Codex quota state, and reset-credit expiry checks together, while keeping compatibility if the old reset/speed endpoints return.
+Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, Fast radar, and model quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, community knowledge, quota estimates, Fast performance comparisons, Model IQ, local Codex quota state, and reset-credit expiry checks together, while keeping compatibility if the old reset/speed endpoints return.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
 ## News
+
+<details>
+<summary><strong>v0.1.50: Fast Radar sync</strong> - The dropdown shows Standard vs Fast public performance comparisons.</summary>
+
+- CodexRadar added `Fast Radar`, comparing Standard and Fast across E2E, TTFT, and TPS.
+- Sentinel parses the three summary metrics plus Sol / Terra / Luna per-model results from the homepage and shows them in `CodexRadar Fast Radar`.
+- The method note stays collapsed as long text, and the menu bar title gets no new segment so quota and quality remain the primary glanceable signals.
+
+</details>
 
 <details>
 <summary><strong>v0.1.49: Community knowledge cards</strong> - CodexRadar's new guide cards appear separately.</summary>

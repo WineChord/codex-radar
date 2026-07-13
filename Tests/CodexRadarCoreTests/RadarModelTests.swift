@@ -123,6 +123,68 @@ final class RadarModelTests: XCTestCase {
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("Available reasoning efforts") == true)
     }
 
+    func testBuildsFastRadarFromHomepageHTML() throws {
+        let html = """
+        <html>
+          <head>
+            <title>7月13日 Sol max: IQ指数 150.0, 10/10, 费用 $34.9, 耗时 27分钟, cache命中率 95.6%</title>
+          </head>
+          <body>
+            <section class="fast-radar" id="fast-radar" aria-label="Fast 雷达">
+              <div class="fast-radar-head">
+                <div>
+                  <h2>Fast 雷达 <em>7月12日16:32更新</em></h2>
+                </div>
+                <span>从标准改成 Fast，以 2.5 倍的成本到底快了多少？</span>
+              </div>
+              <div class="fast-radar-summary" aria-label="Fast 模式速览">
+                <div><span>体感加速</span><strong>⚡️1.381 倍</strong></div>
+                <div><span>首字延迟减少</span><strong>0.08 秒</strong></div>
+                <div><span>Token 生成速度加速</span><strong>⚡️1.504 倍</strong></div>
+              </div>
+              <div class="fast-radar-table" role="table" aria-label="Fast 雷达">
+                <div class="fast-radar-row fast-radar-row-head" role="row">
+                  <span>模型</span>
+                  <span>体感加速 · E2E</span>
+                  <span>首字延迟减少 · TTFT</span>
+                  <span>Token 生成速度加速 · TPS</span>
+                </div>
+                <div class="fast-radar-row" role="row">
+                  <div class="fast-radar-model"><strong>Sol</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-e2e" data-label="体感加速"><span>47.26s → 33.79s</span><strong>⚡️1.399×</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-ttft" data-label="首字延迟减少"><span>9.98s → 9.08s</span><strong>快 9.0%</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-tps" data-label="Token 生成速度加速"><span>55.75 → 84.23</span><strong>⚡️1.511×</strong></div>
+                </div>
+                <div class="fast-radar-row" role="row">
+                  <div class="fast-radar-model"><strong>Terra</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-e2e" data-label="体感加速"><span>44.61s → 34.10s</span><strong>⚡️1.308×</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-ttft is-regression" data-label="首字延迟减少"><span>7.17s → 9.10s</span><strong>慢 26.9%</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-tps" data-label="Token 生成速度加速"><span>55.53 → 83.37</span><strong>⚡️1.501×</strong></div>
+                </div>
+              </div>
+              <div class="fast-radar-explain">
+                <p>测试方法：Standard 与 Fast 各独立运行 3 次并取算术平均。</p>
+              </div>
+            </section>
+          </body>
+        </html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_783_910_400)
+        )
+
+        XCTAssertEqual(current.fastRadar?.title, "Fast 雷达")
+        XCTAssertEqual(current.fastRadar?.updatedLabel, "7月12日16:32更新")
+        XCTAssertEqual(current.fastRadar?.summary.count, 3)
+        XCTAssertEqual(current.fastRadar?.rows.count, 2)
+        XCTAssertEqual(current.fastRadar?.rows.first?.model, "Sol")
+        XCTAssertEqual(current.fastRadar?.rows.first?.e2e?.value, "⚡️1.399×")
+        XCTAssertEqual(current.fastRadar?.rows.last?.ttft?.value, "慢 26.9%")
+        XCTAssertTrue(current.fastRadar?.method?.contains("Standard 与 Fast") == true)
+    }
+
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(currentWithoutIQJSON.utf8))
         let merged = try CodexRadarClient.currentByMergingHomepageModelIQ(

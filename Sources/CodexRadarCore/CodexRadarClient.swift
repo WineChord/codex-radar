@@ -32,7 +32,7 @@ public struct CodexRadarClient {
         let data = try await fetchData(AppConstants.currentPath)
         do {
             let current = try decoder.decode(RadarCurrent.self, from: data)
-            guard current.modelIQ?.latest?.iqScore == nil || current.resetJudgement == nil || current.communityKnowledge == nil || current.siteAnnouncement == nil,
+            guard current.modelIQ?.latest?.iqScore == nil || current.resetJudgement == nil || current.communityKnowledge == nil || current.siteAnnouncement == nil || current.fastRadar == nil,
                   let homepageHTML = try? await fetchHomepageHTML(),
                   let supplemented = try? Self.currentByMergingHomepageSignals(current, html: homepageHTML) else {
                 return current
@@ -106,6 +106,7 @@ public struct CodexRadarClient {
         let communityKnowledges = parseHomepageCommunityKnowledges(html: html)
         let communityKnowledge = communityKnowledges.first
         let siteAnnouncement = parseHomepageSiteAnnouncement(html: html)
+        let fastRadar = parseHomepageFastRadar(html: html)
         let checkedAtString = isoString(checkedAt)
         var payload: [String: Any] = [
             "schema_version": "homepage-fallback-v1",
@@ -147,6 +148,9 @@ public struct CodexRadarClient {
         if let siteAnnouncement {
             payload["site_announcement"] = siteAnnouncement
         }
+        if let fastRadar {
+            payload["fast_radar"] = fastRadar
+        }
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try JSONDecoder().decode(RadarCurrent.self, from: data)
     }
@@ -179,6 +183,7 @@ public struct CodexRadarClient {
         let communityKnowledgesData = parseHomepageCommunityKnowledges(html: html)
         let communityKnowledgeData = communityKnowledgesData.first
         let siteAnnouncementData = parseHomepageSiteAnnouncement(html: html)
+        let fastRadarData = parseHomepageFastRadar(html: html)
         let resetJudgement: ResetJudgement?
         if let resetJudgementData {
             let data = try JSONSerialization.data(withJSONObject: resetJudgementData)
@@ -207,12 +212,20 @@ public struct CodexRadarClient {
         } else {
             siteAnnouncement = nil
         }
+        let fastRadar: FastRadar?
+        if let fastRadarData {
+            let data = try JSONSerialization.data(withJSONObject: fastRadarData)
+            fastRadar = try JSONDecoder().decode(FastRadar.self, from: data)
+        } else {
+            fastRadar = nil
+        }
         return current.withSignals(
             modelIQ: modelIQEnvelope,
             resetJudgement: resetJudgement,
             communityKnowledge: communityKnowledge,
             communityKnowledges: communityKnowledges.isEmpty ? nil : communityKnowledges,
-            siteAnnouncement: siteAnnouncement
+            siteAnnouncement: siteAnnouncement,
+            fastRadar: fastRadar
         )
     }
 
@@ -392,6 +405,86 @@ public struct CodexRadarClient {
             }
         }
         return payload
+    }
+
+    private static func parseHomepageFastRadar(html: String) -> [String: Any]? {
+        guard let section = firstCapture(
+            #"<section\s+class="[^"]*fast-radar[^"]*"[^>]*>(.*?)</section>"#,
+            in: html
+        ) else {
+            return nil
+        }
+
+        let updatedLabel = cleanHTMLText(firstCapture(#"<h2>.*?<em>(.*?)</em>.*?</h2>"#, in: section))
+        var title = cleanHTMLText(firstCapture(#"<h2>(.*?)</h2>"#, in: section))
+        if !updatedLabel.isEmpty {
+            title = title.replacingOccurrences(of: updatedLabel, with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let subtitle = cleanHTMLText(firstCapture(
+            #"<div\s+class="fast-radar-head"[^>]*>.*?</h2>\s*</div>\s*<span>(.*?)</span>"#,
+            in: section
+        ))
+        let summarySection = firstCapture(
+            #"<div\s+class="fast-radar-summary"[^>]*>(.*?)</div>\s*<div\s+class="fast-radar-table""#,
+            in: section
+        ) ?? ""
+        let summary = allMatches(
+            #"<div>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>"#,
+            in: summarySection
+        ).map { groups in
+            [
+                "label": cleanHTMLText(groups[safe: 0]),
+                "value": cleanHTMLText(groups[safe: 1])
+            ]
+        }.filter { item in
+            !(item["label"] ?? "").isEmpty && !(item["value"] ?? "").isEmpty
+        }
+        let rows = allMatches(
+            #"<div\s+class="fast-radar-row"[^>]*>\s*<div\s+class="fast-radar-model"[^>]*>.*?<strong>(.*?)</strong></div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*</div>"#,
+            in: section
+        ).map { groups in
+            [
+                "model": cleanHTMLText(groups[safe: 0]),
+                "e2e": fastRadarMetricPayload(label: groups[safe: 1], range: groups[safe: 2], value: groups[safe: 3]),
+                "ttft": fastRadarMetricPayload(label: groups[safe: 4], range: groups[safe: 5], value: groups[safe: 6]),
+                "tps": fastRadarMetricPayload(label: groups[safe: 7], range: groups[safe: 8], value: groups[safe: 9])
+            ]
+        }.filter { row in
+            !(row["model"] as? String ?? "").isEmpty
+        }
+        let method = cleanHTMLMultilineText(firstCapture(
+            #"<div\s+class="fast-radar-explain"[^>]*>\s*<p>(.*?)</p>"#,
+            in: section
+        ))
+
+        guard !summary.isEmpty || !rows.isEmpty else {
+            return nil
+        }
+
+        var payload: [String: Any] = [
+            "title": title.isEmpty ? "Fast 雷达" : title,
+            "summary": summary,
+            "rows": rows
+        ]
+        if !updatedLabel.isEmpty {
+            payload["updated_label"] = updatedLabel
+        }
+        if !subtitle.isEmpty {
+            payload["subtitle"] = subtitle
+        }
+        if !method.isEmpty {
+            payload["method"] = method
+        }
+        return payload
+    }
+
+    private static func fastRadarMetricPayload(label: String?, range: String?, value: String?) -> [String: String] {
+        [
+            "label": cleanHTMLText(label),
+            "range": cleanHTMLText(range),
+            "value": cleanHTMLText(value)
+        ]
     }
 
     fileprivate static func modelIQStatus(_ score: Double) -> String {

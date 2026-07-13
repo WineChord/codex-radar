@@ -2,11 +2,20 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达、Fast 雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Fast 性能对比、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
+
+<details>
+<summary><strong>v0.1.50：Fast 雷达同步</strong> - 下拉菜单展示 Standard vs Fast 的公开性能对比。</summary>
+
+- CodexRadar 新增 `Fast 雷达`：比较 Standard 和 Fast 在 E2E、TTFT、TPS 上的变化。
+- Sentinel 会从首页解析三项摘要和 Sol / Terra / Luna 逐模型结果，展示在 `CodexRadar Fast 雷达` 区块。
+- 测试方法默认折叠为长文说明，状态栏不新增占位，避免为了性能参考信号挤占额度和质量指标。
+
+</details>
 
 <details>
 <summary><strong>v0.1.49：社区知识卡兼容</strong> - CodexRadar 新的指南卡会单独显示。</summary>

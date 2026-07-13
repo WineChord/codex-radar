@@ -833,6 +833,16 @@ final class SentinelStore: NSObject, ObservableObject {
             "Polymarket GPT-5.6 release-date odds: July 9 72%, July 10 8.1%, Not before Aug 5.1%."
         )
         let announcementUpdated = language.text("数据更新时间 07-07 08:49", "Updated Jul 7 08:49")
+        let fastTitle = language.text("Fast 雷达", "Fast Radar")
+        let fastUpdated = language.text("7月12日16:32更新", "Jul 12 16:32")
+        let fastSubtitle = language.text(
+            "从标准改成 Fast，以 2.5 倍的成本到底快了多少？",
+            "How much faster is Fast at 2.5x the cost?"
+        )
+        let fastMethod = language.text(
+            "测试方法：Sol、Terra、Luna 均使用 low 推理强度，固定输出任务为从 1 数到 1024。Standard 与 Fast 各独立运行 3 次并取算术平均。",
+            "Method: Sol, Terra, and Luna use low reasoning effort and a fixed count-to-1024 output task. Standard and Fast each run three times and use arithmetic averages."
+        )
         return decodeDocumentationJSON("""
         {
           "schema_version": "homepage-fallback-v1",
@@ -882,6 +892,37 @@ final class SentinelStore: NSObject, ObservableObject {
             "updated_label": "\(announcementUpdated)",
             "source_label": "Polymarket",
             "source_url": "https://polymarket.com/event/gpt-5pt6-released-onptptpt-20260623051439980"
+          },
+          "fast_radar": {
+            "title": "\(fastTitle)",
+            "updated_label": "\(fastUpdated)",
+            "subtitle": "\(fastSubtitle)",
+            "summary": [
+              { "label": "\(language.text("体感加速", "E2E speedup"))", "value": "⚡️1.381×" },
+              { "label": "\(language.text("首字延迟减少", "TTFT change"))", "value": "0.08s" },
+              { "label": "\(language.text("Token 生成速度", "Token speed"))", "value": "⚡️1.504×" }
+            ],
+            "rows": [
+              {
+                "model": "Sol",
+                "e2e": { "label": "E2E", "range": "47.26s → 33.79s", "value": "⚡️1.399×" },
+                "ttft": { "label": "TTFT", "range": "9.98s → 9.08s", "value": "\(language.text("快 9.0%", "9.0% faster"))" },
+                "tps": { "label": "TPS", "range": "55.75 → 84.23", "value": "⚡️1.511×" }
+              },
+              {
+                "model": "Terra",
+                "e2e": { "label": "E2E", "range": "44.61s → 34.10s", "value": "⚡️1.308×" },
+                "ttft": { "label": "TTFT", "range": "7.17s → 9.10s", "value": "\(language.text("慢 26.9%", "26.9% slower"))" },
+                "tps": { "label": "TPS", "range": "55.53 → 83.37", "value": "⚡️1.501×" }
+              },
+              {
+                "model": "Luna",
+                "e2e": { "label": "E2E", "range": "44.94s → 31.16s", "value": "⚡️1.442×" },
+                "ttft": { "label": "TTFT", "range": "7.45s → 6.19s", "value": "\(language.text("快 17.0%", "17.0% faster"))" },
+                "tps": { "label": "TPS", "range": "55.50 → 83.26", "value": "⚡️1.500×" }
+              }
+            ],
+            "method": "\(fastMethod)"
           },
           "model_iq": {
             "updated_at": "2026-07-04T08:28:00+08:00",

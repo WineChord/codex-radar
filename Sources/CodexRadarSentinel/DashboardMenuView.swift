@@ -80,6 +80,7 @@ struct DashboardMenuView: View {
             resetJudgementSection
             communityKnowledgeSection
             codexRadarQuotaSection
+            codexRadarFastSection
             Divider()
             radarSection
             if showsPredictionSection {
@@ -652,16 +653,60 @@ struct DashboardMenuView: View {
         }
     }
 
+    @ViewBuilder
+    private var codexRadarFastSection: some View {
+        if let fastRadar = state.current?.fastRadar,
+           !fastRadar.summary.isEmpty || !fastRadar.rows.isEmpty {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline) {
+                    sectionTitle(text("CodexRadar Fast 雷达", "CodexRadar Fast Radar"), systemImage: "bolt.circle")
+                    Spacer(minLength: 8)
+                    if let updatedLabel = fastRadar.updatedLabel, !updatedLabel.isEmpty {
+                        Text(updatedLabel)
+                            .font(.system(size: metrics.caption, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                    }
+                }
+                if let subtitle = fastRadar.subtitle, !subtitle.isEmpty {
+                    expandableCaptionText(
+                        subtitle,
+                        key: "fast-radar-subtitle-\(fastRadar.updatedLabel ?? "")-\(subtitle)",
+                        collapsedLines: 2
+                    )
+                }
+                if !fastRadar.summary.isEmpty {
+                    HStack(spacing: Layout.tileSpacing) {
+                        ForEach(fastRadar.summary.prefix(3)) { item in
+                            fastRadarSummaryTile(item)
+                        }
+                    }
+                }
+                if !fastRadar.rows.isEmpty {
+                    fastRadarTable(fastRadar)
+                }
+                if let method = fastRadar.method, !method.isEmpty {
+                    expandableCaptionText(
+                        method,
+                        key: "fast-radar-method-\(fastRadar.updatedLabel ?? "")",
+                        collapsedLines: 3
+                    )
+                }
+            }
+        }
+    }
+
     private var radarTitle: String {
         if codexRadarSignalRetired {
-            return text("重置、额度与模型雷达", "Reset, quota and model radar")
+            return text("重置、额度、Fast 与模型雷达", "Reset, quota, Fast and model radar")
         }
         return state.current?.lastWindow?.title ?? text("还没有加载 CodexRadar 状态", "No CodexRadar status loaded")
     }
 
     private var radarFocus: String {
         if codexRadarSignalRetired {
-            return text("重置雷达 + 额度雷达 + Model IQ", "Reset + Quota + Model IQ")
+            return text("重置 + 额度 + Fast + Model IQ", "Reset + Quota + Fast + Model IQ")
         }
         return state.current?.lastWindow?.windowHuman ?? text("未知", "unknown")
     }
@@ -676,8 +721,8 @@ struct DashboardMenuView: View {
     private var radarSummary: String {
         if codexRadarSignalRetired {
             return text(
-                "CodexRadar 当前公开重置雷达、额度雷达与模型质量：reset 研判、公开额度估算、Model IQ、速度、费用、cache 命中率和社区体感分。",
-                "CodexRadar currently publishes reset judgement, quota radar, and model quality: reset calls, public quota estimates, Model IQ, speed, cost, cache hit rate, and community ratings."
+                "CodexRadar 当前公开重置雷达、额度雷达、Fast 性能对比与模型质量：reset 研判、公开额度估算、Model IQ、速度、费用、cache 命中率和社区体感分。",
+                "CodexRadar currently publishes reset judgement, quota radar, Fast performance comparisons, and model quality: reset calls, public quota estimates, Model IQ, speed, cost, cache hit rate, and community ratings."
             )
         }
         return state.current?.lastWindow?.summary ?? text(
@@ -818,6 +863,85 @@ struct DashboardMenuView: View {
         }
         .padding(8)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func fastRadarSummaryTile(_ item: FastRadarSummaryItem) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(item.label ?? text("指标", "Metric"))
+                .font(.system(size: metrics.caption, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+            Text(item.value ?? DisplayFormatters.percentPlaceholder)
+                .font(.system(size: metrics.label, weight: .semibold, design: .monospaced))
+                .foregroundStyle(fastMetricColor(item.value))
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func fastRadarTable(_ fastRadar: FastRadar) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Text(text("模型", "Model"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("E2E")
+                    .frame(width: 72, alignment: .trailing)
+                Text("TTFT")
+                    .frame(width: 68, alignment: .trailing)
+                Text("TPS")
+                    .frame(width: 68, alignment: .trailing)
+            }
+            .font(.system(size: metrics.caption, weight: .semibold))
+            .foregroundStyle(.secondary)
+
+            ForEach(fastRadar.rows) { row in
+                HStack(spacing: 6) {
+                    Text(row.model ?? text("未知", "Unknown"))
+                        .font(.system(size: metrics.label, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    fastRadarMetricValue(row.e2e)
+                        .frame(width: 72, alignment: .trailing)
+                    fastRadarMetricValue(row.ttft)
+                        .frame(width: 68, alignment: .trailing)
+                    fastRadarMetricValue(row.tps)
+                        .frame(width: 68, alignment: .trailing)
+                }
+            }
+        }
+        .padding(8)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func fastRadarMetricValue(_ metric: FastRadarMetric?) -> some View {
+        Text(metric?.value ?? DisplayFormatters.percentPlaceholder)
+            .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+            .foregroundStyle(fastMetricColor(metric?.value))
+            .lineLimit(1)
+            .minimumScaleFactor(0.58)
+            .help(metricHelp(metric))
+    }
+
+    private func fastMetricColor(_ value: String?) -> Color {
+        let value = value ?? ""
+        if value.contains("慢") || value.lowercased().contains("slow") {
+            return .red
+        }
+        if value.contains("快") || value.contains("⚡") || value.lowercased().contains("faster") {
+            return .green
+        }
+        return .secondary
+    }
+
+    private func metricHelp(_ metric: FastRadarMetric?) -> String {
+        [metric?.label, metric?.range, metric?.value]
+            .compactMap { $0?.isEmpty == false ? $0 : nil }
+            .joined(separator: " · ")
     }
 
     private func resetJudgementCard(_ card: ResetJudgementCard) -> some View {
