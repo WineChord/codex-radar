@@ -334,8 +334,8 @@ private func sampleDashboard(
       "rateLimits": {
         "limitId": "codex",
         "limitName": null,
-        "primary": { "usedPercent": 10, "windowDurationMins": 300, "resetsAt": 1780571944 },
-        "secondary": { "usedPercent": \(weeklyUsed), "windowDurationMins": 10080, "resetsAt": \(weeklyResetsAt) },
+        "primary": { "usedPercent": \(weeklyUsed), "windowDurationMins": 10080, "resetsAt": \(weeklyResetsAt) },
+        "secondary": null,
         "credits": null,
         "planType": "pro",
         "rateLimitReachedType": null

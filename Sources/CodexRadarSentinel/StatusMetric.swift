@@ -3,7 +3,6 @@ import Foundation
 
 enum StatusMetric: String, CaseIterable, Identifiable {
     case weeklyQuota
-    case shortQuota
     case quotaPace
     case codexIQ
     case signal
@@ -16,8 +15,6 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         switch self {
         case .weeklyQuota:
             return language.text("周额度", "Weekly")
-        case .shortQuota:
-            return "5h"
         case .quotaPace:
             return language.text("应剩", "Pace")
         case .codexIQ:
@@ -36,8 +33,6 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         switch self {
         case .weeklyQuota:
             return DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)
-        case .shortQuota:
-            return DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent)
         case .quotaPace:
             guard let pacing = state.rateLimits?.quotaPacing(
                 strategy: pacingStrategy,
@@ -62,11 +57,6 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         case .weeklyQuota:
             return DisplayFormatters.percent(
                 state.rateLimits?.weeklyRemainingPercent,
-                includesSymbol: options.percentDisplayMode.includesSymbol
-            )
-        case .shortQuota:
-            return DisplayFormatters.percent(
-                state.rateLimits?.shortRemainingPercent,
                 includesSymbol: options.percentDisplayMode.includesSymbol
             )
         case .quotaPace:

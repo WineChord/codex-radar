@@ -43,41 +43,26 @@ public struct RateLimitDashboard: Equatable {
     }
 
     public var weeklyBucket: RateLimitWindow? {
-        return bestWindow(near: AppConstants.weeklyWindowMinutes) ?? longestWindow
-    }
-
-    public var shortBucket: RateLimitWindow? {
-        return bestWindow(near: AppConstants.fiveHourWindowMinutes) ?? shortestWindow
+        if let weekly = bestWindow(near: AppConstants.weeklyWindowMinutes) {
+            return weekly
+        }
+        guard windows.count == 1, windows[0].windowDurationMins == nil else {
+            return nil
+        }
+        return windows[0]
     }
 
     public var weeklyRemainingPercent: Int? {
         weeklyBucket?.remainingPercent
     }
 
-    public var shortRemainingPercent: Int? {
-        shortBucket?.remainingPercent
-    }
-
     public var isBlocked: Bool {
         snapshot.rateLimitReachedType != nil
-            || (snapshot.primary?.usedPercent ?? 0) >= 100
-            || (snapshot.secondary?.usedPercent ?? 0) >= 100
+            || (weeklyBucket?.usedPercent ?? 0) >= 100
     }
 
     private var windows: [RateLimitWindow] {
         [snapshot.primary, snapshot.secondary].compactMap { $0 }
-    }
-
-    private var longestWindow: RateLimitWindow? {
-        windows.max {
-            ($0.windowDurationMins ?? 0) < ($1.windowDurationMins ?? 0)
-        }
-    }
-
-    private var shortestWindow: RateLimitWindow? {
-        windows.min {
-            ($0.windowDurationMins ?? 0) < ($1.windowDurationMins ?? 0)
-        }
     }
 
     private func bestWindow(near targetMinutes: Double) -> RateLimitWindow? {

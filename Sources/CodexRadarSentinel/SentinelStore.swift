@@ -535,15 +535,14 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private static func documentationRateLimits() -> RateLimitDashboard? {
         let now = Int(Date().timeIntervalSince1970)
-        let shortReset = now + 16_740
         let weeklyReset = now + 565_200
         guard let response: RateLimitResponse = decodeDocumentationJSON("""
         {
           "rateLimits": {
             "limitId": "codex",
             "limitName": null,
-            "primary": { "usedPercent": 1, "windowDurationMins": 300, "resetsAt": \(shortReset) },
-            "secondary": { "usedPercent": 4, "windowDurationMins": 10080, "resetsAt": \(weeklyReset) },
+            "primary": { "usedPercent": 4, "windowDurationMins": 10080, "resetsAt": \(weeklyReset) },
+            "secondary": null,
             "credits": null,
             "planType": "pro",
             "rateLimitReachedType": null
@@ -561,7 +560,7 @@ final class SentinelStore: NSObject, ObservableObject {
         let credits = [
             ResetCredit(
                 idSuffix: "578aba",
-                title: "Full reset (Weekly + 5 hr)",
+                title: "Full reset (Weekly)",
                 status: "available",
                 resetType: "codex_rate_limits",
                 grantedAt: Date(timeIntervalSince1970: 1_781_229_309),
@@ -569,7 +568,7 @@ final class SentinelStore: NSObject, ObservableObject {
             ),
             ResetCredit(
                 idSuffix: "91f04e",
-                title: "Full reset (Weekly + 5 hr)",
+                title: "Full reset (Weekly)",
                 status: "available",
                 resetType: "codex_rate_limits",
                 grantedAt: Date(timeIntervalSince1970: 1_781_416_800),
@@ -710,17 +709,17 @@ final class SentinelStore: NSObject, ObservableObject {
             "date": "2026-07-04-am",
             "updated_at": "2026-07-04T08:28:21+08:00",
             "basis_date": "2026-07-04-am",
-            "basis_window_label": "5h",
+            "basis_window_label": "7d",
             "cost_usd": 126.551833,
             "total_tokens": 154872137,
             "rows": [
-              { "tier": "20x Pro", "basis": "measured", "five_h": 301.31, "seven_d": 1807.86 },
-              { "tier": "5x Pro", "basis": "model /4", "five_h": 75.33, "seven_d": 451.97 },
-              { "tier": "Plus", "basis": "model /20", "five_h": 15.07, "seven_d": 90.39 }
+              { "tier": "20x Pro", "basis": "measured 7d", "seven_d": 1807.86 },
+              { "tier": "5x Pro", "basis": "model /4", "seven_d": 451.97 },
+              { "tier": "Plus", "basis": "model /20", "seven_d": 90.39 }
             ],
             "trend": [
-              { "date": "2026-07-03-pm", "seven_d_20x": 1498.92, "five_h_20x": 249.82 },
-              { "date": "2026-07-04-am", "seven_d_20x": 1807.86, "five_h_20x": 301.31 }
+              { "date": "2026-07-03-pm", "seven_d_20x": 1498.92 },
+              { "date": "2026-07-04-am", "seven_d_20x": 1807.86 }
             ]
           }
         }

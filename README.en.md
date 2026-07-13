@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details>
+<summary><strong>v0.1.51: Remove the 5h short window</strong> - Align with Codex's current weekly-only limit model.</summary>
+
+- Removes the local 5h quota tile, menu-bar segment, and related setting; stale saved preferences are ignored after upgrade.
+- `Codex Quota` now shows only the weekly limit, and the public CodexRadar Quota Radar keeps only 7d equivalents so the retired short-window limit is no longer presented.
+- The app-server response remains compatible with multiple windows, but Sentinel selects the 10,080-minute weekly window instead of interpreting the shortest window as 5h.
+
+</details>
+
+<details>
 <summary><strong>v0.1.50: Fast Radar sync</strong> - The dropdown shows Standard vs Fast public performance comparisons.</summary>
 
 - CodexRadar added `Fast Radar`, comparing Standard and Fast across E2E, TTFT, and TPS.
@@ -39,7 +48,7 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 <summary><strong>v0.1.47: Local quota display restored</strong> - No more `--` when the Codex.app bundled binary path changes.</summary>
 
 - The Codex binary locator now checks standalone/current, `~/.local/bin/codex`, and PATH before falling back to app bundles.
-- Fixes the menu bar weekly quota and 5h quota showing `--` when `/Applications/Codex.app/Contents/Resources/codex` is missing.
+- Fixes the local weekly quota showing `--` when `/Applications/Codex.app/Contents/Resources/codex` is missing.
 - Adds locator tests for environment overrides, standalone fallback, and PATH fallback.
 
 </details>
@@ -128,7 +137,7 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 <details>
 <summary><strong>v0.1.37: Quota Radar alignment</strong> - The dropdown now mirrors CodexRadar's public quota estimates.</summary>
 
-- Adds a `CodexRadar Quota Radar` section for 20x Pro / 5x Pro / Plus 5h and 7d USD-equivalent quota estimates.
+- Adds a `CodexRadar Quota Radar` section for 20x Pro / 5x Pro / Plus 7d USD-equivalent quota estimates.
 - The copy makes clear that these are CodexRadar public estimates, not local remaining quota; local quota still lives in `Codex Quota`.
 - The live contract check now covers `quota_radar`, so future CodexRadar field changes do not silently disappear from the menu.
 
@@ -288,15 +297,6 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 </details>
 
 <details>
-<summary><strong>v0.1.11: Optional 5h short-window segment</strong> - Weekly quota is not the only limit worth watching.</summary>
-
-- `5h` is off by default and can be enabled manually.
-- When enabled, the title can look like `96%/99%/62/low`; the second percentage is the short window.
-- Useful when weekly quota is fine but the short window is the real blocker.
-
-</details>
-
-<details>
 <summary><strong>v0.1.7: Prompt Log is open source</strong> - The product prompts, feedback, screenshot notes, and release asks are part of the repo.</summary>
 
 - Added [Prompt Log](PROMPTS.md) for the user's direct product requests, design feedback, and verification asks.
@@ -355,7 +355,6 @@ The three values are:
 
 The `Menu bar segments` setting can also enable:
 
-- `5h`: adds the 5-hour short-window quota to the menu bar. It is off by default; when enabled, the title looks like `96%/99%/112/ok`.
 - `Pace`: adds the weekly quota that should remain at the current point in the reset window. It is off by default; English shows it as `R80%`.
 
 `Pace rule` is collapsed by default. Click the whole header row to expand or collapse it; after expanding, click any rule card to switch. The app explains each rule's formula, refresh granularity, and best use case.
@@ -373,7 +372,6 @@ These screenshots are real macOS menu bar captures. The script launches the real
 | ![Normal status](docs/assets/en/status-normal.png) | ![Low IQ status](docs/assets/en/status-quality-low.png) | ![Limit reached status](docs/assets/en/status-limit.png) | ![Custom status](docs/assets/en/status-custom.png) |
 
 You can choose which values appear in the menu bar. For example, if you do not care about the IQ number, show only `96%/ok`.
-If you care about the 5-hour short window, enable `5h`; it appears as an extra percentage between weekly quota and IQ.
 If you want to pace weekly quota evenly across the reset window, enable `Pace`.
 Turn on `Decimal IQ in menu bar` if you want the menu bar itself to show the precise IQ value.
 
@@ -386,14 +384,13 @@ This image is captured by the app itself from the real SwiftUI menu window on a 
 ## What It Shows
 
 - Weekly Codex quota remaining, read from the local Codex app-server.
-- Short-window quota remaining, also from the local Codex app-server.
 - Usage pace: the suggested remaining percentage based on the selected strategy, compared with actual weekly quota remaining. For example, if target remaining is 80% and actual remaining is 90%, it tells you there is room to spend more.
   Strategies include: `Time` for smooth even spending; `Daily` for day-level budgeting; `Reserve` to keep a 20% buffer early; `Workdays` for heavier weekday usage and lighter weekends; `Front-load` to spend earlier and avoid unused quota near reset.
 - The Reset Radar judgement visible on [CodexRadar](https://codexradar.com/): reset-card and hard-reset paths with levels, summaries, and reasons.
 - The community knowledge visible on CodexRadar: the reset-credit expiry check prompt. The menu keeps copying the prompt as a fallback path.
 - Local reset-credit expiry checks: low-frequency auto refresh is on by default, and `Refresh now` still runs an immediate manual refresh. The app reads the Codex access token from `~/.codex/auth.json`, requests the ChatGPT reset credits endpoint, and caches only sanitized card status, issue time, and expiry time. It never stores the token.
 - The currently public Model IQ, quality status, and probe pass count from CodexRadar.
-- The Quota Radar visible on CodexRadar: 20x Pro / 5x Pro / Plus 5h and 7d USD-equivalent estimates. These are public estimates, not local remaining quota.
+- The Quota Radar visible on CodexRadar: 20x Pro / 5x Pro / Plus 7d USD-equivalent estimates. These are public estimates, not local remaining quota.
 - The model-quality direction visible on CodexRadar: speed, cost, cache hit rate, and community ratings.
 - Compatibility state for CodexRadar's legacy speed/prediction endpoints. Those are no longer treated as live primary information unless the compatibility path explicitly returns.
 
@@ -468,7 +465,7 @@ For local quota, it reads the Codex app-server:
 {"method":"account/rateLimits/read"}
 ```
 
-It selects the `rateLimitsByLimitId.codex` bucket when present. The 5-hour bucket is shown as `Short`; the 10,080-minute bucket is shown as `Weekly`.
+It selects the `rateLimitsByLimitId.codex` bucket when present, then uses the 10,080-minute window as `Weekly`; other known-duration windows are ignored. A legacy response with one duration-less window still falls back to that window for compatibility.
 
 For local reset-credit expiry, low-frequency auto refresh is on by default: after launch, or when the cache is older than 6 hours, it reads `~/.codex/auth.json`, sends the access token to ChatGPT's reset credits endpoint as an Authorization header, then stores only sanitized card metadata in local preferences. You can turn auto check off in the dropdown; failures show friendly guidance and keep the old cache.
 

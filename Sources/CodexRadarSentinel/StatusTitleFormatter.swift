@@ -81,8 +81,6 @@ enum StatusTitleFormatter {
         switch metric {
         case .weeklyQuota:
             return quotaColor(for: state, remaining: state.rateLimits?.weeklyRemainingPercent)
-        case .shortQuota:
-            return quotaColor(for: state, remaining: state.rateLimits?.shortRemainingPercent)
         case .quotaPace:
             return quotaPaceColor(
                 for: state,

@@ -465,7 +465,6 @@ public struct QuotaRadar: Decodable, Equatable {
     public let date: String?
     public let updatedAt: String?
     public let basisDate: String?
-    public let basisWindowLabel: String?
     public let costUSD: Double?
     public let totalTokens: Int?
     public let rows: [QuotaRadarRow]
@@ -484,7 +483,6 @@ public struct QuotaRadar: Decodable, Equatable {
         case date
         case updatedAt = "updated_at"
         case basisDate = "basis_date"
-        case basisWindowLabel = "basis_window_label"
         case costUSD = "cost_usd"
         case totalTokens = "total_tokens"
         case rows
@@ -496,7 +494,6 @@ public struct QuotaRadar: Decodable, Equatable {
         date = try container.decodeIfPresent(String.self, forKey: .date)
         updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
         basisDate = try container.decodeIfPresent(String.self, forKey: .basisDate)
-        basisWindowLabel = try container.decodeIfPresent(String.self, forKey: .basisWindowLabel)
         costUSD = try container.decodeIfPresent(Double.self, forKey: .costUSD)
         totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
         rows = try container.decodeIfPresent([QuotaRadarRow].self, forKey: .rows) ?? []
@@ -507,17 +504,15 @@ public struct QuotaRadar: Decodable, Equatable {
 public struct QuotaRadarRow: Decodable, Equatable, Identifiable {
     public let tier: String?
     public let basis: String?
-    public let fiveHourUSD: Double?
     public let sevenDayUSD: Double?
 
     public var id: String {
-        tier ?? "\(fiveHourUSD ?? -1)-\(sevenDayUSD ?? -1)"
+        tier ?? "\(sevenDayUSD ?? -1)"
     }
 
     enum CodingKeys: String, CodingKey {
         case tier
         case basis
-        case fiveHourUSD = "five_h"
         case sevenDayUSD = "seven_d"
     }
 }
@@ -525,15 +520,11 @@ public struct QuotaRadarRow: Decodable, Equatable, Identifiable {
 public struct QuotaRadarTrendPoint: Decodable, Equatable {
     public let date: String?
     public let updatedAt: String?
-    public let basisWindowLabel: String?
-    public let fiveHour20x: Double?
     public let sevenDay20x: Double?
 
     enum CodingKeys: String, CodingKey {
         case date
         case updatedAt = "updated_at"
-        case basisWindowLabel = "basis_window_label"
-        case fiveHour20x = "five_h_20x"
         case sevenDay20x = "seven_d_20x"
     }
 }

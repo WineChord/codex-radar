@@ -30,7 +30,7 @@ final class ResetCreditTests: XCTestCase {
               "redeemed_at": null,
               "profile_image_url": "https://example.com/profile.png",
               "profile_user_id": "sensitive-user-id",
-              "title": "Full reset (Weekly + 5 hr)"
+              "title": "Full reset (Weekly)"
             }
           ],
           "available_count": 1,
@@ -42,7 +42,7 @@ final class ResetCreditTests: XCTestCase {
         XCTAssertEqual(snapshot.effectiveAvailableCount, 1)
         XCTAssertEqual(snapshot.credits.count, 1)
         XCTAssertEqual(snapshot.credits.first?.idSuffix, "abcdef")
-        XCTAssertEqual(snapshot.credits.first?.title, "Full reset (Weekly + 5 hr)")
+        XCTAssertEqual(snapshot.credits.first?.title, "Full reset (Weekly)")
         XCTAssertEqual(snapshot.credits.first?.status, "available")
         XCTAssertEqual(snapshot.credits.first?.resetType, "codex_rate_limits")
         XCTAssertNotNil(snapshot.credits.first?.grantedAt)

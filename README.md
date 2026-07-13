@@ -9,6 +9,15 @@
 ## News / 最新功能
 
 <details>
+<summary><strong>v0.1.51：移除 5h 短窗</strong> - 对齐 Codex 当前只保留周额度的限制模型。</summary>
+
+- 删除本机 5h 短窗额度卡、状态栏 segment 和相关设置，旧偏好会在升级后自动忽略。
+- `Codex 额度` 只展示周额度；CodexRadar 公开额度雷达也只保留 7d 等价值，避免继续传达已经取消的短窗限制。
+- app-server 仍兼容带多个窗口的响应，但只选择 10,080 分钟周窗口，不再把最短窗口解释成 5h。
+
+</details>
+
+<details>
 <summary><strong>v0.1.50：Fast 雷达同步</strong> - 下拉菜单展示 Standard vs Fast 的公开性能对比。</summary>
 
 - CodexRadar 新增 `Fast 雷达`：比较 Standard 和 Fast 在 E2E、TTFT、TPS 上的变化。
@@ -39,7 +48,7 @@
 <summary><strong>v0.1.47：本机额度恢复显示</strong> - Codex.app 内置二进制路径变化时不再显示 `--`。</summary>
 
 - Codex 二进制定位现在会优先查找 standalone/current、`~/.local/bin/codex` 和 PATH，再回退到 App bundle。
-- 修复 `/Applications/Codex.app/Contents/Resources/codex` 不存在时，状态栏周额度和 5h 短窗显示 `--` 的问题。
+- 修复 `/Applications/Codex.app/Contents/Resources/codex` 不存在时，本机周额度显示 `--` 的问题。
 - 增加 locator 单测，覆盖环境变量覆盖、standalone fallback 和 PATH fallback。
 
 </details>
@@ -128,7 +137,7 @@
 <details>
 <summary><strong>v0.1.37：额度雷达对齐</strong> - 下拉菜单同步 CodexRadar 首页新增的公开额度估算。</summary>
 
-- 新增 `CodexRadar 额度雷达` 区块，展示 20x Pro / 5x Pro / Plus 的 5h 和 7d 美元等价值。
+- 新增 `CodexRadar 额度雷达` 区块，展示 20x Pro / 5x Pro / Plus 的 7d 美元等价值。
 - 文案明确这是 CodexRadar 的公开估算，不是本机剩余额度；本机剩余仍在 `Codex 额度` 区块。
 - live contract 现在会检查 `quota_radar`，避免 CodexRadar 字段变化后菜单静默缺失。
 
@@ -288,15 +297,6 @@
 </details>
 
 <details>
-<summary><strong>v0.1.11：5h 短窗可选显示</strong> - 除了周额度，也能把短窗额度放进状态栏。</summary>
-
-- `5h` 默认关闭，需要时可以手动打开。
-- 打开后状态栏可以类似 `96%/99%/62/低`，第二个百分比就是短窗。
-- 适合排查“周额度还很多，但短窗先触顶”的情况。
-
-</details>
-
-<details>
 <summary><strong>v0.1.7：Prompt Log 开源</strong> - 把产品从想法、吐槽、截图反馈到发布验证的 prompt 一起放进仓库。</summary>
 
 - 新增 [Prompt Log](PROMPTS.md)，记录用户直接给 Codex 的产品需求、设计反馈和验证要求。
@@ -355,7 +355,6 @@
 
 下拉菜单的 `状态栏显示` 里还可以手动打开：
 
-- `5h`：把 5 小时短窗额度也放进状态栏；默认关闭，打开后会类似 `96%/99%/112/正常`。
 - `应剩`：把“按节奏现在应该还剩多少周额度”放进状态栏；默认关闭，中文显示类似 `应80%`，英文显示类似 `R80%`。
 
 `应剩计算策略` 默认收起。点击这一整行标题即可展开或收起；展开后点击任一策略卡片即可切换，并会直接说明每个策略的公式、刷新粒度和适用场景。
@@ -373,7 +372,6 @@
 | ![正常状态](docs/assets/zh/status-normal.png) | ![IQ 偏低状态](docs/assets/zh/status-quality-low.png) | ![限额状态](docs/assets/zh/status-limit.png) | ![自定义状态](docs/assets/zh/status-custom.png) |
 
 可以在下拉菜单里选择状态栏显示哪些值。例如不关心 IQ 数字时，可以只显示 `96%/正常`。
-如果关心 5 小时短窗，可以手动打开 `5h`，它会作为一个额外百分比插入到周额度和 IQ 之间。
 如果想按 reset 窗口节奏均匀使用周额度，可以手动打开 `应剩`。
 如果想让状态栏也显示精确 IQ 小数，可以打开 `状态栏 IQ 小数`。
 
@@ -386,14 +384,13 @@
 ## 它会显示什么
 
 - Codex 周额度剩余，来自本机 Codex app-server。
-- Codex 短窗额度剩余，也来自本机 Codex app-server。
 - 用量节奏：按所选策略计算当前建议剩余百分比，并和实际周额度剩余对比；例如建议应剩 80%、实际还剩 90%，就会提示可以多用一点。
   策略包括：`按时间` 平滑均匀用完；`每日` 按天级预算推进；`留余` 前期保留 20% 缓冲；`工作日` 工作日多用、周末少用；`先用` 前半程更积极，避免 reset 前剩太多。
 - [CodexRadar](https://codexradar.com/) 首页可见的重置雷达研判：发重置卡、硬重置两条路径的等级、摘要和原因。
 - CodexRadar 首页可见的社区知识：`重置卡过期时间自查` prompt。菜单保留复制 prompt 作为兜底路径。
 - 本机重置卡过期查询：默认低频自动刷新，也可以手动点 `立即刷新`；app 会读取 `~/.codex/auth.json` 中的 Codex access token，请求 ChatGPT reset credits 接口，并只缓存脱敏后的卡片状态、发放时间和过期时间，不保存 token。
 - CodexRadar 当前公开的 Model IQ、模型质量状态和探针通过数。
-- CodexRadar 首页可见的额度雷达：20x Pro / 5x Pro / Plus 的 5h 和 7d 美元等价值估算。它不是本机剩余额度，只是公开估算。
+- CodexRadar 首页可见的额度雷达：20x Pro / 5x Pro / Plus 的 7d 美元等价值估算。它不是本机剩余额度，只是公开估算。
 - CodexRadar 首页可见的模型质量方向：速度、费用、cache 命中率和社区体感分。
 - CodexRadar 旧速蹬/预测接口的兼容状态；这些功能不再作为 live 主信息展示，只有明确恢复时才触发旧提醒路径。
 
@@ -468,7 +465,7 @@ Codex Radar Sentinel 读取这些公开入口：
 {"method":"account/rateLimits/read"}
 ```
 
-当响应里存在 `rateLimitsByLimitId.codex` 时，优先使用这个 bucket。5 小时窗口显示为 `短窗`，10,080 分钟窗口显示为 `周额度`。
+当响应里存在 `rateLimitsByLimitId.codex` 时，优先使用这个 bucket，并把 10,080 分钟窗口显示为 `周额度`；其他已知时长的窗口会被忽略。若旧响应只有一个未提供时长的窗口，则继续把它作为周额度兼容处理。
 
 本机重置卡过期时间默认低频自动刷新：app 启动后、或缓存超过 6 小时时，会从 `~/.codex/auth.json` 取 Codex access token，把它作为 Authorization header 发给 ChatGPT reset credits 接口，然后只把脱敏后的卡片元数据缓存到本机偏好设置里。你可以在下拉菜单里关闭自动查询；失败时只显示友好提示并保留旧缓存。
 

@@ -173,8 +173,8 @@ enum DashboardPreviewFactory {
           "rateLimits": {
             "limitId": "codex",
             "limitName": null,
-            "primary": { "usedPercent": 100, "windowDurationMins": 300, "resetsAt": 1780571944 },
-            "secondary": { "usedPercent": 100, "windowDurationMins": 10080, "resetsAt": 1781140743 },
+            "primary": { "usedPercent": 100, "windowDurationMins": 10080, "resetsAt": 1781140743 },
+            "secondary": null,
             "credits": null,
             "planType": "pro",
             "rateLimitReachedType": "primary"
@@ -191,8 +191,8 @@ enum DashboardPreviewFactory {
           "rateLimits": {
             "limitId": "codex",
             "limitName": null,
-            "primary": { "usedPercent": 14, "windowDurationMins": 300, "resetsAt": 1780571944 },
-            "secondary": { "usedPercent": 3, "windowDurationMins": 10080, "resetsAt": 1781140743 },
+            "primary": { "usedPercent": 3, "windowDurationMins": 10080, "resetsAt": 1781140743 },
+            "secondary": null,
             "credits": null,
             "planType": "pro",
             "rateLimitReachedType": null
@@ -220,8 +220,8 @@ enum DashboardPreviewFactory {
           "rateLimits": {
             "limitId": "codex",
             "limitName": null,
-            "primary": { "usedPercent": 1, "windowDurationMins": 300, "resetsAt": 1780571944 },
-            "secondary": { "usedPercent": 3, "windowDurationMins": 10080, "resetsAt": 1781140743 },
+            "primary": { "usedPercent": 3, "windowDurationMins": 10080, "resetsAt": 1781140743 },
+            "secondary": null,
             "credits": null,
             "planType": "pro",
             "rateLimitReachedType": null

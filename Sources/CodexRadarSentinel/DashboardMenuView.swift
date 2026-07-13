@@ -168,15 +168,14 @@ struct DashboardMenuView: View {
             sectionTitle(text("状态栏含义", "Menu Bar"), systemImage: "menubar.rectangle")
             expandableCaptionText(
                 text(
-                    "默认显示“周额度 / IQ / 质量”；可打开 5h 和应剩。",
-                    "Default: Weekly / IQ / Quality; enable 5h and Pace when useful."
+                    "默认显示“周额度 / IQ / 质量”；可按需打开应剩。",
+                    "Default: Weekly / IQ / Quality; enable Pace when useful."
                 ),
                 key: "status-legend",
                 collapsedLines: 2
             )
             HStack(spacing: 6) {
                 legendTile(metric: .weeklyQuota, color: quotaColor)
-                legendTile(metric: .shortQuota, color: shortQuotaColor)
                 legendTile(metric: .quotaPace, color: quotaPaceColor)
                 legendTile(metric: .codexIQ, color: iqColor)
                 legendTile(metric: .signal, color: signalColor)
@@ -187,18 +186,11 @@ struct DashboardMenuView: View {
     private var quotaSection: some View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("Codex 额度", "Codex Quota"), systemImage: "speedometer")
-            HStack(spacing: Layout.tileSpacing) {
-                quotaTile(
-                    title: text("周额度", "Weekly"),
-                    value: DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent),
-                    resetAt: state.rateLimits?.weeklyBucket?.resetsAt
-                )
-                quotaTile(
-                    title: text("短窗", "Short"),
-                    value: DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent),
-                    resetAt: state.rateLimits?.shortBucket?.resetsAt
-                )
-            }
+            quotaTile(
+                title: text("周额度", "Weekly"),
+                value: DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent),
+                resetAt: state.rateLimits?.weeklyBucket?.resetsAt
+            )
             if let planType = state.rateLimits?.snapshot.planType {
                 Text("\(text("套餐", "Plan")) \(planType)")
                     .font(.system(size: metrics.caption))
@@ -646,7 +638,7 @@ struct DashboardMenuView: View {
                 quotaRadarTable(quotaRadar)
                 expandableCaptionText(
                     quotaRadarSummary(quotaRadar),
-                    key: "quota-radar-summary-\(quotaRadar.updatedAt ?? "")-\(quotaRadar.basisWindowLabel ?? "")",
+                    key: "quota-radar-summary-\(quotaRadar.updatedAt ?? "")",
                     collapsedLines: 3
                 )
             }
@@ -829,10 +821,8 @@ struct DashboardMenuView: View {
             HStack(spacing: 6) {
                 Text(text("档位", "Tier"))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text("5h")
-                    .frame(width: 66, alignment: .trailing)
                 Text("7d")
-                    .frame(width: 78, alignment: .trailing)
+                    .frame(width: 90, alignment: .trailing)
                 Text(text("来源", "Basis"))
                     .frame(width: 62, alignment: .trailing)
             }
@@ -846,12 +836,9 @@ struct DashboardMenuView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(DisplayFormatters.costUSD(row.fiveHourUSD))
-                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                        .frame(width: 66, alignment: .trailing)
                     Text(DisplayFormatters.costUSD(row.sevenDayUSD))
                         .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                        .frame(width: 78, alignment: .trailing)
+                        .frame(width: 90, alignment: .trailing)
                     Text(quotaRadarBasisText(row.basis))
                         .font(.system(size: metrics.label, weight: .medium))
                         .foregroundStyle(.secondary)
@@ -1104,11 +1091,11 @@ struct DashboardMenuView: View {
 
     private func resetCreditTitle(_ credit: ResetCredit) -> String {
         guard let title = credit.title, !title.isEmpty else {
-            return text("Full reset（周额度 + 5h）", "Full reset (Weekly + 5h)")
+            return text("Full reset（周额度）", "Full reset (Weekly)")
         }
         let normalized = title.lowercased()
         if normalized.contains("full reset") && normalized.contains("weekly") {
-            return text("Full reset（周额度 + 5h）", "Full reset (Weekly + 5h)")
+            return text("Full reset（周额度）", "Full reset (Weekly)")
         }
         return title
     }
@@ -1168,9 +1155,6 @@ struct DashboardMenuView: View {
             if lowercased.contains("7d") {
                 return text("7d实测", "7d measured")
             }
-            if lowercased.contains("5h") {
-                return text("5h实测", "5h measured")
-            }
             return text("实测", "measured")
         }
         if lowercased.contains("model") || lowercased.contains("/") {
@@ -1181,15 +1165,14 @@ struct DashboardMenuView: View {
 
     private func quotaRadarSummary(_ quotaRadar: QuotaRadar) -> String {
         let update = DisplayFormatters.compactDateTime(RadarDateParser.date(from: quotaRadar.updatedAt))
-        let basis = quotaRadar.basisWindowLabel ?? text("未知窗口", "unknown window")
         let cost = DisplayFormatters.costUSD(quotaRadar.costUSD)
         let trend = quotaRadar.sevenDayTrendDelta20x.map { delta in
             quotaRadarDeltaText(delta)
         }
         if let trend {
             return text(
-                "更新 \(update)；按 \(basis) 校准，20x Pro 7d 较上一轮 \(trend)。5x/Plus 为按比例推测，不是本机剩余额度。",
-                "Updated \(update); calibrated from \(basis), 20x Pro 7d changed \(trend) from the prior sample. 5x/Plus are scaled estimates, not local remaining quota."
+                "更新 \(update)；按 7d 校准，20x Pro 7d 较上一轮 \(trend)。5x/Plus 为按比例推测，不是本机剩余额度。",
+                "Updated \(update); calibrated from 7d, 20x Pro 7d changed \(trend) from the prior sample. 5x/Plus are scaled estimates, not local remaining quota."
             )
         }
         return text(
@@ -1309,7 +1292,6 @@ struct DashboardMenuView: View {
                     spacing: 7
                 ) {
                     metricToggle(.weeklyQuota)
-                    metricToggle(.shortQuota)
                     metricToggle(.quotaPace)
                     metricToggle(.codexIQ)
                     metricToggle(.signal)
@@ -2103,19 +2085,6 @@ struct DashboardMenuView: View {
 
     private var quotaColor: Color {
         guard let remaining = state.rateLimits?.weeklyRemainingPercent else {
-            return .secondary
-        }
-        if state.rateLimits?.isBlocked == true || remaining <= AppConstants.criticalRemainingPercent {
-            return .red
-        }
-        if remaining <= AppConstants.warningRemainingPercent {
-            return .orange
-        }
-        return .green
-    }
-
-    private var shortQuotaColor: Color {
-        guard let remaining = state.rateLimits?.shortRemainingPercent else {
             return .secondary
         }
         if state.rateLimits?.isBlocked == true || remaining <= AppConstants.criticalRemainingPercent {

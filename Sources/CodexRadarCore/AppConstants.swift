@@ -4,11 +4,10 @@ public enum AppConstants {
     public static let appName = "Codex Radar Sentinel"
     public static let clientName = "codex-radar-sentinel"
     public static let bundleIdentifier = "com.codexradar.sentinel"
-    public static let appVersion = "0.1.50"
+    public static let appVersion = "0.1.51"
 
     public static let codexLimitID = "codex"
     public static let weeklyWindowMinutes = 10_080.0
-    public static let fiveHourWindowMinutes = 300.0
     public static let monthlyWindowMinutes = 43_200.0
     public static let windowDurationTolerance = 0.05
 
