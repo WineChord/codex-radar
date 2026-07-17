@@ -2,11 +2,22 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达、Fast 雷达与模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Fast 性能对比、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达、Fast 雷达与分布式社区模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Fast 性能对比、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
+
+<details open>
+<summary><strong>v0.1.52：分布式 Model IQ 对齐</strong> - 正确显示单题平均费用/耗时，并接入分布式雷达。</summary>
+
+- CodexRadar 的降智雷达已升级为分布式社区众测，每个模型配置当前汇总约 80-110 个有效任务；菜单会把旧“探针”改成更准确的“通过”。
+- 修复新 payload 的统计口径：网页展示的是单题平均值，例如 `$9.61 / 37分钟`；App 不再误显示全部 109 个任务合计的 `$1047 / 67小时`。
+- `Codex IQ · 分布式众测` 标题右侧提供分布式雷达入口，多模型行补充单题费用、时间和 Cache；状态栏仍保持原来的紧凑宽度。
+- 首页兜底已兼容新的 `aria-label` 图表结构；即使 `current.json` 暂时不可用，也能继续读取分布式 IQ，而不是退回 `--`。
+- 体感评分现在只显示同一模型和推理强度的精确匹配；没有评分时显示 `--`，不再错误借用其他模型的分数。
+
+</details>
 
 <details>
 <summary><strong>v0.1.51：5h 动态兼容</strong> - 5h 暂停时自动隐藏，恢复后自动出现。</summary>

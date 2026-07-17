@@ -776,21 +776,52 @@ struct DashboardMenuView: View {
 
     private var iqSection: some View {
         VStack(alignment: .leading, spacing: 7) {
-            sectionTitle("Codex IQ", systemImage: "brain.head.profile")
+            HStack(spacing: 8) {
+                sectionTitle(
+                    isDistributedModelIQ
+                        ? text("Codex IQ · 分布式众测", "Codex IQ · Distributed")
+                        : "Codex IQ",
+                    systemImage: "brain.head.profile"
+                )
+                Spacer()
+                if let source = state.modelIQ?.dataSource,
+                   let url = source.linkURL {
+                    Link(destination: url) {
+                        HStack(spacing: 3) {
+                            if let validCells = source.validCells {
+                                Text(text("\(validCells) 条", "\(validCells) results"))
+                            } else {
+                                Text(text("分布式雷达", "Distributed radar"))
+                            }
+                            Image(systemName: "arrow.up.right.square")
+                        }
+                        .font(.system(size: metrics.caption, weight: .medium))
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help(text("打开 CodexRadar 分布式雷达", "Open CodexRadar distributed radar"))
+                }
+            }
             HStack {
                 labelPair("IQ", DisplayFormatters.iqScore(state.modelIQ?.latest?.iqScore))
                 Spacer()
                 let passed = state.modelIQ?.latest?.passed.map(String.init) ?? "?"
                 let tasks = state.modelIQ?.latest?.tasks.map(String.init) ?? "?"
-                labelPair(text("探针", "Probe"), "\(passed)/\(tasks)")
+                labelPair(modelIQResultLabel, "\(passed)/\(tasks)")
                 Spacer()
                 labelPair(text("状态", "Status"), state.modelIQ?.latest?.status ?? text("未知", "unknown"))
             }
             if let latest = state.modelIQ?.latest {
                 HStack {
-                    labelPair(text("耗时", "Time"), modelIQTimeText(latest))
+                    labelPair(
+                        latest.usesPerTaskAverages ? text("单题耗时", "Avg time") : text("耗时", "Time"),
+                        modelIQTimeText(latest)
+                    )
                     Spacer()
-                    labelPair(text("费用", "Cost"), DisplayFormatters.costUSD(latest.costUSD))
+                    labelPair(
+                        latest.usesPerTaskAverages ? text("单题费用", "Avg cost") : text("费用", "Cost"),
+                        DisplayFormatters.costUSD(latest.displayedCostUSD)
+                    )
                     Spacer()
                     labelPair("Cache", latest.cacheHitRateText)
                     Spacer()
@@ -810,7 +841,7 @@ struct DashboardMenuView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text("IQ")
                     .frame(width: 44, alignment: .trailing)
-                Text(text("探针", "Probe"))
+                Text(modelIQResultLabel)
                     .frame(width: 46, alignment: .trailing)
                 Text(text("体感", "Rating"))
                     .frame(width: 70, alignment: .trailing)
@@ -819,22 +850,31 @@ struct DashboardMenuView: View {
             .foregroundStyle(.secondary)
 
             ForEach(rows) { row in
-                HStack(spacing: 6) {
-                    Text(modelIQRowLabel(row))
-                        .font(.system(size: metrics.label, weight: .medium))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(DisplayFormatters.iqScore(row.snapshot.iqScore))
-                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                        .foregroundStyle(iqColor(for: row.snapshot))
-                        .frame(width: 44, alignment: .trailing)
-                    Text(modelIQProbeText(row.snapshot))
-                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                        .frame(width: 46, alignment: .trailing)
-                    Text(modelRatingCompactText(state.modelRatings?.rating(for: row.snapshot)))
-                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                        .frame(width: 70, alignment: .trailing)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(modelIQRowLabel(row))
+                            .font(.system(size: metrics.label, weight: .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(DisplayFormatters.iqScore(row.snapshot.iqScore))
+                            .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                            .foregroundStyle(iqColor(for: row.snapshot))
+                            .frame(width: 44, alignment: .trailing)
+                        Text(modelIQProbeText(row.snapshot))
+                            .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                            .frame(width: 46, alignment: .trailing)
+                        Text(modelRatingCompactText(state.modelRatings?.rating(for: row.snapshot)))
+                            .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                            .frame(width: 70, alignment: .trailing)
+                    }
+                    if row.snapshot.usesPerTaskAverages {
+                        Text(modelIQAverageDetailText(row.snapshot))
+                            .font(.system(size: metrics.caption))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
                 }
             }
         }
@@ -1243,6 +1283,24 @@ struct DashboardMenuView: View {
         return "\(passed)/\(tasks)"
     }
 
+    private var isDistributedModelIQ: Bool {
+        state.modelIQ?.dataSource?.isDistributedCommunityRuns == true
+            || state.modelIQ?.latest?.usesPerTaskAverages == true
+    }
+
+    private var modelIQResultLabel: String {
+        isDistributedModelIQ ? text("通过", "Passed") : text("探针", "Probe")
+    }
+
+    private func modelIQAverageDetailText(_ snapshot: ModelIQSnapshot) -> String {
+        let cost = DisplayFormatters.costUSD(snapshot.displayedCostUSD)
+        let time = modelIQTimeText(snapshot)
+        return text(
+            "单题 \(cost) · \(time) · Cache \(snapshot.cacheHitRateText)",
+            "Per task \(cost) · \(time) · Cache \(snapshot.cacheHitRateText)"
+        )
+    }
+
     private func iqColor(for snapshot: ModelIQSnapshot) -> Color {
         guard let score = snapshot.iqScore else {
             return .secondary
@@ -1279,6 +1337,15 @@ struct DashboardMenuView: View {
     }
 
     private func modelIQTimeText(_ snapshot: ModelIQSnapshot) -> String {
+        if let averageTaskSeconds = snapshot.averageTaskSeconds {
+            switch language {
+            case .zhHans:
+                return snapshot.averageTaskTimeHuman
+                    ?? "\(max(1, Int(round(averageTaskSeconds / 60))))分钟"
+            case .en:
+                return DisplayFormatters.minutesFromSeconds(Int(round(averageTaskSeconds)))
+            }
+        }
         switch language {
         case .zhHans:
             return snapshot.wallTimeHuman ?? DisplayFormatters.minutesFromSeconds(snapshot.wallSeconds)

@@ -2,11 +2,22 @@
 
 [中文](README.md) | English
 
-Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, Fast radar, and model quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, community knowledge, quota estimates, Fast performance comparisons, Model IQ, local Codex quota state, and reset-credit expiry checks together, while keeping compatibility if the old reset/speed endpoints return.
+Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, Fast radar, and a distributed community model-quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, community knowledge, quota estimates, Fast performance comparisons, Model IQ, local Codex quota state, and reset-credit expiry checks together, while keeping compatibility if the old reset/speed endpoints return.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
 ## News
+
+<details open>
+<summary><strong>v0.1.52: Distributed Model IQ</strong> - Correct per-task cost/time and a direct distributed-radar link.</summary>
+
+- CodexRadar's model-quality radar now aggregates distributed community runs, currently around 80-110 valid tasks per model configuration. The menu uses the clearer `Passed` label instead of the old fixed-probe wording.
+- Fixes the new payload's statistics scope: the site shows per-task averages such as `$9.61 / 37m`; the app no longer displays the 109-task totals of roughly `$1047 / 67h`.
+- `Codex IQ · Distributed` links to the distributed radar, while each model row adds per-task cost, time, and Cache. The menu-bar title keeps its existing compact width.
+- Homepage fallback now understands the new `aria-label` chart structure, so a temporary `current.json` failure does not turn distributed IQ into `--`.
+- Community ratings now require an exact model and reasoning-effort match. Missing ratings show `--` instead of borrowing another model's score.
+
+</details>
 
 <details>
 <summary><strong>v0.1.51: Dynamic 5h compatibility</strong> - Hide 5h while paused and restore it automatically when it returns.</summary>

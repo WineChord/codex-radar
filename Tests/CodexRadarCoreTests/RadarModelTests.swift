@@ -37,6 +37,7 @@ final class RadarModelTests: XCTestCase {
         let rating = ratings.rating(for: iq.latest)
         XCTAssertEqual(rating?.average, 9.4)
         XCTAssertEqual(rating?.count, 10)
+        XCTAssertNil(ratings.rating(for: iq.latestRows[1].snapshot))
         XCTAssertEqual(ratings.rating(for: iq.latestRows.last?.snapshot)?.average, 8.1)
     }
 
@@ -55,6 +56,39 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.modelIQ?.latest?.iqScore, 62.5)
         XCTAssertEqual(current.modelIQ?.latest?.passed, 5)
         XCTAssertEqual(current.modelIQ?.latest?.tasks, 12)
+    }
+
+    func testDecodesDistributedModelIQAveragesAndSource() throws {
+        let iq = try JSONDecoder().decode(
+            ModelIQEnvelope.self,
+            from: Data(distributedModelIQJSON.utf8)
+        )
+
+        XCTAssertEqual(iq.latest?.iqScore, 105.1)
+        XCTAssertEqual(iq.latest?.passed, 76)
+        XCTAssertEqual(iq.latest?.tasks, 109)
+        XCTAssertEqual(iq.latest?.costUSD, 1_047.309802)
+        XCTAssertEqual(iq.latest?.averageCostUSD, 9.608347)
+        XCTAssertEqual(iq.latest?.displayedCostUSD, 9.608347)
+        XCTAssertEqual(iq.latest?.averageTaskSeconds, 2_217.055)
+        XCTAssertEqual(iq.latest?.averageTaskTimeHuman, "37分钟")
+        XCTAssertTrue(iq.latest?.usesPerTaskAverages == true)
+        XCTAssertTrue(iq.dataSource?.isDistributedCommunityRuns == true)
+        XCTAssertEqual(iq.dataSource?.validCells, 984)
+        XCTAssertEqual(iq.dataSource?.linkURL?.host, "deng.codexradar.com")
+        XCTAssertEqual(iq.latestRows.map(\.label), [
+            "GPT-5.6 Sol max",
+            "GPT-5.6 Sol high",
+            "GPT-5.6 Terra max",
+            "GPT-5.6 Luna high",
+            "GPT-5.5 high"
+        ])
+
+        let legacyRatings = try JSONDecoder().decode(
+            ModelRatingsEnvelope.self,
+            from: Data(modelRatingsJSON.utf8)
+        )
+        XCTAssertNil(legacyRatings.rating(for: iq.latest))
     }
 
     func testBuildsFallbackCurrentFromHomepageHTML() throws {
@@ -87,6 +121,41 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.communityKnowledges.count, 1)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("rate-limit reset credits") == true)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("不要打印 access_token") == true)
+    }
+
+    func testBuildsDistributedModelIQFromHomepageHTML() throws {
+        let html = """
+        <html><body>
+          <div class="model-iq-chart-view" data-model-iq-chart-view="iq">
+            <svg>
+              <circle data-model-key="gpt_56_sol_max" data-model-iq-tooltip-key="iq|2026-07-17T13:03:49+08:00|103.200000" aria-label="17日13时 Sol max: IQ指数 103.2, 74/108, 平均费用 $9.92, 平均耗时 38分钟, cache命中率 97.8%"></circle>
+              <circle data-model-key="gpt_56_sol_max" data-model-iq-tooltip-key="iq|2026-07-17T14:35:21+08:00|105.100000" aria-label="17日14时 Sol max: IQ指数 105.1, 76/109, 平均费用 $9.61, 平均耗时 37分钟, cache命中率 97.9%"></circle>
+              <circle data-model-key="gpt_56_terra_high" data-model-iq-tooltip-key="iq|2026-07-17T14:35:21+08:00|77.900000" aria-label="17日14时 Terra high: IQ指数 77.9, 46/89, 平均费用 $1.32, 平均耗时 14分钟, cache命中率 96.2%"></circle>
+            </svg>
+          </div>
+          <div class="model-iq-chart-view" data-model-iq-chart-view="value" hidden>
+            <circle data-model-key="gpt_56_sol_max" data-model-iq-tooltip-key="value|2026-07-17T14:35:21+08:00|104.619184" aria-label="17日14时 Sol max: IQ指数 105.1, 76/109, 平均费用 $9.61, 平均耗时 37分钟, cache命中率 97.9%"></circle>
+          </div>
+        </body></html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_784_256_000)
+        )
+
+        XCTAssertEqual(current.modelIQ?.latest?.date, "2026-07-17T14:35:21+08:00")
+        XCTAssertEqual(current.modelIQ?.latest?.model, "gpt-5.6-sol")
+        XCTAssertEqual(current.modelIQ?.latest?.reasoningEffort, "max")
+        XCTAssertEqual(current.modelIQ?.latest?.iqScore, 105.1)
+        XCTAssertEqual(current.modelIQ?.latest?.passed, 76)
+        XCTAssertEqual(current.modelIQ?.latest?.tasks, 109)
+        XCTAssertNil(current.modelIQ?.latest?.costUSD)
+        XCTAssertEqual(current.modelIQ?.latest?.averageCostUSD, 9.61)
+        XCTAssertEqual(current.modelIQ?.latest?.averageTaskSeconds, 2_220)
+        XCTAssertEqual(current.modelIQ?.latest?.cacheHitRateText, "97.9%")
+        XCTAssertEqual(current.modelIQ?.comparisons.count, 1)
+        XCTAssertTrue(current.modelIQ?.dataSource?.isDistributedCommunityRuns == true)
     }
 
     func testBuildsCommunityKnowledgeFromGuideDiv() throws {
@@ -406,6 +475,61 @@ private let modelIQJSON = """
       { "date": "2026-06-30-pm", "five_h_20x": 272.38, "seven_d_20x": 1634.28 },
       { "date": "2026-07-01-am", "five_h_20x": 276.44, "seven_d_20x": 1658.63 }
     ]
+  }
+}
+"""
+
+private let distributedModelIQJSON = """
+{
+  "updated_at": "2026-07-17T14:35:21+08:00",
+  "data_source": {
+    "type": "distributed_community_runs",
+    "url": "https://deng.codexradar.com",
+    "checked_at": "2026-07-17T14:35:21+08:00",
+    "valid_cells": 984
+  },
+  "latest": {
+    "date": "2026-07-17T14:35:21+08:00",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "max",
+    "score": 105.1,
+    "status": "green",
+    "passed": 76,
+    "tasks": 109,
+    "valid_tasks": 109,
+    "wall_seconds": 241659,
+    "wall_time_human": "67小时8分",
+    "average_task_seconds": 2217.055,
+    "average_task_time_human": "37分钟",
+    "cost_usd": 1047.309802,
+    "average_cost_usd": 9.608347,
+    "cost_usd_basis": "total_selected_tasks"
+  },
+  "comparisons": {
+    "gpt_56_sol_high": {
+      "label": "GPT-5.6 Sol high",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high",
+      "latest": { "score": 89.8, "passed": 62, "tasks": 104, "model": "gpt-5.6-sol", "reasoning_effort": "high" }
+    },
+    "gpt_56_terra_max": {
+      "label": "GPT-5.6 Terra max",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "latest": { "score": 95.7, "passed": 54, "tasks": 85, "model": "gpt-5.6-terra", "reasoning_effort": "max" }
+    },
+    "gpt_56_luna_high": {
+      "label": "GPT-5.6 Luna high",
+      "model": "gpt-5.6-luna",
+      "reasoning_effort": "high",
+      "latest": { "score": 62.5, "passed": 34, "tasks": 82, "model": "gpt-5.6-luna", "reasoning_effort": "high" }
+    },
+    "gpt_55_high_distributed": {
+      "label": "GPT-5.5 high",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "latest": { "score": 84.9, "passed": 62, "tasks": 110, "model": "gpt-5.5", "reasoning_effort": "high" }
+    }
   }
 }
 """
