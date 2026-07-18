@@ -1,8 +1,10 @@
 # Codex Radar Sentinel
 
+> **Windows 10/11 支持：** 原生 Windows 右下角系统托盘版本位于 [`windows/`](windows/README.zh-CN.md)。它对齐 macOS 版的公开雷达与本机 Codex 额度功能，使用 Windows 风格面板，并支持右键退出。开发和免安装 .NET 的单文件发布方式请查看 Windows 说明。
+
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达、Fast 雷达与分布式社区模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Fast 性能对比、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达、Fast 雷达与分布式社区模型质量雷达。Codex Radar Sentinel 提供 macOS 菜单栏版和 Windows 10/11 通知区域版，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Fast 性能对比、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到系统状态区，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
@@ -360,6 +362,14 @@
 直接安装 Codex Radar Sentinel：下载 https://github.com/WineChord/codex-radar/releases/latest 的最新 macOS 包，装进 /Applications，启动并确认菜单栏；需权限问我。
 ```
 
+### Windows 10/11
+
+默认安装到当前用户目录，不需要管理员权限；需要允许 Codex 访问网络、执行 PowerShell、写入 `%LOCALAPPDATA%\Programs` 和启动应用。
+
+```text
+直接安装 Codex Radar Sentinel（Windows 10/11）：先确认当前系统是 Windows 10 1809+ 或 Windows 11，并检测系统架构；仅从 https://github.com/WineChord/codex-radar/releases/latest 下载与架构匹配的 CodexRadarSentinel-<版本>-Windows-x64.zip 或 CodexRadarSentinel-<版本>-Windows-arm64.zip 及其同名 .sha256，禁止下载 .dmg、-macOS.zip 或另一架构的包；如果没有唯一匹配的 Windows 资产和校验文件，停止并告诉我，不得用其他平台或架构的包代替；校验 SHA256 和包内 platform=windows、runtime/architecture 匹配的 release-manifest.json 后，安装到 %LOCALAPPDATA%\Programs\CodexRadarSentinel，启动 CodexRadarSentinel.exe 并确认右下角通知区域出现雷达图标；需要网络、PowerShell、写入或启动权限时问我。
+```
+
 ## 状态栏含义
 
 状态栏标题刻意保持很短：
@@ -432,9 +442,13 @@
 
 通知声音默认关闭，可以在下拉菜单里打开。首次启动会把历史 reset 窗口记为已见过，避免补发旧通知；如果 legacy 兼容接口未来恢复且首次启动时正好处在明确的速蹬窗口中，仍然会提醒。
 
+Windows 版沿用相同的通知条件，通过通知区域气泡显示；系统声音仍由 Windows 通知与专注设置控制。
+
 ## 更新
 
 自动更新默认开启。应用启动 5 秒后会先检查一次，之后每 6 小时检查一次最新 GitHub Release，下载 ZIP，校验 release 里的 SHA256，然后替换已安装的 app bundle 并自动重开。
+
+Windows 版使用独立更新实现，只接受当前架构的精确 Windows ZIP、同名 SHA256 和 `platform=windows` 的包内清单，然后替换当前用户程序目录并重开。
 
 如果下载、校验或安装失败，应用会保留当前版本并在菜单里显示失败原因。安装脚本也会先备份旧版；如果替换失败，会恢复并重新打开旧版。对同一个刚刚安装失败的版本，自动更新会暂停短期重试，手动 `检查更新` 仍可立即重试。
 
@@ -451,7 +465,7 @@
 
 ## Codex Skill
 
-仓库里带了一个 repo 内 skill：[CodexRadar Sync](skills/codex-radar-sync/SKILL.md)。当 CodexRadar 页面或 JSON 数据格式变化时，可以让 Codex 执行这个 skill：它会检查 CodexRadar 最新主页和公开端点，比较字段变化，更新 Swift 解码和 macOS 菜单映射，并在发版前跑完整 UI/数据检查。
+仓库里带了一个 repo 内 skill：[CodexRadar Sync](skills/codex-radar-sync/SKILL.md)。当 CodexRadar 页面或 JSON 数据格式变化时，可以让 Codex 执行这个 skill：它会检查 CodexRadar 最新主页和公开端点，比较字段变化，同时更新 Swift/macOS 与 C#/Windows 的解码、通知和界面映射，并在发版前分别执行双平台的数据、构建与包校验。
 
 ## 调试预览
 
@@ -498,6 +512,10 @@ Codex Radar Sentinel 读取这些公开入口：
 从最新 GitHub Release 下载 `.dmg`，打开后把 `Codex Radar Sentinel.app` 拖到 `Applications`。
 
 `.zip` 里包含同一个 app bundle，适合喜欢手动复制的用户。
+
+### Windows 10/11
+
+请按 [Windows 安装说明](windows/README.zh-CN.md) 使用 `windows/install.ps1`，或手动校验当前架构 Windows ZIP 的同名 SHA256 和包内清单后，安装到 `%LOCALAPPDATA%\Programs\CodexRadarSentinel`。Windows 安装器会拒绝 macOS、错误架构和非预期文件。
 
 ## 本地运行
 
@@ -558,6 +576,6 @@ swift build -c release
 
 ## 鸣谢
 
-Codex Radar Sentinel 之所以能成立，是因为 [CodexRadar](https://codexradar.com/) 持续提供清晰的公开 Codex 信号。CodexRadar 早期提供速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达与模型质量雷达。本应用只是把这些公开信号和用户本机 Codex 额度状态整合成一个 macOS 菜单栏工具。
+Codex Radar Sentinel 之所以能成立，是因为 [CodexRadar](https://codexradar.com/) 持续提供清晰的公开 Codex 信号。CodexRadar 早期提供速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达与模型质量雷达。本应用只是把这些公开信号和用户本机 Codex 额度状态整合成 macOS 菜单栏与 Windows 通知区域工具。
 
 Codex Radar Sentinel 与 CodexRadar 或 OpenAI 没有关联。
