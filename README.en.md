@@ -4,11 +4,50 @@
 
 [中文](README.md) | English
 
-Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, and model quality radar. Codex Radar Sentinel provides a macOS menu-bar app and a Windows 10/11 notification-area app, bringing public CodexRadar notices, reset judgement, reset-credit check knowledge, quota estimates, Model IQ, local Codex quota state, and reset-credit expiry checks together while retaining compatibility if the old reset/speed endpoints return.
+Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, Fast radar, and a distributed community model-quality radar. Codex Radar Sentinel provides a macOS menu-bar app and a Windows 10/11 notification-area app, bringing public CodexRadar notices, reset judgement, community knowledge, quota estimates, Fast performance comparisons, Model IQ, local Codex quota state, and reset-credit expiry checks together while retaining compatibility if the old reset/speed endpoints return.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
 ## News
+
+<details open>
+<summary><strong>v0.1.52: Distributed Model IQ</strong> - Correct per-task cost/time and a direct distributed-radar link.</summary>
+
+- CodexRadar's model-quality radar now aggregates distributed community runs, currently around 80-110 valid tasks per model configuration. The menu uses the clearer `Passed` label instead of the old fixed-probe wording.
+- Fixes the new payload's statistics scope: the site shows per-task averages such as `$9.61 / 37m`; the app no longer displays the 109-task totals of roughly `$1047 / 67h`.
+- `Codex IQ · Distributed` links to the distributed radar, while each model row adds per-task cost, time, and Cache. The menu-bar title keeps its existing compact width.
+- Homepage fallback now understands the new `aria-label` chart structure, so a temporary `current.json` failure does not turn distributed IQ into `--`.
+- Community ratings now require an exact model and reasoning-effort match. Missing ratings show `--` instead of borrowing another model's score.
+
+</details>
+
+<details>
+<summary><strong>v0.1.51: Dynamic 5h compatibility</strong> - Hide 5h while paused and restore it automatically when it returns.</summary>
+
+- CodexRadar currently describes the 5h limit as temporarily inactive, and its Quota Radar now shows only the active 7d quota.
+- When local Codex does not return an approximately 300-minute window, the menu hides the short-window tile, 5h menu-bar option, and segment instead of misidentifying weekly quota as 5h.
+- Compatibility remains in place: if the local API returns 5h again, the tile and option reappear without another app update.
+- The CodexRadar Quota Radar follows its calibration window: it shows only 7d now and restores the 5h column if the site resumes 5h calibration.
+
+</details>
+
+<details>
+<summary><strong>v0.1.50: Fast Radar sync</strong> - The dropdown shows Standard vs Fast public performance comparisons.</summary>
+
+- CodexRadar added `Fast Radar`, comparing Standard and Fast across E2E, TTFT, and TPS.
+- Sentinel parses the three summary metrics plus Sol / Terra / Luna per-model results from the homepage and shows them in `CodexRadar Fast Radar`.
+- The method note stays collapsed as long text, and the menu bar title gets no new segment so quota and quality remain the primary glanceable signals.
+
+</details>
+
+<details>
+<summary><strong>v0.1.49: Community knowledge cards</strong> - CodexRadar's new guide cards appear separately.</summary>
+
+- CodexRadar's homepage community knowledge changed from a single `code prompt` to expandable guide cards, such as “How to enable Max reasoning effort”.
+- The dropdown adds a dedicated `CodexRadar Community` section with dynamic `Full text` expansion, and `Reset Credit Expiry` no longer borrows titles from unrelated community cards.
+- The live contract still requires community knowledge and notices to be backfilled from the homepage when `current.json` temporarily omits them.
+
+</details>
 
 <details>
 <summary><strong>v0.1.48: Official windows no longer missed</strong> - `use_remaining_tokens` enters the speed state.</summary>
@@ -347,7 +386,7 @@ The three values are:
 
 The `Menu bar segments` setting can also enable:
 
-- `5h`: adds the 5-hour short-window quota to the menu bar. It is off by default; when enabled, the title looks like `96%/99%/112/ok`.
+- `5h`: appears when local Codex returns a 5-hour short window. It is off by default; when enabled, the title looks like `96%/99%/112/ok`. It is hidden automatically while the short window is paused.
 - `Pace`: adds the weekly quota that should remain at the current point in the reset window. It is off by default; English shows it as `R80%`.
 
 `Pace rule` is collapsed by default. Click the whole header row to expand or collapse it; after expanding, click any rule card to switch. The app explains each rule's formula, refresh granularity, and best use case.
@@ -365,7 +404,7 @@ These screenshots are real macOS menu bar captures. The script launches the real
 | ![Normal status](docs/assets/en/status-normal.png) | ![Low IQ status](docs/assets/en/status-quality-low.png) | ![Limit reached status](docs/assets/en/status-limit.png) | ![Custom status](docs/assets/en/status-custom.png) |
 
 You can choose which values appear in the menu bar. For example, if you do not care about the IQ number, show only `96%/ok`.
-If you care about the 5-hour short window, enable `5h`; it appears as an extra percentage between weekly quota and IQ.
+When local Codex returns a 5-hour short window, enable `5h` to place it between weekly quota and IQ. While paused, the app shows neither an empty value nor a duplicate of weekly quota.
 If you want to pace weekly quota evenly across the reset window, enable `Pace`.
 Turn on `Decimal IQ in menu bar` if you want the menu bar itself to show the precise IQ value.
 
@@ -378,14 +417,14 @@ This image is captured by the app itself from the real SwiftUI menu window on a 
 ## What It Shows
 
 - Weekly Codex quota remaining, read from the local Codex app-server.
-- Short-window quota remaining, also from the local Codex app-server.
+- Short-window quota remaining, also from the local Codex app-server, shown only when the API explicitly returns an approximately 5-hour window.
 - Usage pace: the suggested remaining percentage based on the selected strategy, compared with actual weekly quota remaining. For example, if target remaining is 80% and actual remaining is 90%, it tells you there is room to spend more.
   Strategies include: `Time` for smooth even spending; `Daily` for day-level budgeting; `Reserve` to keep a 20% buffer early; `Workdays` for heavier weekday usage and lighter weekends; `Front-load` to spend earlier and avoid unused quota near reset.
 - The Reset Radar judgement visible on [CodexRadar](https://codexradar.com/): reset-card and hard-reset paths with levels, summaries, and reasons.
 - The community knowledge visible on CodexRadar: the reset-credit expiry check prompt. The menu keeps copying the prompt as a fallback path.
 - Local reset-credit expiry checks: low-frequency auto refresh is on by default, and `Refresh now` still runs an immediate manual refresh. The app reads the Codex access token from `~/.codex/auth.json`, requests the ChatGPT reset credits endpoint, and caches only sanitized card status, issue time, and expiry time. It never stores the token.
 - The currently public Model IQ, quality status, and probe pass count from CodexRadar.
-- The Quota Radar visible on CodexRadar: 20x Pro / 5x Pro / Plus 5h and 7d USD-equivalent estimates. These are public estimates, not local remaining quota.
+- The Quota Radar visible on CodexRadar: currently 20x Pro / 5x Pro / Plus 7d USD-equivalent estimates, with the 5h column returning automatically if 5h calibration resumes. These are public estimates, not local remaining quota.
 - The model-quality direction visible on CodexRadar: speed, cost, cache hit rate, and community ratings.
 - Compatibility state for CodexRadar's legacy speed/prediction endpoints. Those are no longer treated as live primary information unless the compatibility path explicitly returns.
 

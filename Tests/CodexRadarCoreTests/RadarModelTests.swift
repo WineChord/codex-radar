@@ -37,6 +37,7 @@ final class RadarModelTests: XCTestCase {
         let rating = ratings.rating(for: iq.latest)
         XCTAssertEqual(rating?.average, 9.4)
         XCTAssertEqual(rating?.count, 10)
+        XCTAssertNil(ratings.rating(for: iq.latestRows[1].snapshot))
         XCTAssertEqual(ratings.rating(for: iq.latestRows.last?.snapshot)?.average, 8.1)
     }
 
@@ -55,6 +56,39 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.modelIQ?.latest?.iqScore, 62.5)
         XCTAssertEqual(current.modelIQ?.latest?.passed, 5)
         XCTAssertEqual(current.modelIQ?.latest?.tasks, 12)
+    }
+
+    func testDecodesDistributedModelIQAveragesAndSource() throws {
+        let iq = try JSONDecoder().decode(
+            ModelIQEnvelope.self,
+            from: Data(distributedModelIQJSON.utf8)
+        )
+
+        XCTAssertEqual(iq.latest?.iqScore, 105.1)
+        XCTAssertEqual(iq.latest?.passed, 76)
+        XCTAssertEqual(iq.latest?.tasks, 109)
+        XCTAssertEqual(iq.latest?.costUSD, 1_047.309802)
+        XCTAssertEqual(iq.latest?.averageCostUSD, 9.608347)
+        XCTAssertEqual(iq.latest?.displayedCostUSD, 9.608347)
+        XCTAssertEqual(iq.latest?.averageTaskSeconds, 2_217.055)
+        XCTAssertEqual(iq.latest?.averageTaskTimeHuman, "37分钟")
+        XCTAssertTrue(iq.latest?.usesPerTaskAverages == true)
+        XCTAssertTrue(iq.dataSource?.isDistributedCommunityRuns == true)
+        XCTAssertEqual(iq.dataSource?.validCells, 984)
+        XCTAssertEqual(iq.dataSource?.linkURL?.host, "deng.codexradar.com")
+        XCTAssertEqual(iq.latestRows.map(\.label), [
+            "GPT-5.6 Sol max",
+            "GPT-5.6 Sol high",
+            "GPT-5.6 Terra max",
+            "GPT-5.6 Luna high",
+            "GPT-5.5 high"
+        ])
+
+        let legacyRatings = try JSONDecoder().decode(
+            ModelRatingsEnvelope.self,
+            from: Data(modelRatingsJSON.utf8)
+        )
+        XCTAssertNil(legacyRatings.rating(for: iq.latest))
     }
 
     func testBuildsFallbackCurrentFromHomepageHTML() throws {
@@ -84,8 +118,140 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.resetJudgement?.cards.first?.level, "高 · 基本已触发")
         XCTAssertEqual(current.resetJudgement?.reasons.count, 2)
         XCTAssertEqual(current.communityKnowledge?.title, "重置卡过期时间自查")
+        XCTAssertEqual(current.communityKnowledges.count, 1)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("rate-limit reset credits") == true)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("不要打印 access_token") == true)
+    }
+
+    func testBuildsDistributedModelIQFromHomepageHTML() throws {
+        let html = """
+        <html><body>
+          <div class="model-iq-chart-view" data-model-iq-chart-view="iq">
+            <svg>
+              <circle data-model-key="gpt_56_sol_max" data-model-iq-tooltip-key="iq|2026-07-17T13:03:49+08:00|103.200000" aria-label="17日13时 Sol max: IQ指数 103.2, 74/108, 平均费用 $9.92, 平均耗时 38分钟, cache命中率 97.8%"></circle>
+              <circle data-model-key="gpt_56_sol_max" data-model-iq-tooltip-key="iq|2026-07-17T14:35:21+08:00|105.100000" aria-label="17日14时 Sol max: IQ指数 105.1, 76/109, 平均费用 $9.61, 平均耗时 37分钟, cache命中率 97.9%"></circle>
+              <circle data-model-key="gpt_56_terra_high" data-model-iq-tooltip-key="iq|2026-07-17T14:35:21+08:00|77.900000" aria-label="17日14时 Terra high: IQ指数 77.9, 46/89, 平均费用 $1.32, 平均耗时 14分钟, cache命中率 96.2%"></circle>
+            </svg>
+          </div>
+          <div class="model-iq-chart-view" data-model-iq-chart-view="value" hidden>
+            <circle data-model-key="gpt_56_sol_max" data-model-iq-tooltip-key="value|2026-07-17T14:35:21+08:00|104.619184" aria-label="17日14时 Sol max: IQ指数 105.1, 76/109, 平均费用 $9.61, 平均耗时 37分钟, cache命中率 97.9%"></circle>
+          </div>
+        </body></html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_784_256_000)
+        )
+
+        XCTAssertEqual(current.modelIQ?.latest?.date, "2026-07-17T14:35:21+08:00")
+        XCTAssertEqual(current.modelIQ?.latest?.model, "gpt-5.6-sol")
+        XCTAssertEqual(current.modelIQ?.latest?.reasoningEffort, "max")
+        XCTAssertEqual(current.modelIQ?.latest?.iqScore, 105.1)
+        XCTAssertEqual(current.modelIQ?.latest?.passed, 76)
+        XCTAssertEqual(current.modelIQ?.latest?.tasks, 109)
+        XCTAssertNil(current.modelIQ?.latest?.costUSD)
+        XCTAssertEqual(current.modelIQ?.latest?.averageCostUSD, 9.61)
+        XCTAssertEqual(current.modelIQ?.latest?.averageTaskSeconds, 2_220)
+        XCTAssertEqual(current.modelIQ?.latest?.cacheHitRateText, "97.9%")
+        XCTAssertEqual(current.modelIQ?.comparisons.count, 1)
+        XCTAssertTrue(current.modelIQ?.dataSource?.isDistributedCommunityRuns == true)
+    }
+
+    func testBuildsCommunityKnowledgeFromGuideDiv() throws {
+        let html = """
+        <html>
+          <head>
+            <title>7月12日 Sol max: IQ指数 105.0, 7/10, 费用 $58.4, 耗时 30分钟, cache命中率 97.6%</title>
+          </head>
+          <body>
+            <section class="community-knowledge" aria-label="Codex 社区知识分享">
+              <div class="community-knowledge-grid">
+                <article class="community-knowledge-card">
+                  <div class="community-knowledge-card-main">
+                    <h2>如何开启 Max 推理强度</h2>
+                  </div>
+                  <div class="community-knowledge-guide" data-site-announcement-prompt hidden>
+                    <p>打开 Codex 设置 → Configuration → Model features → Available reasoning efforts，勾选 Max。</p>
+                    <img src="assets/codex-enable-max-reasoning-20260711.png" alt="在 Codex Configuration 的 Available reasoning efforts 中开启 Max">
+                  </div>
+                </article>
+              </div>
+            </section>
+          </body>
+        </html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_783_824_000)
+        )
+
+        XCTAssertEqual(current.communityKnowledge?.title, "如何开启 Max 推理强度")
+        XCTAssertEqual(current.communityKnowledges.count, 1)
+        XCTAssertTrue(current.communityKnowledge?.prompt?.contains("Available reasoning efforts") == true)
+    }
+
+    func testBuildsFastRadarFromHomepageHTML() throws {
+        let html = """
+        <html>
+          <head>
+            <title>7月13日 Sol max: IQ指数 150.0, 10/10, 费用 $34.9, 耗时 27分钟, cache命中率 95.6%</title>
+          </head>
+          <body>
+            <section class="fast-radar" id="fast-radar" aria-label="Fast 雷达">
+              <div class="fast-radar-head">
+                <div>
+                  <h2>Fast 雷达 <em>7月12日16:32更新</em></h2>
+                </div>
+                <span>从标准改成 Fast，以 2.5 倍的成本到底快了多少？</span>
+              </div>
+              <div class="fast-radar-summary" aria-label="Fast 模式速览">
+                <div><span>体感加速</span><strong>⚡️1.381 倍</strong></div>
+                <div><span>首字延迟减少</span><strong>0.08 秒</strong></div>
+                <div><span>Token 生成速度加速</span><strong>⚡️1.504 倍</strong></div>
+              </div>
+              <div class="fast-radar-table" role="table" aria-label="Fast 雷达">
+                <div class="fast-radar-row fast-radar-row-head" role="row">
+                  <span>模型</span>
+                  <span>体感加速 · E2E</span>
+                  <span>首字延迟减少 · TTFT</span>
+                  <span>Token 生成速度加速 · TPS</span>
+                </div>
+                <div class="fast-radar-row" role="row">
+                  <div class="fast-radar-model"><strong>Sol</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-e2e" data-label="体感加速"><span>47.26s → 33.79s</span><strong>⚡️1.399×</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-ttft" data-label="首字延迟减少"><span>9.98s → 9.08s</span><strong>快 9.0%</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-tps" data-label="Token 生成速度加速"><span>55.75 → 84.23</span><strong>⚡️1.511×</strong></div>
+                </div>
+                <div class="fast-radar-row" role="row">
+                  <div class="fast-radar-model"><strong>Terra</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-e2e" data-label="体感加速"><span>44.61s → 34.10s</span><strong>⚡️1.308×</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-ttft is-regression" data-label="首字延迟减少"><span>7.17s → 9.10s</span><strong>慢 26.9%</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-tps" data-label="Token 生成速度加速"><span>55.53 → 83.37</span><strong>⚡️1.501×</strong></div>
+                </div>
+              </div>
+              <div class="fast-radar-explain">
+                <p>测试方法：Standard 与 Fast 各独立运行 3 次并取算术平均。</p>
+              </div>
+            </section>
+          </body>
+        </html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_783_910_400)
+        )
+
+        XCTAssertEqual(current.fastRadar?.title, "Fast 雷达")
+        XCTAssertEqual(current.fastRadar?.updatedLabel, "7月12日16:32更新")
+        XCTAssertEqual(current.fastRadar?.summary.count, 3)
+        XCTAssertEqual(current.fastRadar?.rows.count, 2)
+        XCTAssertEqual(current.fastRadar?.rows.first?.model, "Sol")
+        XCTAssertEqual(current.fastRadar?.rows.first?.e2e?.value, "⚡️1.399×")
+        XCTAssertEqual(current.fastRadar?.rows.last?.ttft?.value, "慢 26.9%")
+        XCTAssertTrue(current.fastRadar?.method?.contains("Standard 与 Fast") == true)
     }
 
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
@@ -309,6 +475,61 @@ private let modelIQJSON = """
       { "date": "2026-06-30-pm", "five_h_20x": 272.38, "seven_d_20x": 1634.28 },
       { "date": "2026-07-01-am", "five_h_20x": 276.44, "seven_d_20x": 1658.63 }
     ]
+  }
+}
+"""
+
+private let distributedModelIQJSON = """
+{
+  "updated_at": "2026-07-17T14:35:21+08:00",
+  "data_source": {
+    "type": "distributed_community_runs",
+    "url": "https://deng.codexradar.com",
+    "checked_at": "2026-07-17T14:35:21+08:00",
+    "valid_cells": 984
+  },
+  "latest": {
+    "date": "2026-07-17T14:35:21+08:00",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "max",
+    "score": 105.1,
+    "status": "green",
+    "passed": 76,
+    "tasks": 109,
+    "valid_tasks": 109,
+    "wall_seconds": 241659,
+    "wall_time_human": "67小时8分",
+    "average_task_seconds": 2217.055,
+    "average_task_time_human": "37分钟",
+    "cost_usd": 1047.309802,
+    "average_cost_usd": 9.608347,
+    "cost_usd_basis": "total_selected_tasks"
+  },
+  "comparisons": {
+    "gpt_56_sol_high": {
+      "label": "GPT-5.6 Sol high",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high",
+      "latest": { "score": 89.8, "passed": 62, "tasks": 104, "model": "gpt-5.6-sol", "reasoning_effort": "high" }
+    },
+    "gpt_56_terra_max": {
+      "label": "GPT-5.6 Terra max",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max",
+      "latest": { "score": 95.7, "passed": 54, "tasks": 85, "model": "gpt-5.6-terra", "reasoning_effort": "max" }
+    },
+    "gpt_56_luna_high": {
+      "label": "GPT-5.6 Luna high",
+      "model": "gpt-5.6-luna",
+      "reasoning_effort": "high",
+      "latest": { "score": 62.5, "passed": 34, "tasks": 82, "model": "gpt-5.6-luna", "reasoning_effort": "high" }
+    },
+    "gpt_55_high_distributed": {
+      "label": "GPT-5.5 high",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "latest": { "score": 84.9, "passed": 62, "tasks": 110, "model": "gpt-5.5", "reasoning_effort": "high" }
+    }
   }
 }
 """

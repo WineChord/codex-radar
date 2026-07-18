@@ -12,7 +12,7 @@ final class RateLimitDashboardTests: XCTestCase {
         XCTAssertFalse(dashboard.isBlocked)
     }
 
-    func testFallsBackToLongestWindowForWeeklyBucket() throws {
+    func testFallsBackToLongestWindowWithoutInventingShortBucket() throws {
         let json = """
         {
           "rateLimits": {
@@ -31,7 +31,44 @@ final class RateLimitDashboardTests: XCTestCase {
         let dashboard = RateLimitDashboard(response: response)
 
         XCTAssertEqual(dashboard.weeklyRemainingPercent, 60)
-        XCTAssertEqual(dashboard.shortRemainingPercent, 80)
+        XCTAssertNil(dashboard.shortRemainingPercent)
+    }
+
+    func testWeeklyOnlyResponseDoesNotDuplicateWeeklyAsShortQuota() throws {
+        let dashboard = try weeklyDashboard(usedPercent: 9, resetAt: Date(timeIntervalSince1970: 1_784_489_767))
+
+        XCTAssertEqual(dashboard.weeklyRemainingPercent, 91)
+        XCTAssertNil(dashboard.shortBucket)
+        XCTAssertNil(dashboard.shortRemainingPercent)
+    }
+
+    func testQuotaRadarHidesDerivedFiveHourValuesDuringSevenDayCalibration() throws {
+        let data = Data(#"""
+        {
+          "basis_window_label": "7d",
+          "rows": [
+            { "tier": "20x Pro", "basis": "measured 7d", "five_h": 311.01, "seven_d": 1866.08 }
+          ]
+        }
+        """#.utf8)
+        let radar = try JSONDecoder().decode(QuotaRadar.self, from: data)
+
+        XCTAssertFalse(radar.showsFiveHourValues)
+        XCTAssertEqual(radar.rows.first?.sevenDayUSD, 1866.08)
+    }
+
+    func testQuotaRadarShowsFiveHourValuesWhenFiveHourIsCalibrationWindow() throws {
+        let data = Data(#"""
+        {
+          "basis_window_label": "5h",
+          "rows": [
+            { "tier": "20x Pro", "basis": "measured 5h", "five_h": 300, "seven_d": 1800 }
+          ]
+        }
+        """#.utf8)
+        let radar = try JSONDecoder().decode(QuotaRadar.self, from: data)
+
+        XCTAssertTrue(radar.showsFiveHourValues)
     }
 
     func testDashboardStatusTitleUsesCompactSegments() throws {

@@ -4,11 +4,50 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达与模型质量雷达。Codex Radar Sentinel 提供 macOS 菜单栏版和 Windows 10/11 通知区域版，会把 CodexRadar 当前公开的公告、reset 研判、重置卡自查知识、额度估算、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到系统状态区，并保留旧 reset/速蹬接口恢复时的兼容能力。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达、Fast 雷达与分布式社区模型质量雷达。Codex Radar Sentinel 提供 macOS 菜单栏版和 Windows 10/11 通知区域版，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Fast 性能对比、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到系统状态区，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
+
+<details open>
+<summary><strong>v0.1.52：分布式 Model IQ 对齐</strong> - 正确显示单题平均费用/耗时，并接入分布式雷达。</summary>
+
+- CodexRadar 的降智雷达已升级为分布式社区众测，每个模型配置当前汇总约 80-110 个有效任务；菜单会把旧“探针”改成更准确的“通过”。
+- 修复新 payload 的统计口径：网页展示的是单题平均值，例如 `$9.61 / 37分钟`；App 不再误显示全部 109 个任务合计的 `$1047 / 67小时`。
+- `Codex IQ · 分布式众测` 标题右侧提供分布式雷达入口，多模型行补充单题费用、时间和 Cache；状态栏仍保持原来的紧凑宽度。
+- 首页兜底已兼容新的 `aria-label` 图表结构；即使 `current.json` 暂时不可用，也能继续读取分布式 IQ，而不是退回 `--`。
+- 体感评分现在只显示同一模型和推理强度的精确匹配；没有评分时显示 `--`，不再错误借用其他模型的分数。
+
+</details>
+
+<details>
+<summary><strong>v0.1.51：5h 动态兼容</strong> - 5h 暂停时自动隐藏，恢复后自动出现。</summary>
+
+- CodexRadar 当前确认 5h 限制仍是“暂时不生效”，额度雷达也暂时只展示仍在生效的 7d 额度。
+- 本机 Codex 没有返回约 300 分钟的窗口时，菜单会隐藏短窗卡片、5h 状态栏选项和对应片段，不再把周额度误当成 5h。
+- 兼容代码仍然保留；以后本机接口重新返回 5h 时，短窗卡片和选项会自动恢复，不需要再次升级 app。
+- CodexRadar 额度雷达会跟随校准窗口：当前只展示 7d；网站以后恢复 5h 校准时，5h 列会自动回来。
+
+</details>
+
+<details>
+<summary><strong>v0.1.50：Fast 雷达同步</strong> - 下拉菜单展示 Standard vs Fast 的公开性能对比。</summary>
+
+- CodexRadar 新增 `Fast 雷达`：比较 Standard 和 Fast 在 E2E、TTFT、TPS 上的变化。
+- Sentinel 会从首页解析三项摘要和 Sol / Terra / Luna 逐模型结果，展示在 `CodexRadar Fast 雷达` 区块。
+- 测试方法默认折叠为长文说明，状态栏不新增占位，避免为了性能参考信号挤占额度和质量指标。
+
+</details>
+
+<details>
+<summary><strong>v0.1.49：社区知识卡兼容</strong> - CodexRadar 新的指南卡会单独显示。</summary>
+
+- CodexRadar 首页的社区知识从单个 `code prompt` 变成了可展开的指南卡，例如“如何开启 Max 推理强度”。
+- 菜单新增独立的 `CodexRadar 社区知识` 区，长内容沿用动态 `全文` 展开；`重置卡过期` 区不再冒用非重置卡知识标题。
+- live contract 继续要求社区知识和公告都能从首页兜底补齐，避免 `current.json` 暂时为空时菜单静默缺内容。
+
+</details>
 
 <details>
 <summary><strong>v0.1.48：官方窗口不漏报</strong> - `use_remaining_tokens` 会进入速蹬状态。</summary>
@@ -347,7 +386,7 @@
 
 下拉菜单的 `状态栏显示` 里还可以手动打开：
 
-- `5h`：把 5 小时短窗额度也放进状态栏；默认关闭，打开后会类似 `96%/99%/112/正常`。
+- `5h`：本机 Codex 返回 5 小时短窗时，这个选项会自动出现；默认关闭，打开后会类似 `96%/99%/112/正常`。短窗暂停时会自动隐藏。
 - `应剩`：把“按节奏现在应该还剩多少周额度”放进状态栏；默认关闭，中文显示类似 `应80%`，英文显示类似 `R80%`。
 
 `应剩计算策略` 默认收起。点击这一整行标题即可展开或收起；展开后点击任一策略卡片即可切换，并会直接说明每个策略的公式、刷新粒度和适用场景。
@@ -365,7 +404,7 @@
 | ![正常状态](docs/assets/zh/status-normal.png) | ![IQ 偏低状态](docs/assets/zh/status-quality-low.png) | ![限额状态](docs/assets/zh/status-limit.png) | ![自定义状态](docs/assets/zh/status-custom.png) |
 
 可以在下拉菜单里选择状态栏显示哪些值。例如不关心 IQ 数字时，可以只显示 `96%/正常`。
-如果关心 5 小时短窗，可以手动打开 `5h`，它会作为一个额外百分比插入到周额度和 IQ 之间。
+本机 Codex 返回 5 小时短窗时，可以手动打开 `5h`，它会作为额外百分比插入到周额度和 IQ 之间；短窗暂停时不会显示空值或重复周额度。
 如果想按 reset 窗口节奏均匀使用周额度，可以手动打开 `应剩`。
 如果想让状态栏也显示精确 IQ 小数，可以打开 `状态栏 IQ 小数`。
 
@@ -378,14 +417,14 @@
 ## 它会显示什么
 
 - Codex 周额度剩余，来自本机 Codex app-server。
-- Codex 短窗额度剩余，也来自本机 Codex app-server。
+- Codex 短窗额度剩余，也来自本机 Codex app-server；只有接口明确返回约 5 小时的窗口时才显示。
 - 用量节奏：按所选策略计算当前建议剩余百分比，并和实际周额度剩余对比；例如建议应剩 80%、实际还剩 90%，就会提示可以多用一点。
   策略包括：`按时间` 平滑均匀用完；`每日` 按天级预算推进；`留余` 前期保留 20% 缓冲；`工作日` 工作日多用、周末少用；`先用` 前半程更积极，避免 reset 前剩太多。
 - [CodexRadar](https://codexradar.com/) 首页可见的重置雷达研判：发重置卡、硬重置两条路径的等级、摘要和原因。
 - CodexRadar 首页可见的社区知识：`重置卡过期时间自查` prompt。菜单保留复制 prompt 作为兜底路径。
 - 本机重置卡过期查询：默认低频自动刷新，也可以手动点 `立即刷新`；app 会读取 `~/.codex/auth.json` 中的 Codex access token，请求 ChatGPT reset credits 接口，并只缓存脱敏后的卡片状态、发放时间和过期时间，不保存 token。
 - CodexRadar 当前公开的 Model IQ、模型质量状态和探针通过数。
-- CodexRadar 首页可见的额度雷达：20x Pro / 5x Pro / Plus 的 5h 和 7d 美元等价值估算。它不是本机剩余额度，只是公开估算。
+- CodexRadar 首页可见的额度雷达：当前展示 20x Pro / 5x Pro / Plus 的 7d 美元等价值估算；5h 恢复校准时会自动增加 5h 列。它不是本机剩余额度，只是公开估算。
 - CodexRadar 首页可见的模型质量方向：速度、费用、cache 命中率和社区体感分。
 - CodexRadar 旧速蹬/预测接口的兼容状态；这些功能不再作为 live 主信息展示，只有明确恢复时才触发旧提醒路径。
 

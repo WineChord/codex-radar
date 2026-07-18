@@ -73,12 +73,14 @@ struct DashboardMenuView: View {
             header
             statusLegend
             siteAnnouncementSection
+            codexRadarCommunitySection
             Divider()
             quotaSection
             quotaPacingSection
             resetJudgementSection
             communityKnowledgeSection
             codexRadarQuotaSection
+            codexRadarFastSection
             Divider()
             radarSection
             if showsPredictionSection {
@@ -165,21 +167,37 @@ struct DashboardMenuView: View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("状态栏含义", "Menu Bar"), systemImage: "menubar.rectangle")
             expandableCaptionText(
-                text(
-                    "默认显示“周额度 / IQ / 质量”；可打开 5h 和应剩。",
-                    "Default: Weekly / IQ / Quality; enable 5h and Pace when useful."
-                ),
+                statusLegendDescription,
                 key: "status-legend",
                 collapsedLines: 2
             )
             HStack(spacing: 6) {
                 legendTile(metric: .weeklyQuota, color: quotaColor)
-                legendTile(metric: .shortQuota, color: shortQuotaColor)
+                if hasLocalShortQuota {
+                    legendTile(metric: .shortQuota, color: shortQuotaColor)
+                }
                 legendTile(metric: .quotaPace, color: quotaPaceColor)
                 legendTile(metric: .codexIQ, color: iqColor)
                 legendTile(metric: .signal, color: signalColor)
             }
         }
+    }
+
+    private var hasLocalShortQuota: Bool {
+        state.rateLimits?.shortBucket != nil
+    }
+
+    private var statusLegendDescription: String {
+        if hasLocalShortQuota {
+            return text(
+                "默认显示“周额度 / IQ / 质量”；可打开 5h 和应剩。",
+                "Default: Weekly / IQ / Quality; enable 5h and Pace when useful."
+            )
+        }
+        return text(
+            "默认显示“周额度 / IQ / 质量”；5h 当前暂停，已自动隐藏；可打开应剩。",
+            "Default: Weekly / IQ / Quality. The 5h window is currently paused and hidden automatically; Pace remains optional."
+        )
     }
 
     private var quotaSection: some View {
@@ -191,11 +209,13 @@ struct DashboardMenuView: View {
                     value: DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent),
                     resetAt: state.rateLimits?.weeklyBucket?.resetsAt
                 )
-                quotaTile(
-                    title: text("短窗", "Short"),
-                    value: DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent),
-                    resetAt: state.rateLimits?.shortBucket?.resetsAt
-                )
+                if hasLocalShortQuota {
+                    quotaTile(
+                        title: text("短窗", "Short"),
+                        value: DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent),
+                        resetAt: state.rateLimits?.shortBucket?.resetsAt
+                    )
+                }
             }
             if let planType = state.rateLimits?.snapshot.planType {
                 Text("\(text("套餐", "Plan")) \(planType)")
@@ -319,6 +339,35 @@ struct DashboardMenuView: View {
     }
 
     @ViewBuilder
+    private var codexRadarCommunitySection: some View {
+        let cards = codexRadarCommunityCards
+        if !cards.isEmpty {
+            VStack(alignment: .leading, spacing: 7) {
+                sectionTitle(text("CodexRadar 社区知识", "CodexRadar Community"), systemImage: "lightbulb")
+                ForEach(Array(cards.prefix(3).enumerated()), id: \.offset) { index, card in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(card.title ?? text("社区知识", "Community note"))
+                            .font(.system(size: metrics.body, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                        if let prompt = card.prompt?.trimmingCharacters(in: .whitespacesAndNewlines),
+                           !prompt.isEmpty {
+                            expandableCaptionText(
+                                prompt,
+                                key: "codexradar-community-\(index)-\(card.title ?? "")",
+                                collapsedLines: 3
+                            )
+                        }
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
     private var resetJudgementSection: some View {
         if let judgement = state.current?.resetJudgement,
            !judgement.cards.isEmpty {
@@ -355,7 +404,7 @@ struct DashboardMenuView: View {
     private var communityKnowledgeSection: some View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("重置卡过期", "Reset Credit Expiry"), systemImage: "creditcard")
-            Text(state.current?.communityKnowledge?.title ?? text("重置卡过期时间自查", "Reset credit expiry check"))
+            Text(resetCreditCommunityKnowledge?.title ?? text("重置卡过期时间自查", "Reset credit expiry check"))
                 .font(.system(size: metrics.body, weight: .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
@@ -562,8 +611,35 @@ struct DashboardMenuView: View {
         }
     }
 
+    private var codexRadarCommunityCards: [CommunityKnowledge] {
+        let cards = state.current?.communityKnowledges ?? []
+        let fallback = state.current?.communityKnowledge.map { [$0] } ?? []
+        return (cards.isEmpty ? fallback : cards)
+            .filter { !isResetCreditCommunityKnowledge($0) }
+    }
+
+    private var resetCreditCommunityKnowledge: CommunityKnowledge? {
+        if let knowledge = (state.current?.communityKnowledges ?? [])
+            .first(where: isResetCreditCommunityKnowledge) {
+            return knowledge
+        }
+        if let knowledge = state.current?.communityKnowledge,
+           isResetCreditCommunityKnowledge(knowledge) {
+            return knowledge
+        }
+        return nil
+    }
+
+    private func isResetCreditCommunityKnowledge(_ knowledge: CommunityKnowledge) -> Bool {
+        let body = "\(knowledge.title ?? "") \(knowledge.prompt ?? "")".lowercased()
+        return body.contains("重置卡")
+            || body.contains("reset credit")
+            || body.contains("reset credits")
+            || body.contains("rate-limit reset")
+    }
+
     private var resetCreditPrompt: String {
-        if let prompt = state.current?.communityKnowledge?.prompt,
+        if let prompt = resetCreditCommunityKnowledge?.prompt,
            !prompt.isEmpty {
             return prompt
         }
@@ -595,16 +671,60 @@ struct DashboardMenuView: View {
         }
     }
 
+    @ViewBuilder
+    private var codexRadarFastSection: some View {
+        if let fastRadar = state.current?.fastRadar,
+           !fastRadar.summary.isEmpty || !fastRadar.rows.isEmpty {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline) {
+                    sectionTitle(text("CodexRadar Fast 雷达", "CodexRadar Fast Radar"), systemImage: "bolt.circle")
+                    Spacer(minLength: 8)
+                    if let updatedLabel = fastRadar.updatedLabel, !updatedLabel.isEmpty {
+                        Text(updatedLabel)
+                            .font(.system(size: metrics.caption, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                    }
+                }
+                if let subtitle = fastRadar.subtitle, !subtitle.isEmpty {
+                    expandableCaptionText(
+                        subtitle,
+                        key: "fast-radar-subtitle-\(fastRadar.updatedLabel ?? "")-\(subtitle)",
+                        collapsedLines: 2
+                    )
+                }
+                if !fastRadar.summary.isEmpty {
+                    HStack(spacing: Layout.tileSpacing) {
+                        ForEach(fastRadar.summary.prefix(3)) { item in
+                            fastRadarSummaryTile(item)
+                        }
+                    }
+                }
+                if !fastRadar.rows.isEmpty {
+                    fastRadarTable(fastRadar)
+                }
+                if let method = fastRadar.method, !method.isEmpty {
+                    expandableCaptionText(
+                        method,
+                        key: "fast-radar-method-\(fastRadar.updatedLabel ?? "")",
+                        collapsedLines: 3
+                    )
+                }
+            }
+        }
+    }
+
     private var radarTitle: String {
         if codexRadarSignalRetired {
-            return text("重置、额度与模型雷达", "Reset, quota and model radar")
+            return text("重置、额度、Fast 与模型雷达", "Reset, quota, Fast and model radar")
         }
         return state.current?.lastWindow?.title ?? text("还没有加载 CodexRadar 状态", "No CodexRadar status loaded")
     }
 
     private var radarFocus: String {
         if codexRadarSignalRetired {
-            return text("重置雷达 + 额度雷达 + Model IQ", "Reset + Quota + Model IQ")
+            return text("重置 + 额度 + Fast + Model IQ", "Reset + Quota + Fast + Model IQ")
         }
         return state.current?.lastWindow?.windowHuman ?? text("未知", "unknown")
     }
@@ -619,8 +739,8 @@ struct DashboardMenuView: View {
     private var radarSummary: String {
         if codexRadarSignalRetired {
             return text(
-                "CodexRadar 当前公开重置雷达、额度雷达与模型质量：reset 研判、公开额度估算、Model IQ、速度、费用、cache 命中率和社区体感分。",
-                "CodexRadar currently publishes reset judgement, quota radar, and model quality: reset calls, public quota estimates, Model IQ, speed, cost, cache hit rate, and community ratings."
+                "CodexRadar 当前公开重置雷达、额度雷达、Fast 性能对比与模型质量：reset 研判、公开额度估算、Model IQ、速度、费用、cache 命中率和社区体感分。",
+                "CodexRadar currently publishes reset judgement, quota radar, Fast performance comparisons, and model quality: reset calls, public quota estimates, Model IQ, speed, cost, cache hit rate, and community ratings."
             )
         }
         return state.current?.lastWindow?.summary ?? text(
@@ -656,21 +776,52 @@ struct DashboardMenuView: View {
 
     private var iqSection: some View {
         VStack(alignment: .leading, spacing: 7) {
-            sectionTitle("Codex IQ", systemImage: "brain.head.profile")
+            HStack(spacing: 8) {
+                sectionTitle(
+                    isDistributedModelIQ
+                        ? text("Codex IQ · 分布式众测", "Codex IQ · Distributed")
+                        : "Codex IQ",
+                    systemImage: "brain.head.profile"
+                )
+                Spacer()
+                if let source = state.modelIQ?.dataSource,
+                   let url = source.linkURL {
+                    Link(destination: url) {
+                        HStack(spacing: 3) {
+                            if let validCells = source.validCells {
+                                Text(text("\(validCells) 条", "\(validCells) results"))
+                            } else {
+                                Text(text("分布式雷达", "Distributed radar"))
+                            }
+                            Image(systemName: "arrow.up.right.square")
+                        }
+                        .font(.system(size: metrics.caption, weight: .medium))
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help(text("打开 CodexRadar 分布式雷达", "Open CodexRadar distributed radar"))
+                }
+            }
             HStack {
                 labelPair("IQ", DisplayFormatters.iqScore(state.modelIQ?.latest?.iqScore))
                 Spacer()
                 let passed = state.modelIQ?.latest?.passed.map(String.init) ?? "?"
                 let tasks = state.modelIQ?.latest?.tasks.map(String.init) ?? "?"
-                labelPair(text("探针", "Probe"), "\(passed)/\(tasks)")
+                labelPair(modelIQResultLabel, "\(passed)/\(tasks)")
                 Spacer()
                 labelPair(text("状态", "Status"), state.modelIQ?.latest?.status ?? text("未知", "unknown"))
             }
             if let latest = state.modelIQ?.latest {
                 HStack {
-                    labelPair(text("耗时", "Time"), modelIQTimeText(latest))
+                    labelPair(
+                        latest.usesPerTaskAverages ? text("单题耗时", "Avg time") : text("耗时", "Time"),
+                        modelIQTimeText(latest)
+                    )
                     Spacer()
-                    labelPair(text("费用", "Cost"), DisplayFormatters.costUSD(latest.costUSD))
+                    labelPair(
+                        latest.usesPerTaskAverages ? text("单题费用", "Avg cost") : text("费用", "Cost"),
+                        DisplayFormatters.costUSD(latest.displayedCostUSD)
+                    )
                     Spacer()
                     labelPair("Cache", latest.cacheHitRateText)
                     Spacer()
@@ -690,7 +841,7 @@ struct DashboardMenuView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text("IQ")
                     .frame(width: 44, alignment: .trailing)
-                Text(text("探针", "Probe"))
+                Text(modelIQResultLabel)
                     .frame(width: 46, alignment: .trailing)
                 Text(text("体感", "Rating"))
                     .frame(width: 70, alignment: .trailing)
@@ -699,22 +850,31 @@ struct DashboardMenuView: View {
             .foregroundStyle(.secondary)
 
             ForEach(rows) { row in
-                HStack(spacing: 6) {
-                    Text(modelIQRowLabel(row))
-                        .font(.system(size: metrics.label, weight: .medium))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(DisplayFormatters.iqScore(row.snapshot.iqScore))
-                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                        .foregroundStyle(iqColor(for: row.snapshot))
-                        .frame(width: 44, alignment: .trailing)
-                    Text(modelIQProbeText(row.snapshot))
-                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                        .frame(width: 46, alignment: .trailing)
-                    Text(modelRatingCompactText(state.modelRatings?.rating(for: row.snapshot)))
-                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                        .frame(width: 70, alignment: .trailing)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(modelIQRowLabel(row))
+                            .font(.system(size: metrics.label, weight: .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(DisplayFormatters.iqScore(row.snapshot.iqScore))
+                            .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                            .foregroundStyle(iqColor(for: row.snapshot))
+                            .frame(width: 44, alignment: .trailing)
+                        Text(modelIQProbeText(row.snapshot))
+                            .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                            .frame(width: 46, alignment: .trailing)
+                        Text(modelRatingCompactText(state.modelRatings?.rating(for: row.snapshot)))
+                            .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                            .frame(width: 70, alignment: .trailing)
+                    }
+                    if row.snapshot.usesPerTaskAverages {
+                        Text(modelIQAverageDetailText(row.snapshot))
+                            .font(.system(size: metrics.caption))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
                 }
             }
         }
@@ -723,12 +883,15 @@ struct DashboardMenuView: View {
     }
 
     private func quotaRadarTable(_ quotaRadar: QuotaRadar) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        let showsFiveHourValues = quotaRadar.showsFiveHourValues
+        return VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Text(text("档位", "Tier"))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text("5h")
-                    .frame(width: 66, alignment: .trailing)
+                if showsFiveHourValues {
+                    Text("5h")
+                        .frame(width: 66, alignment: .trailing)
+                }
                 Text("7d")
                     .frame(width: 78, alignment: .trailing)
                 Text(text("来源", "Basis"))
@@ -744,9 +907,11 @@ struct DashboardMenuView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(DisplayFormatters.costUSD(row.fiveHourUSD))
-                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                        .frame(width: 66, alignment: .trailing)
+                    if showsFiveHourValues {
+                        Text(DisplayFormatters.costUSD(row.fiveHourUSD))
+                            .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                            .frame(width: 66, alignment: .trailing)
+                    }
                     Text(DisplayFormatters.costUSD(row.sevenDayUSD))
                         .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
                         .frame(width: 78, alignment: .trailing)
@@ -761,6 +926,85 @@ struct DashboardMenuView: View {
         }
         .padding(8)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func fastRadarSummaryTile(_ item: FastRadarSummaryItem) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(item.label ?? text("指标", "Metric"))
+                .font(.system(size: metrics.caption, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+            Text(item.value ?? DisplayFormatters.percentPlaceholder)
+                .font(.system(size: metrics.label, weight: .semibold, design: .monospaced))
+                .foregroundStyle(fastMetricColor(item.value))
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func fastRadarTable(_ fastRadar: FastRadar) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Text(text("模型", "Model"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("E2E")
+                    .frame(width: 72, alignment: .trailing)
+                Text("TTFT")
+                    .frame(width: 68, alignment: .trailing)
+                Text("TPS")
+                    .frame(width: 68, alignment: .trailing)
+            }
+            .font(.system(size: metrics.caption, weight: .semibold))
+            .foregroundStyle(.secondary)
+
+            ForEach(fastRadar.rows) { row in
+                HStack(spacing: 6) {
+                    Text(row.model ?? text("未知", "Unknown"))
+                        .font(.system(size: metrics.label, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    fastRadarMetricValue(row.e2e)
+                        .frame(width: 72, alignment: .trailing)
+                    fastRadarMetricValue(row.ttft)
+                        .frame(width: 68, alignment: .trailing)
+                    fastRadarMetricValue(row.tps)
+                        .frame(width: 68, alignment: .trailing)
+                }
+            }
+        }
+        .padding(8)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func fastRadarMetricValue(_ metric: FastRadarMetric?) -> some View {
+        Text(metric?.value ?? DisplayFormatters.percentPlaceholder)
+            .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+            .foregroundStyle(fastMetricColor(metric?.value))
+            .lineLimit(1)
+            .minimumScaleFactor(0.58)
+            .help(metricHelp(metric))
+    }
+
+    private func fastMetricColor(_ value: String?) -> Color {
+        let value = value ?? ""
+        if value.contains("慢") || value.lowercased().contains("slow") {
+            return .red
+        }
+        if value.contains("快") || value.contains("⚡") || value.lowercased().contains("faster") {
+            return .green
+        }
+        return .secondary
+    }
+
+    private func metricHelp(_ metric: FastRadarMetric?) -> String {
+        [metric?.label, metric?.range, metric?.value]
+            .compactMap { $0?.isEmpty == false ? $0 : nil }
+            .joined(separator: " · ")
     }
 
     private func resetJudgementCard(_ card: ResetJudgementCard) -> some View {
@@ -1039,6 +1283,24 @@ struct DashboardMenuView: View {
         return "\(passed)/\(tasks)"
     }
 
+    private var isDistributedModelIQ: Bool {
+        state.modelIQ?.dataSource?.isDistributedCommunityRuns == true
+            || state.modelIQ?.latest?.usesPerTaskAverages == true
+    }
+
+    private var modelIQResultLabel: String {
+        isDistributedModelIQ ? text("通过", "Passed") : text("探针", "Probe")
+    }
+
+    private func modelIQAverageDetailText(_ snapshot: ModelIQSnapshot) -> String {
+        let cost = DisplayFormatters.costUSD(snapshot.displayedCostUSD)
+        let time = modelIQTimeText(snapshot)
+        return text(
+            "单题 \(cost) · \(time) · Cache \(snapshot.cacheHitRateText)",
+            "Per task \(cost) · \(time) · Cache \(snapshot.cacheHitRateText)"
+        )
+    }
+
     private func iqColor(for snapshot: ModelIQSnapshot) -> Color {
         guard let score = snapshot.iqScore else {
             return .secondary
@@ -1075,6 +1337,15 @@ struct DashboardMenuView: View {
     }
 
     private func modelIQTimeText(_ snapshot: ModelIQSnapshot) -> String {
+        if let averageTaskSeconds = snapshot.averageTaskSeconds {
+            switch language {
+            case .zhHans:
+                return snapshot.averageTaskTimeHuman
+                    ?? "\(max(1, Int(round(averageTaskSeconds / 60))))分钟"
+            case .en:
+                return DisplayFormatters.minutesFromSeconds(Int(round(averageTaskSeconds)))
+            }
+        }
         switch language {
         case .zhHans:
             return snapshot.wallTimeHuman ?? DisplayFormatters.minutesFromSeconds(snapshot.wallSeconds)
@@ -1119,19 +1390,29 @@ struct DashboardMenuView: View {
                     .font(.system(size: metrics.caption, weight: .medium))
                     .foregroundStyle(.secondary)
                 LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: Layout.tileSpacing),
-                        GridItem(.flexible(), spacing: Layout.tileSpacing),
-                        GridItem(.flexible(), spacing: Layout.tileSpacing),
-                    ],
+                    columns: Array(
+                        repeating: GridItem(.flexible(), spacing: Layout.tileSpacing),
+                        count: hasLocalShortQuota ? 3 : 2
+                    ),
                     alignment: .leading,
                     spacing: 7
                 ) {
                     metricToggle(.weeklyQuota)
-                    metricToggle(.shortQuota)
+                    if hasLocalShortQuota {
+                        metricToggle(.shortQuota)
+                    }
                     metricToggle(.quotaPace)
                     metricToggle(.codexIQ)
                     metricToggle(.signal)
+                }
+                if !hasLocalShortQuota {
+                    Text(text(
+                        "Codex 当前未返回 5h 短窗，已自动隐藏；恢复后选项会自动出现。",
+                        "Codex is not currently returning a 5h window, so it is hidden automatically and will reappear when available."
+                    ))
+                    .font(.system(size: metrics.caption))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 quotaPacingOptions
                 Toggle(

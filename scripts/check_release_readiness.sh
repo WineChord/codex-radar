@@ -19,8 +19,10 @@ echo "  homepage: ${homepage_bytes} bytes"
 for path in current.json feed.xml; do
   fetch_url "https://codexradar.com/${path}" "${tmp_dir}/${path}"
   bytes="$(wc -c < "${tmp_dir}/${path}" | tr -d ' ')"
-  if head -c 64 "${tmp_dir}/${path}" | grep -q '<'; then
+  if head -c 256 "${tmp_dir}/${path}" | grep -Eqi '<!doctype html|<html'; then
     echo "  ${path}: ${bytes} bytes, homepage HTML fallback"
+  elif [[ "$path" == "feed.xml" ]] && head -c 256 "${tmp_dir}/${path}" | grep -qi '<rss'; then
+    echo "  ${path}: ${bytes} bytes, RSS XML"
   else
     echo "  ${path}: ${bytes} bytes"
   fi

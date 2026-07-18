@@ -32,7 +32,7 @@ public struct CodexRadarClient {
         let data = try await fetchData(AppConstants.currentPath)
         do {
             let current = try decoder.decode(RadarCurrent.self, from: data)
-            guard current.modelIQ?.latest?.iqScore == nil || current.resetJudgement == nil || current.communityKnowledge == nil || current.siteAnnouncement == nil,
+            guard current.modelIQ?.latest?.iqScore == nil || current.resetJudgement == nil || current.communityKnowledge == nil || current.siteAnnouncement == nil || current.fastRadar == nil,
                   let homepageHTML = try? await fetchHomepageHTML(),
                   let supplemented = try? Self.currentByMergingHomepageSignals(current, html: homepageHTML) else {
                 return current
@@ -103,8 +103,10 @@ public struct CodexRadarClient {
             throw ClientError.homepageFallbackUnavailable
         }
         let resetJudgement = parseHomepageResetJudgement(html: html)
-        let communityKnowledge = parseHomepageCommunityKnowledge(html: html)
+        let communityKnowledges = parseHomepageCommunityKnowledges(html: html)
+        let communityKnowledge = communityKnowledges.first
         let siteAnnouncement = parseHomepageSiteAnnouncement(html: html)
+        let fastRadar = parseHomepageFastRadar(html: html)
         let checkedAtString = isoString(checkedAt)
         var payload: [String: Any] = [
             "schema_version": "homepage-fallback-v1",
@@ -131,7 +133,8 @@ public struct CodexRadarClient {
             "model_iq": [
                 "updated_at": checkedAtString,
                 "latest": modelIQ["latest"] ?? [:],
-                "comparisons": modelIQ["comparisons"] ?? [:]
+                "comparisons": modelIQ["comparisons"] ?? [:],
+                "data_source": modelIQ["data_source"] ?? NSNull()
             ]
         ]
         if let resetJudgement {
@@ -140,8 +143,14 @@ public struct CodexRadarClient {
         if let communityKnowledge {
             payload["community_knowledge"] = communityKnowledge
         }
+        if !communityKnowledges.isEmpty {
+            payload["community_knowledges"] = communityKnowledges
+        }
         if let siteAnnouncement {
             payload["site_announcement"] = siteAnnouncement
+        }
+        if let fastRadar {
+            payload["fast_radar"] = fastRadar
         }
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try JSONDecoder().decode(RadarCurrent.self, from: data)
@@ -172,8 +181,10 @@ public struct CodexRadarClient {
             modelIQEnvelope = try JSONDecoder().decode(ModelIQEnvelope.self, from: data)
         }
         let resetJudgementData = parseHomepageResetJudgement(html: html)
-        let communityKnowledgeData = parseHomepageCommunityKnowledge(html: html)
+        let communityKnowledgesData = parseHomepageCommunityKnowledges(html: html)
+        let communityKnowledgeData = communityKnowledgesData.first
         let siteAnnouncementData = parseHomepageSiteAnnouncement(html: html)
+        let fastRadarData = parseHomepageFastRadar(html: html)
         let resetJudgement: ResetJudgement?
         if let resetJudgementData {
             let data = try JSONSerialization.data(withJSONObject: resetJudgementData)
@@ -188,6 +199,13 @@ public struct CodexRadarClient {
         } else {
             communityKnowledge = nil
         }
+        let communityKnowledges: [CommunityKnowledge]
+        if !communityKnowledgesData.isEmpty {
+            let data = try JSONSerialization.data(withJSONObject: communityKnowledgesData)
+            communityKnowledges = try JSONDecoder().decode([CommunityKnowledge].self, from: data)
+        } else {
+            communityKnowledges = []
+        }
         let siteAnnouncement: SiteAnnouncement?
         if let siteAnnouncementData {
             let data = try JSONSerialization.data(withJSONObject: siteAnnouncementData)
@@ -195,15 +213,28 @@ public struct CodexRadarClient {
         } else {
             siteAnnouncement = nil
         }
+        let fastRadar: FastRadar?
+        if let fastRadarData {
+            let data = try JSONSerialization.data(withJSONObject: fastRadarData)
+            fastRadar = try JSONDecoder().decode(FastRadar.self, from: data)
+        } else {
+            fastRadar = nil
+        }
         return current.withSignals(
             modelIQ: modelIQEnvelope,
             resetJudgement: resetJudgement,
             communityKnowledge: communityKnowledge,
-            siteAnnouncement: siteAnnouncement
+            communityKnowledges: communityKnowledges.isEmpty ? nil : communityKnowledges,
+            siteAnnouncement: siteAnnouncement,
+            fastRadar: fastRadar
         )
     }
 
     private static func parseHomepageModelIQEnvelope(html: String, checkedAt: Date) -> [String: Any]? {
+        if let distributed = parseDistributedHomepageModelIQEnvelope(html: html) {
+            return distributed
+        }
+
         let pattern = #"<title>\s*(?:(\d{1,2})月(\d{1,2})日|(\d{1,2})\.(\d{1,2})(?:[_-]([A-Za-z]+))?)\s+([^:]+):\s*IQ指数\s*([0-9]+(?:\.[0-9]+)?),\s*(\d+)/(\d+)(?:,\s*费用\s*\$([0-9]+(?:\.[0-9]+)?),\s*耗时\s*([0-9]+)分钟,\s*cache命中率\s*([0-9]+(?:\.[0-9]+)?)%)?"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return nil
@@ -263,6 +294,59 @@ public struct CodexRadarClient {
         ]
     }
 
+    private static func parseDistributedHomepageModelIQEnvelope(html: String) -> [String: Any]? {
+        guard let chart = firstCapture(
+            #"<div\s+class="model-iq-chart-view"\s+data-model-iq-chart-view="iq">(.*?)</div>"#,
+            in: html
+        ) else {
+            return nil
+        }
+
+        let circles = allMatches(
+            #"<circle[^>]+data-model-key="([^"]+)"[^>]+data-model-iq-tooltip-key="iq\|([^|"]+)\|[^"]+"[^>]+aria-label="([^"]+)"[^>]*>"#,
+            in: chart
+        )
+        let snapshots = circles.compactMap { groups -> DistributedHomepageIQSnapshot? in
+            guard groups.count == 3 else {
+                return nil
+            }
+            return DistributedHomepageIQSnapshot(
+                modelKey: groups[0],
+                timestamp: groups[1],
+                ariaLabel: cleanHTMLText(groups[2])
+            )
+        }
+        guard !snapshots.isEmpty else {
+            return nil
+        }
+
+        let latestByModel = Dictionary(grouping: snapshots, by: \.modelKey)
+            .compactMapValues { values in
+                values.max { $0.timestampDate < $1.timestampDate }
+            }
+        let primary = latestByModel["gpt_56_sol_max"]
+            ?? latestByModel.values.max { $0.timestampDate < $1.timestampDate }
+        guard let primary else {
+            return nil
+        }
+
+        let comparisons = latestByModel
+            .filter { $0.key != primary.modelKey }
+            .reduce(into: [String: Any]()) { result, item in
+                result[item.key] = item.value.comparisonPayload
+            }
+        return [
+            "updated_at": primary.timestamp,
+            "latest": primary.snapshotPayload,
+            "comparisons": comparisons,
+            "data_source": [
+                "type": "distributed_community_runs",
+                "url": "https://deng.codexradar.com",
+                "checked_at": primary.timestamp
+            ]
+        ]
+    }
+
     private static func parseHomepageResetJudgement(html: String) -> [String: Any]? {
         guard let section = firstCapture(
             #"<section\s+class="reset-judgement"[^>]*>(.*?)</section>"#,
@@ -297,25 +381,37 @@ public struct CodexRadarClient {
     }
 
     private static func parseHomepageCommunityKnowledge(html: String) -> [String: Any]? {
+        parseHomepageCommunityKnowledges(html: html).first
+    }
+
+    private static func parseHomepageCommunityKnowledges(html: String) -> [[String: Any]] {
         guard let section = firstCapture(
             #"<section\s+class="community-knowledge"[^>]*>(.*?)</section>"#,
             in: html
-        ),
-        let card = firstCapture(
-            #"<article\s+class="community-knowledge-card"[^>]*>(.*?)</article>"#,
-            in: section
         ) else {
-            return nil
+            return []
         }
-        let title = cleanHTMLText(firstCapture(#"<h2>(.*?)</h2>"#, in: card))
-        let prompt = cleanHTMLMultilineText(firstCapture(#"<code[^>]*data-site-announcement-prompt[^>]*>(.*?)</code>"#, in: card))
-        guard !title.isEmpty, !prompt.isEmpty else {
-            return nil
+
+        return allMatches(
+            #"<article\s+class="[^"]*community-knowledge-card[^"]*"[^>]*>(.*?)</article>"#,
+            in: section
+        ).compactMap { groups in
+            guard let card = groups.first else {
+                return nil
+            }
+            let title = cleanHTMLText(firstCapture(#"<h2>(.*?)</h2>"#, in: card))
+            let prompt = cleanHTMLMultilineText(firstCapture(
+                #"<(?:code|div)[^>]*data-site-announcement-prompt[^>]*>(.*?)</(?:code|div)>"#,
+                in: card
+            ))
+            guard !title.isEmpty, !prompt.isEmpty else {
+                return nil
+            }
+            return [
+                "title": title,
+                "prompt": prompt
+            ]
         }
-        return [
-            "title": title,
-            "prompt": prompt
-        ]
     }
 
     private static func parseHomepageSiteAnnouncement(html: String) -> [String: Any]? {
@@ -367,6 +463,86 @@ public struct CodexRadarClient {
             }
         }
         return payload
+    }
+
+    private static func parseHomepageFastRadar(html: String) -> [String: Any]? {
+        guard let section = firstCapture(
+            #"<section\s+class="[^"]*fast-radar[^"]*"[^>]*>(.*?)</section>"#,
+            in: html
+        ) else {
+            return nil
+        }
+
+        let updatedLabel = cleanHTMLText(firstCapture(#"<h2>.*?<em>(.*?)</em>.*?</h2>"#, in: section))
+        var title = cleanHTMLText(firstCapture(#"<h2>(.*?)</h2>"#, in: section))
+        if !updatedLabel.isEmpty {
+            title = title.replacingOccurrences(of: updatedLabel, with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let subtitle = cleanHTMLText(firstCapture(
+            #"<div\s+class="fast-radar-head"[^>]*>.*?</h2>\s*</div>\s*<span>(.*?)</span>"#,
+            in: section
+        ))
+        let summarySection = firstCapture(
+            #"<div\s+class="fast-radar-summary"[^>]*>(.*?)</div>\s*<div\s+class="fast-radar-table""#,
+            in: section
+        ) ?? ""
+        let summary = allMatches(
+            #"<div>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>"#,
+            in: summarySection
+        ).map { groups in
+            [
+                "label": cleanHTMLText(groups[safe: 0]),
+                "value": cleanHTMLText(groups[safe: 1])
+            ]
+        }.filter { item in
+            !(item["label"] ?? "").isEmpty && !(item["value"] ?? "").isEmpty
+        }
+        let rows = allMatches(
+            #"<div\s+class="fast-radar-row"[^>]*>\s*<div\s+class="fast-radar-model"[^>]*>.*?<strong>(.*?)</strong></div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*</div>"#,
+            in: section
+        ).map { groups in
+            [
+                "model": cleanHTMLText(groups[safe: 0]),
+                "e2e": fastRadarMetricPayload(label: groups[safe: 1], range: groups[safe: 2], value: groups[safe: 3]),
+                "ttft": fastRadarMetricPayload(label: groups[safe: 4], range: groups[safe: 5], value: groups[safe: 6]),
+                "tps": fastRadarMetricPayload(label: groups[safe: 7], range: groups[safe: 8], value: groups[safe: 9])
+            ]
+        }.filter { row in
+            !(row["model"] as? String ?? "").isEmpty
+        }
+        let method = cleanHTMLMultilineText(firstCapture(
+            #"<div\s+class="fast-radar-explain"[^>]*>\s*<p>(.*?)</p>"#,
+            in: section
+        ))
+
+        guard !summary.isEmpty || !rows.isEmpty else {
+            return nil
+        }
+
+        var payload: [String: Any] = [
+            "title": title.isEmpty ? "Fast 雷达" : title,
+            "summary": summary,
+            "rows": rows
+        ]
+        if !updatedLabel.isEmpty {
+            payload["updated_label"] = updatedLabel
+        }
+        if !subtitle.isEmpty {
+            payload["subtitle"] = subtitle
+        }
+        if !method.isEmpty {
+            payload["method"] = method
+        }
+        return payload
+    }
+
+    private static func fastRadarMetricPayload(label: String?, range: String?, value: String?) -> [String: String] {
+        [
+            "label": cleanHTMLText(label),
+            "range": cleanHTMLText(range),
+            "value": cleanHTMLText(value)
+        ]
     }
 
     fileprivate static func modelIQStatus(_ score: Double) -> String {
@@ -604,6 +780,129 @@ private struct HomepageIQSnapshot {
     private func dateText(year: Int) -> String {
         let base = String(format: "%04d-%02d-%02d", year, month, day)
         return phase.isEmpty ? base : "\(base)-\(phase)"
+    }
+}
+
+private struct DistributedHomepageIQSnapshot {
+    let modelKey: String
+    let timestamp: String
+    let label: String
+    let model: String?
+    let reasoningEffort: String?
+    let score: Double
+    let passed: Int
+    let tasks: Int
+    let averageCostUSD: Double
+    let averageTaskMinutes: Int
+    let cacheHitRate: Double
+
+    init?(modelKey: String, timestamp: String, ariaLabel: String) {
+        let pattern = #"^[^\s]+\s+(.+?):\s*IQ指数\s*([0-9]+(?:\.[0-9]+)?),\s*(\d+)/(\d+),\s*平均费用\s*\$([0-9]+(?:\.[0-9]+)?),\s*平均耗时\s*(\d+)分钟,\s*cache命中率\s*([0-9]+(?:\.[0-9]+)?)%$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(
+                in: ariaLabel,
+                range: NSRange(ariaLabel.startIndex..<ariaLabel.endIndex, in: ariaLabel)
+              ),
+              let label = Self.capture(match, 1, in: ariaLabel),
+              let score = Self.capture(match, 2, in: ariaLabel).flatMap(Double.init),
+              let passed = Self.capture(match, 3, in: ariaLabel).flatMap(Int.init),
+              let tasks = Self.capture(match, 4, in: ariaLabel).flatMap(Int.init),
+              let averageCostUSD = Self.capture(match, 5, in: ariaLabel).flatMap(Double.init),
+              let averageTaskMinutes = Self.capture(match, 6, in: ariaLabel).flatMap(Int.init),
+              let cacheHitRate = Self.capture(match, 7, in: ariaLabel).flatMap(Double.init) else {
+            return nil
+        }
+        let modelParts = Self.modelParts(modelKey: modelKey)
+        self.modelKey = modelKey
+        self.timestamp = timestamp
+        self.label = modelParts.label ?? label
+        self.model = modelParts.model
+        self.reasoningEffort = modelParts.effort
+        self.score = score
+        self.passed = passed
+        self.tasks = tasks
+        self.averageCostUSD = averageCostUSD
+        self.averageTaskMinutes = averageTaskMinutes
+        self.cacheHitRate = cacheHitRate
+    }
+
+    var timestampDate: Date {
+        RadarDateParser.date(from: timestamp) ?? .distantPast
+    }
+
+    var snapshotPayload: [String: Any] {
+        var payload: [String: Any] = [
+            "date": timestamp,
+            "label": label,
+            "tasks": tasks,
+            "valid_tasks": tasks,
+            "passed": passed,
+            "failed": max(0, tasks - passed),
+            "pass_rate": tasks > 0 ? Double(passed) / Double(tasks) : 0,
+            "score": score,
+            "status": CodexRadarClient.modelIQStatus(score),
+            "average_cost_usd": averageCostUSD,
+            "average_task_seconds": Double(averageTaskMinutes * 60),
+            "average_task_time_human": "\(averageTaskMinutes)分钟",
+            "cost_usd_basis": "per_task_average",
+            "cache_hit_rate": cacheHitRate
+        ]
+        if let model {
+            payload["model"] = model
+        }
+        if let reasoningEffort {
+            payload["reasoning_effort"] = reasoningEffort
+        }
+        return payload
+    }
+
+    var comparisonPayload: [String: Any] {
+        var payload: [String: Any] = [
+            "label": label,
+            "latest": snapshotPayload
+        ]
+        if let model {
+            payload["model"] = model
+        }
+        if let reasoningEffort {
+            payload["reasoning_effort"] = reasoningEffort
+        }
+        return payload
+    }
+
+    private static func capture(
+        _ match: NSTextCheckingResult,
+        _ index: Int,
+        in text: String
+    ) -> String? {
+        guard let range = Range(match.range(at: index), in: text) else {
+            return nil
+        }
+        return String(text[range])
+    }
+
+    private static func modelParts(modelKey: String) -> (model: String?, effort: String?, label: String?) {
+        var parts = modelKey.split(separator: "_").map(String.init)
+        if parts.last == "distributed" {
+            parts.removeLast()
+        }
+        guard parts.count >= 3,
+              parts[0] == "gpt",
+              parts[1].count >= 2 else {
+            return (nil, nil, nil)
+        }
+        let version = "\(parts[1].prefix(1)).\(parts[1].dropFirst())"
+        let families = Set(["sol", "terra", "luna"])
+        let family = parts.count >= 4 && families.contains(parts[2]) ? parts[2] : nil
+        let effortIndex = family == nil ? 2 : 3
+        guard parts.indices.contains(effortIndex) else {
+            return (nil, nil, nil)
+        }
+        let effort = parts[effortIndex]
+        let model = ["gpt-\(version)", family].compactMap { $0 }.joined(separator: "-")
+        let familyLabel = family.map { $0.prefix(1).uppercased() + $0.dropFirst() }
+        let label = ["GPT-\(version)", familyLabel, effort].compactMap { $0 }.joined(separator: " ")
+        return (model, effort, label)
     }
 }
 

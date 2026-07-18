@@ -8,7 +8,7 @@ enum StatusTitleFormatter {
         language: AppLanguage,
         options: StatusBarDisplayOptions
     ) -> String {
-        let activeMetrics = normalizedMetrics(metrics)
+        let activeMetrics = normalizedMetrics(metrics, state: state)
         return activeMetrics.map {
             $0.statusBarValue(for: state, language: language, options: options)
         }.joined(separator: options.separator.text)
@@ -24,7 +24,7 @@ enum StatusTitleFormatter {
         let fontSize = NSFont.systemFontSize * options.fontScale.multiplier
         let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .semibold)
         let title = NSMutableAttributedString()
-        let activeMetrics = normalizedMetrics(metrics)
+        let activeMetrics = normalizedMetrics(metrics, state: state)
 
         for (index, metric) in activeMetrics.enumerated() {
             if index > 0 {
@@ -65,11 +65,14 @@ enum StatusTitleFormatter {
         )
     }
 
-    private static func normalizedMetrics(_ metrics: [StatusMetric]) -> [StatusMetric] {
-        if metrics.isEmpty {
-            return [.weeklyQuota]
+    private static func normalizedMetrics(_ metrics: [StatusMetric], state: DashboardState) -> [StatusMetric] {
+        let configured = metrics.isEmpty
+            ? [.weeklyQuota]
+            : StatusMetric.allCases.filter { metrics.contains($0) }
+        let available = configured.filter { metric in
+            metric != .shortQuota || state.rateLimits?.shortBucket != nil
         }
-        return StatusMetric.allCases.filter { metrics.contains($0) }
+        return available.isEmpty ? [.weeklyQuota] : available
     }
 
     private static func metricColor(

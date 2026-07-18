@@ -12,7 +12,9 @@ public struct RadarCurrent: Decodable, Equatable {
     public let modelIQ: ModelIQEnvelope?
     public let resetJudgement: ResetJudgement?
     public let communityKnowledge: CommunityKnowledge?
+    public let communityKnowledges: [CommunityKnowledge]
     public let siteAnnouncement: SiteAnnouncement?
+    public let fastRadar: FastRadar?
 
     public var checkedDate: Date? {
         RadarDateParser.date(from: checkedAt)
@@ -30,7 +32,9 @@ public struct RadarCurrent: Decodable, Equatable {
         modelIQ: ModelIQEnvelope?,
         resetJudgement: ResetJudgement? = nil,
         communityKnowledge: CommunityKnowledge? = nil,
-        siteAnnouncement: SiteAnnouncement? = nil
+        communityKnowledges: [CommunityKnowledge] = [],
+        siteAnnouncement: SiteAnnouncement? = nil,
+        fastRadar: FastRadar? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.checkedAt = checkedAt
@@ -43,7 +47,9 @@ public struct RadarCurrent: Decodable, Equatable {
         self.modelIQ = modelIQ
         self.resetJudgement = resetJudgement
         self.communityKnowledge = communityKnowledge
+        self.communityKnowledges = communityKnowledges
         self.siteAnnouncement = siteAnnouncement
+        self.fastRadar = fastRadar
     }
 
     public func withModelIQ(_ modelIQ: ModelIQEnvelope?) -> RadarCurrent {
@@ -54,7 +60,9 @@ public struct RadarCurrent: Decodable, Equatable {
         modelIQ: ModelIQEnvelope? = nil,
         resetJudgement: ResetJudgement? = nil,
         communityKnowledge: CommunityKnowledge? = nil,
-        siteAnnouncement: SiteAnnouncement? = nil
+        communityKnowledges: [CommunityKnowledge]? = nil,
+        siteAnnouncement: SiteAnnouncement? = nil,
+        fastRadar: FastRadar? = nil
     ) -> RadarCurrent {
         RadarCurrent(
             schemaVersion: schemaVersion,
@@ -68,7 +76,9 @@ public struct RadarCurrent: Decodable, Equatable {
             modelIQ: modelIQ ?? self.modelIQ,
             resetJudgement: resetJudgement ?? self.resetJudgement,
             communityKnowledge: communityKnowledge ?? self.communityKnowledge,
-            siteAnnouncement: siteAnnouncement ?? self.siteAnnouncement
+            communityKnowledges: communityKnowledges ?? self.communityKnowledges,
+            siteAnnouncement: siteAnnouncement ?? self.siteAnnouncement,
+            fastRadar: fastRadar ?? self.fastRadar
         )
     }
 
@@ -86,7 +96,9 @@ public struct RadarCurrent: Decodable, Equatable {
         case modelIQ = "model_iq"
         case resetJudgement = "reset_judgement"
         case communityKnowledge = "community_knowledge"
+        case communityKnowledges = "community_knowledges"
         case siteAnnouncement = "site_announcement"
+        case fastRadar = "fast_radar"
     }
 
     public init(from decoder: Decoder) throws {
@@ -115,8 +127,13 @@ public struct RadarCurrent: Decodable, Equatable {
         prediction = predictionDetail.map(RadarPredictionSummary.init)
         modelIQ = try container.decodeIfPresent(ModelIQEnvelope.self, forKey: .modelIQ)
         resetJudgement = try container.decodeIfPresent(ResetJudgement.self, forKey: .resetJudgement)
-        communityKnowledge = try container.decodeIfPresent(CommunityKnowledge.self, forKey: .communityKnowledge)
+        let decodedCommunityKnowledge = try container.decodeIfPresent(CommunityKnowledge.self, forKey: .communityKnowledge)
+        communityKnowledge = decodedCommunityKnowledge
+        communityKnowledges = try container.decodeIfPresent([CommunityKnowledge].self, forKey: .communityKnowledges)
+            ?? decodedCommunityKnowledge.map { [$0] }
+            ?? []
         siteAnnouncement = try container.decodeIfPresent(SiteAnnouncement.self, forKey: .siteAnnouncement)
+        fastRadar = try container.decodeIfPresent(FastRadar.self, forKey: .fastRadar)
     }
 }
 
@@ -176,6 +193,60 @@ public struct CommunityKnowledge: Decodable, Equatable {
         case title
         case prompt
     }
+}
+
+public struct FastRadar: Decodable, Equatable {
+    public let title: String?
+    public let updatedLabel: String?
+    public let subtitle: String?
+    public let summary: [FastRadarSummaryItem]
+    public let rows: [FastRadarRow]
+    public let method: String?
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case updatedLabel = "updated_label"
+        case subtitle
+        case summary
+        case rows
+        case method
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        updatedLabel = try container.decodeIfPresent(String.self, forKey: .updatedLabel)
+        subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
+        summary = try container.decodeIfPresent([FastRadarSummaryItem].self, forKey: .summary) ?? []
+        rows = try container.decodeIfPresent([FastRadarRow].self, forKey: .rows) ?? []
+        method = try container.decodeIfPresent(String.self, forKey: .method)
+    }
+}
+
+public struct FastRadarSummaryItem: Decodable, Equatable, Identifiable {
+    public let label: String?
+    public let value: String?
+
+    public var id: String {
+        "\(label ?? "")-\(value ?? "")"
+    }
+}
+
+public struct FastRadarRow: Decodable, Equatable, Identifiable {
+    public let model: String?
+    public let e2e: FastRadarMetric?
+    public let ttft: FastRadarMetric?
+    public let tps: FastRadarMetric?
+
+    public var id: String {
+        model ?? "\(e2e?.value ?? "")-\(ttft?.value ?? "")-\(tps?.value ?? "")"
+    }
+}
+
+public struct FastRadarMetric: Decodable, Equatable {
+    public let label: String?
+    public let range: String?
+    public let value: String?
 }
 
 public struct RadarWindow: Decodable, Equatable {
@@ -333,6 +404,7 @@ public struct ModelIQEnvelope: Decodable, Equatable {
     public let latest: ModelIQSnapshot?
     public let comparisons: [String: ModelIQComparison]
     public let quotaRadar: QuotaRadar?
+    public let dataSource: ModelIQDataSource?
 
     public var latestRows: [ModelIQLatestRow] {
         var rows = [ModelIQLatestRow]()
@@ -358,6 +430,7 @@ public struct ModelIQEnvelope: Decodable, Equatable {
         case latest
         case comparisons
         case quotaRadar = "quota_radar"
+        case dataSource = "data_source"
     }
 
     public init(from decoder: Decoder) throws {
@@ -366,11 +439,15 @@ public struct ModelIQEnvelope: Decodable, Equatable {
         latest = try container.decodeIfPresent(ModelIQSnapshot.self, forKey: .latest)
         comparisons = try container.decodeIfPresent([String: ModelIQComparison].self, forKey: .comparisons) ?? [:]
         quotaRadar = try container.decodeIfPresent(QuotaRadar.self, forKey: .quotaRadar)
+        dataSource = try container.decodeIfPresent(ModelIQDataSource.self, forKey: .dataSource)
     }
 
     private static func sortComparisons(_ lhs: ModelIQComparison, _ rhs: ModelIQComparison) -> Bool {
         if lhs.modelVersionRank != rhs.modelVersionRank {
             return lhs.modelVersionRank > rhs.modelVersionRank
+        }
+        if lhs.modelFamilyRank != rhs.modelFamilyRank {
+            return lhs.modelFamilyRank < rhs.modelFamilyRank
         }
         if lhs.effortRank != rhs.effortRank {
             return lhs.effortRank < rhs.effortRank
@@ -380,13 +457,46 @@ public struct ModelIQEnvelope: Decodable, Equatable {
 
     private static func modelLabel(_ snapshot: ModelIQSnapshot) -> String? {
         guard let model = snapshot.model else {
-            return snapshot.reasoningEffort
+            return snapshot.label ?? snapshot.reasoningEffort
         }
-        let prefix = model.uppercased().hasPrefix("GPT-") ? model.uppercased() : model
+        let modelParts = model.split(separator: "-").map(String.init)
+        let families = Set(["sol", "terra", "luna"])
+        let prefix: String
+        if modelParts.count >= 3,
+           modelParts[0].lowercased() == "gpt",
+           let family = modelParts.last?.lowercased(),
+           families.contains(family) {
+            let version = modelParts.dropLast().joined(separator: "-").uppercased()
+            prefix = "\(version) \(family.prefix(1).uppercased())\(family.dropFirst())"
+        } else {
+            prefix = model.uppercased().hasPrefix("GPT-") ? model.uppercased() : model
+        }
         guard let effort = snapshot.reasoningEffort else {
             return prefix
         }
         return "\(prefix) \(effort)"
+    }
+}
+
+public struct ModelIQDataSource: Decodable, Equatable {
+    public let type: String?
+    public let url: String?
+    public let checkedAt: String?
+    public let validCells: Int?
+
+    public var isDistributedCommunityRuns: Bool {
+        type == "distributed_community_runs"
+    }
+
+    public var linkURL: URL? {
+        url.flatMap(URL.init(string:))
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case url
+        case checkedAt = "checked_at"
+        case validCells = "valid_cells"
     }
 }
 
@@ -407,6 +517,13 @@ public struct QuotaRadar: Decodable, Equatable {
             return nil
         }
         return latest - previous
+    }
+
+    public var showsFiveHourValues: Bool {
+        if let basisWindowLabel {
+            return basisWindowLabel.lowercased().contains("5h")
+        }
+        return rows.contains { $0.fiveHourUSD != nil }
     }
 
     enum CodingKeys: String, CodingKey {
@@ -503,19 +620,39 @@ public struct ModelIQComparison: Decodable, Equatable {
         return version
     }
 
-    fileprivate var effortRank: Int {
-        let effort = (reasoningEffort ?? latest?.reasoningEffort ?? label ?? "").lowercased()
-        if effort.contains("xhigh") {
+    fileprivate var modelFamilyRank: Int {
+        let source = (model ?? latest?.model ?? label ?? "").lowercased()
+        if source.contains("sol") {
             return 0
         }
-        if effort.contains("high") {
+        if source.contains("terra") {
             return 1
         }
-        if effort.contains("medium") {
+        if source.contains("luna") {
             return 2
         }
-        if effort.contains("low") {
+        return 9
+    }
+
+    fileprivate var effortRank: Int {
+        let effort = (reasoningEffort ?? latest?.reasoningEffort ?? label ?? "").lowercased()
+        if effort.contains("ultra") {
+            return 0
+        }
+        if effort.contains("max") {
+            return 1
+        }
+        if effort.contains("xhigh") {
+            return 2
+        }
+        if effort.contains("high") {
             return 3
+        }
+        if effort.contains("medium") {
+            return 4
+        }
+        if effort.contains("low") {
+            return 5
         }
         return 9
     }
@@ -555,11 +692,27 @@ public struct ModelIQSnapshot: Decodable, Equatable {
     public let totalTokens: Int?
     public let inputTokens: Int?
     public let cachedInputTokens: Int?
+    public let cacheHitRate: Double?
     public let outputTokens: Int?
     public let costUSD: Double?
+    public let costUSDBasis: String?
+    public let averageCostUSD: Double?
+    public let averageTaskSeconds: Double?
+    public let averageTaskTimeHuman: String?
+
+    public var displayedCostUSD: Double? {
+        averageCostUSD ?? costUSD
+    }
+
+    public var usesPerTaskAverages: Bool {
+        averageCostUSD != nil || averageTaskSeconds != nil || averageTaskTimeHuman != nil
+    }
 
     public var cacheHitRateText: String {
-        DisplayFormatters.cacheHitRate(
+        if let cacheHitRate {
+            return String(format: "%.1f%%", cacheHitRate)
+        }
+        return DisplayFormatters.cacheHitRate(
             cachedInputTokens: cachedInputTokens,
             inputTokens: inputTokens
         )
@@ -588,8 +741,13 @@ public struct ModelIQSnapshot: Decodable, Equatable {
         case totalTokens = "total_tokens"
         case inputTokens = "input_tokens"
         case cachedInputTokens = "cached_input_tokens"
+        case cacheHitRate = "cache_hit_rate"
         case outputTokens = "output_tokens"
         case costUSD = "cost_usd"
+        case costUSDBasis = "cost_usd_basis"
+        case averageCostUSD = "average_cost_usd"
+        case averageTaskSeconds = "average_task_seconds"
+        case averageTaskTimeHuman = "average_task_time_human"
     }
 
     public init(from decoder: Decoder) throws {
@@ -612,8 +770,13 @@ public struct ModelIQSnapshot: Decodable, Equatable {
         totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
         inputTokens = try container.decodeIfPresent(Int.self, forKey: .inputTokens)
         cachedInputTokens = try container.decodeIfPresent(Int.self, forKey: .cachedInputTokens)
+        cacheHitRate = try container.decodeIfPresent(Double.self, forKey: .cacheHitRate)
         outputTokens = try container.decodeIfPresent(Int.self, forKey: .outputTokens)
         costUSD = try container.decodeIfPresent(Double.self, forKey: .costUSD)
+        costUSDBasis = try container.decodeIfPresent(String.self, forKey: .costUSDBasis)
+        averageCostUSD = try container.decodeIfPresent(Double.self, forKey: .averageCostUSD)
+        averageTaskSeconds = try container.decodeIfPresent(Double.self, forKey: .averageTaskSeconds)
+        averageTaskTimeHuman = try container.decodeIfPresent(String.self, forKey: .averageTaskTimeHuman)
     }
 }
 
@@ -649,7 +812,7 @@ public struct ModelRatingsEnvelope: Decodable, Equatable {
 
     public func rating(for snapshot: ModelIQSnapshot?) -> ModelRating? {
         guard let snapshot else {
-            return models.first
+            return nil
         }
         let model = snapshot.model?.lowercased()
         let effort = snapshot.reasoningEffort?.lowercased()
@@ -661,12 +824,13 @@ public struct ModelRatingsEnvelope: Decodable, Equatable {
             if let exactLabel = models.first(where: { $0.label?.lowercased() == "\(model) \(effort)" }) {
                 return exactLabel
             }
+            return nil
         }
         if let model,
            let grouped = models.first(where: { $0.group?.lowercased() == model || $0.label?.lowercased().hasPrefix(model) == true }) {
             return grouped
         }
-        return models.first
+        return nil
     }
 }
 
