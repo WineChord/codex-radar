@@ -30,21 +30,28 @@ public struct CodexRadarClient {
 
     public func fetchCurrent() async throws -> RadarCurrent {
         let data = try await fetchData(AppConstants.currentPath)
+        let current: RadarCurrent
         do {
-            let current = try decoder.decode(RadarCurrent.self, from: data)
-            guard current.modelIQ?.latest?.iqScore == nil || current.resetJudgement == nil || current.communityKnowledge == nil || current.siteAnnouncement == nil || current.fastRadar == nil,
+            let decoded = try decoder.decode(RadarCurrent.self, from: data)
+            guard decoded.modelIQ?.latest?.iqScore == nil || decoded.resetJudgement == nil || decoded.communityKnowledge == nil || decoded.siteAnnouncement == nil || decoded.fastRadar == nil,
                   let homepageHTML = try? await fetchHomepageHTML(),
-                  let supplemented = try? Self.currentByMergingHomepageSignals(current, html: homepageHTML) else {
-                return current
+                  let supplemented = try? Self.currentByMergingHomepageSignals(decoded, html: homepageHTML) else {
+                current = decoded
+                return await currentByMergingIntelligenceEfficiency(current)
             }
-            return supplemented
+            current = supplemented
         } catch {
             guard let html = String(data: data, encoding: .utf8),
                   html.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<") else {
                 throw error
             }
-            return try Self.currentFromHomepageHTML(html)
+            let intelligenceEfficiency = try? await fetchIntelligenceEfficiency()
+            return try Self.currentFromHomepageHTML(
+                html,
+                intelligenceEfficiency: intelligenceEfficiency
+            )
         }
+        return await currentByMergingIntelligenceEfficiency(current)
     }
 
     public func fetchModelRatings() async throws -> ModelRatingsEnvelope {
@@ -78,6 +85,25 @@ public struct CodexRadarClient {
         return html
     }
 
+    private func fetchIntelligenceEfficiency() async throws -> IntelligenceEfficiencyEnvelope {
+        try await fetchJSON(
+            AppConstants.intelligenceEfficiencyPath,
+            as: IntelligenceEfficiencyEnvelope.self
+        )
+    }
+
+    private func currentByMergingIntelligenceEfficiency(_ current: RadarCurrent) async -> RadarCurrent {
+        guard let intelligenceEfficiency = try? await fetchIntelligenceEfficiency() else {
+            return current
+        }
+        let modelIQ = current.modelIQ?.merging(intelligenceEfficiency: intelligenceEfficiency)
+            ?? ModelIQEnvelope(intelligenceEfficiency: intelligenceEfficiency)
+        guard let modelIQ else {
+            return current
+        }
+        return current.withModelIQ(modelIQ)
+    }
+
     private func withTimeout<T>(
         seconds: UInt64,
         operation: @escaping () async throws -> T
@@ -98,8 +124,21 @@ public struct CodexRadarClient {
         }
     }
 
-    static func currentFromHomepageHTML(_ html: String, checkedAt: Date = Date()) throws -> RadarCurrent {
-        guard let modelIQ = parseHomepageModelIQEnvelope(html: html, checkedAt: checkedAt) else {
+    static func currentFromHomepageHTML(
+        _ html: String,
+        checkedAt: Date = Date(),
+        intelligenceEfficiency: IntelligenceEfficiencyEnvelope? = nil
+    ) throws -> RadarCurrent {
+        let modelIQEnvelope: ModelIQEnvelope
+        if let modelIQ = parseHomepageModelIQEnvelope(html: html, checkedAt: checkedAt) {
+            let data = try JSONSerialization.data(withJSONObject: modelIQ)
+            modelIQEnvelope = try JSONDecoder().decode(ModelIQEnvelope.self, from: data)
+        } else if let intelligenceEfficiency,
+                  let efficiencyModelIQ = ModelIQEnvelope(
+                    intelligenceEfficiency: intelligenceEfficiency
+                  ) {
+            modelIQEnvelope = efficiencyModelIQ
+        } else {
             throw ClientError.homepageFallbackUnavailable
         }
         let resetJudgement = parseHomepageResetJudgement(html: html)
@@ -129,12 +168,6 @@ public struct CodexRadarClient {
                 "should_notify": false,
                 "summary": "CodexRadar 已下架 reset 预测和速蹬窗口提醒；当前只保留 Model IQ 相关信号。",
                 "updated_at": checkedAtString
-            ],
-            "model_iq": [
-                "updated_at": checkedAtString,
-                "latest": modelIQ["latest"] ?? [:],
-                "comparisons": modelIQ["comparisons"] ?? [:],
-                "data_source": modelIQ["data_source"] ?? NSNull()
             ]
         ]
         if let resetJudgement {
@@ -153,7 +186,8 @@ public struct CodexRadarClient {
             payload["fast_radar"] = fastRadar
         }
         let data = try JSONSerialization.data(withJSONObject: payload)
-        return try JSONDecoder().decode(RadarCurrent.self, from: data)
+        let current = try JSONDecoder().decode(RadarCurrent.self, from: data)
+        return current.withModelIQ(modelIQEnvelope)
     }
 
     static func currentByMergingHomepageModelIQ(

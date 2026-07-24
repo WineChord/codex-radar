@@ -33,6 +33,59 @@ struct ResetCreditFailure: Equatable {
     let automatic: Bool
 }
 
+enum ResetCreditProtectionStatus: Equatable {
+    enum BlockReason: Equatable {
+        case accountIdentityUnavailable
+        case accountChanged
+        case detailsUnavailable(Int)
+        case detailsIncomplete(availableCount: Int, availableDetails: Int)
+        case noSupportedExpiringCredits(Int)
+        case codexUnavailable
+        case signedOut
+        case unsupportedCodex
+        case anotherProcess
+        case journalUnavailable
+        case creditNotAuthorized
+        case clockChanged
+        case requestFailed
+    }
+
+    case disabled
+    case enabling
+    case checking
+    case noCredits(Date)
+    case preview(actionAt: Date, expiresAt: Date, availableCount: Int, readyNow: Bool)
+    case previewNoCredits(Date)
+    case scheduled(actionAt: Date, expiresAt: Date, availableCount: Int)
+    case waitingForUsage(expiresAt: Date)
+    case using(expiresAt: Date)
+    case reconciling(expiresAt: Date)
+    case succeeded(usedAt: Date, expiresAt: Date)
+    case unavailable(checkedAt: Date, expiresAt: Date?)
+    case missed(expiresAt: Date)
+    case blocked(BlockReason, detail: String?)
+
+    var isBusy: Bool {
+        switch self {
+        case .enabling, .checking, .using, .reconciling:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+private struct RateLimitReadPayload {
+    let response: RateLimitResponse
+    let dashboard: RateLimitDashboard
+}
+
+private enum ResetCreditProtectionJournalLoadResult {
+    case absent
+    case loaded(ResetCreditProtectionAttemptJournal)
+    case corrupt
+}
+
 @MainActor
 final class SentinelStore: NSObject, ObservableObject {
     @objc dynamic private(set) var titleForStatusItem: String = DashboardState().statusTitle
@@ -135,6 +188,9 @@ final class SentinelStore: NSObject, ObservableObject {
         didSet {
             if debugPreview != .live {
                 resetSpeedAlertDismissal()
+                if resetCreditProtectionEnabled {
+                    disableResetCreditExpiryProtection()
+                }
             }
             updateTitleForStatusItem()
         }
@@ -187,6 +243,8 @@ final class SentinelStore: NSObject, ObservableObject {
     @Published private(set) var latestUpdate: AppUpdateInfo?
     @Published private(set) var resetCreditSnapshot: ResetCreditSnapshot?
     @Published private(set) var resetCreditPhase: ResetCreditLoadPhase = .idle
+    @Published private(set) var resetCreditProtectionEnabled: Bool
+    @Published private(set) var resetCreditProtectionStatus: ResetCreditProtectionStatus
 
     @Published var resetCreditAutoRefreshEnabled: Bool {
         didSet {
@@ -235,6 +293,7 @@ final class SentinelStore: NSObject, ObservableObject {
         static let debugPreviewSectionExpanded = "debugPreviewSectionExpanded"
         static let resetCreditSnapshot = "resetCreditSnapshot"
         static let resetCreditAutoRefreshEnabled = "resetCreditAutoRefreshEnabled"
+        static let resetCreditProtectionEnabled = "resetCreditProtectionEnabled"
     }
 
     private static let defaultStatusMetrics: [StatusMetric] = [
@@ -245,7 +304,12 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private let defaults: UserDefaults
     private let radarClient: CodexRadarClient
-    private let appServerClient: CodexAppServerClient
+    private let appServerClient: any ResetCreditProtectionAppServerServing
+    private let resetCreditProtectionHintAppServer:
+        ResetCreditProtectionBoundAppServer
+    private let resetCreditProtectionSessionFactory:
+        ResetCreditProtectionAppServerSessionFactory
+    private let resetCreditProtectionRuntimeAllowsDestructiveActions: Bool
     private let appUpdater: AppUpdater
     private let resetCreditClient: ResetCreditClient
     private let notificationPolicy = NotificationPolicy()
@@ -256,6 +320,17 @@ final class SentinelStore: NSObject, ObservableObject {
     private var automaticUpdateTask: Task<Void, Never>?
     private var resetCreditTask: Task<Void, Never>?
     private var resetCreditAutoRefreshTask: Task<Void, Never>?
+    private var resetCreditProtectionTask: Task<Void, Never>?
+    private var resetCreditProtectionConsent: ResetCreditProtectionConsent?
+    private var resetCreditProtectionLedger: ResetCreditProtectionLedger
+    private var resetCreditProtectionJournalCorrupt: Bool
+    private var resetCreditProtectionNextRetryAt: Date?
+    private var resetCreditProtectionClockGeneration: UInt64 = 0
+    private let resetCreditProtectionLedgerStore: ResetCreditProtectionLedgerStore
+    private let resetCreditProtectionAuthorizationStore:
+        ResetCreditProtectionAuthorizationStore
+    private let resetCreditProtectionProcessLockURL: URL
+    private var lifecycleObservers: [(NotificationCenter, NSObjectProtocol)] = []
     private var suppressResetCreditAutoRefreshSideEffects = false
     private var emphasizedSpeedAlertKey: String?
     private var speedAlertFirstSeenAt: Date?
@@ -263,15 +338,65 @@ final class SentinelStore: NSObject, ObservableObject {
     init(
         defaults: UserDefaults = .standard,
         radarClient: CodexRadarClient = CodexRadarClient(),
-        appServerClient: CodexAppServerClient = CodexAppServerClient(),
+        appServerClient: (any ResetCreditProtectionAppServerServing)? = nil,
+        resetCreditProtectionSessionFactory:
+            ResetCreditProtectionAppServerSessionFactory? = nil,
         appUpdater: AppUpdater = AppUpdater(),
-        resetCreditClient: ResetCreditClient = ResetCreditClient()
+        resetCreditClient: ResetCreditClient = ResetCreditClient(),
+        resetCreditProtectionLedgerStore: ResetCreditProtectionLedgerStore? = nil,
+        resetCreditProtectionAuthorizationStore:
+            ResetCreditProtectionAuthorizationStore? = nil,
+        resetCreditProtectionProcessLockURL: URL? = nil
     ) {
+        let rawPreview = ProcessInfo.processInfo.environment[
+            AppConstants.debugPreviewEnvironmentKey
+        ]
+        let initialPreview = rawPreview.flatMap(DashboardPreview.init(rawValue:))
+            ?? .live
+        let rendersDocumentation = ProcessInfo.processInfo.environment[
+            AppConstants.documentationScreenshotEnvironmentKey
+        ] != nil
+        let capturesStatusScreenshot = ProcessInfo.processInfo.environment[
+            AppConstants.screenshotModeEnvironmentKey
+        ] == "1"
+        let destructiveActionsAllowed = initialPreview == .live
+            && !rendersDocumentation
+            && !capturesStatusScreenshot
+        let resolvedAppServerClient = appServerClient ?? CodexAppServerClient()
+
         self.defaults = defaults
         self.radarClient = radarClient
-        self.appServerClient = appServerClient
+        self.appServerClient = resolvedAppServerClient
+        self.resetCreditProtectionHintAppServer = ResetCreditProtectionBoundAppServer(
+            service: resolvedAppServerClient,
+            destructiveActionsAllowed: destructiveActionsAllowed
+        )
+        if let resetCreditProtectionSessionFactory {
+            self.resetCreditProtectionSessionFactory =
+                resetCreditProtectionSessionFactory
+        } else if appServerClient == nil {
+            self.resetCreditProtectionSessionFactory = .live
+        } else {
+            self.resetCreditProtectionSessionFactory = .shared(
+                service: resolvedAppServerClient
+            )
+        }
+        self.resetCreditProtectionRuntimeAllowsDestructiveActions =
+            destructiveActionsAllowed
         self.appUpdater = appUpdater
         self.resetCreditClient = resetCreditClient
+        let protectionLedgerStore = resetCreditProtectionLedgerStore
+            ?? ResetCreditProtectionLedgerStore(url: Self.resetCreditProtectionJournalURL)
+        self.resetCreditProtectionLedgerStore = protectionLedgerStore
+        let protectionAuthorizationStore = resetCreditProtectionAuthorizationStore
+            ?? ResetCreditProtectionAuthorizationStore(
+                url: Self.resetCreditProtectionAuthorizationURL,
+                dispatchLockURL: Self.resetCreditProtectionDispatchLockURL
+            )
+        self.resetCreditProtectionAuthorizationStore = protectionAuthorizationStore
+        self.resetCreditProtectionProcessLockURL =
+            resetCreditProtectionProcessLockURL
+            ?? Self.resetCreditProtectionLockURL
         let rawLanguage = defaults.string(forKey: DefaultsKey.appLanguage)
         self.appLanguage = rawLanguage.flatMap(AppLanguage.init(rawValue:)) ?? .zhHans
         let rawTextSize = defaults.string(forKey: DefaultsKey.menuTextSize)
@@ -293,19 +418,117 @@ final class SentinelStore: NSObject, ObservableObject {
         self.chinaHolidayCalendarEnabled = defaults.object(forKey: DefaultsKey.chinaHolidayCalendarEnabled) as? Bool ?? true
         self.quotaPacingOptionsExpanded = defaults.object(forKey: DefaultsKey.quotaPacingOptionsExpanded) as? Bool ?? false
         self.selectedStatusMetrics = Self.loadSelectedStatusMetrics(defaults: defaults)
-        let rawPreview = ProcessInfo.processInfo.environment[AppConstants.debugPreviewEnvironmentKey]
-        self.debugPreview = rawPreview.flatMap(DashboardPreview.init(rawValue:)) ?? .live
+        self.debugPreview = initialPreview
         self.debugPreviewSectionExpanded = defaults.object(forKey: DefaultsKey.debugPreviewSectionExpanded) as? Bool ?? false
         self.predictionNotificationsEnabled = defaults.object(forKey: DefaultsKey.predictionNotificationsEnabled) as? Bool ?? true
         self.iqNotificationsEnabled = defaults.object(forKey: DefaultsKey.iqNotificationsEnabled) as? Bool ?? true
         self.notificationSoundEnabled = defaults.object(forKey: DefaultsKey.notificationSoundEnabled) as? Bool ?? false
         self.automaticUpdatesEnabled = defaults.object(forKey: DefaultsKey.automaticUpdatesEnabled) as? Bool ?? true
         self.resetCreditAutoRefreshEnabled = defaults.object(forKey: DefaultsKey.resetCreditAutoRefreshEnabled) as? Bool ?? true
+        let authorizationLoad = protectionAuthorizationStore.load()
+        var protectionConsent: ResetCreditProtectionConsent?
+        var authorizationCorrupt: Bool
+        switch authorizationLoad {
+        case .absent:
+            protectionConsent = nil
+            authorizationCorrupt = false
+        case .loaded(let consent):
+            protectionConsent = consent
+            authorizationCorrupt = false
+        case .corrupt:
+            protectionConsent = nil
+            authorizationCorrupt = true
+        }
+        var protectionRequested = defaults.object(
+            forKey: DefaultsKey.resetCreditProtectionEnabled
+        ) as? Bool ?? false
+        let protectionClockDiscontinuity = protectionRequested
+            && protectionConsent != nil
+            && !ResetCreditProtectionAuthorization.isClockContinuous(
+                consent: protectionConsent
+            )
+        if protectionClockDiscontinuity {
+            do {
+                try protectionAuthorizationStore.clear()
+            } catch {
+                authorizationCorrupt = true
+            }
+            protectionConsent = nil
+            protectionRequested = false
+            defaults.set(
+                false,
+                forKey: DefaultsKey.resetCreditProtectionEnabled
+            )
+        }
+        let protectionEnabled = ResetCreditProtectionAuthorization.isEnabled(
+            requested: protectionRequested,
+            consent: protectionConsent
+        )
+        let journalLoad = protectionLedgerStore.load()
+        let loadedLedger: ResetCreditProtectionLedger
+        let journalCorrupt: Bool
+        switch journalLoad {
+        case .absent:
+            loadedLedger = ResetCreditProtectionLedger()
+            journalCorrupt = false
+        case .loaded(let ledger):
+            loadedLedger = ledger
+            journalCorrupt = false
+        case .corrupt:
+            loadedLedger = ResetCreditProtectionLedger()
+            journalCorrupt = true
+        }
+        let protectionStorageCorrupt = journalCorrupt || authorizationCorrupt
+        let protectionAvailableInThisRuntime = destructiveActionsAllowed
+            && protectionEnabled
+            && !protectionStorageCorrupt
+        self.resetCreditProtectionEnabled = protectionAvailableInThisRuntime
+        self.resetCreditProtectionStatus = !destructiveActionsAllowed
+            ? .disabled
+            : (protectionStorageCorrupt
+            ? .blocked(.journalUnavailable, detail: nil)
+            : (protectionClockDiscontinuity
+            ? .blocked(.clockChanged, detail: nil)
+            : ((protectionEnabled || loadedLedger.activeAttempt != nil)
+                ? .checking
+                : .disabled)))
+        self.resetCreditProtectionConsent = destructiveActionsAllowed
+            && protectionEnabled
+            ? protectionConsent
+            : nil
+        self.resetCreditProtectionLedger = loadedLedger
+        self.resetCreditProtectionJournalCorrupt = protectionStorageCorrupt
         self.launchAtLoginEnabled = defaults.object(forKey: DefaultsKey.launchAtLoginEnabled) as? Bool ?? LaunchAtLoginController.isEnabled
         self.dismissedSpeedAlertKey = defaults.string(forKey: DefaultsKey.dismissedSpeedAlertKey)
         self.notificationMemory = Self.loadNotificationMemory(defaults: defaults)
         self.resetCreditSnapshot = Self.loadResetCreditSnapshot(defaults: defaults)
         super.init()
+    }
+
+    private var resetCreditProtectionJournal: ResetCreditProtectionAttemptJournal? {
+        resetCreditProtectionLedger.activeAttempt
+    }
+
+    private func withFreshResetCreditProtectionSession<T>(
+        _ operation: (
+            ResetCreditProtectionAppServerSession,
+            ResetCreditProtectionBoundAppServer
+        ) async throws -> T
+    ) async rethrows -> T {
+        let session = resetCreditProtectionSessionFactory.makeSession()
+        let appServer = ResetCreditProtectionBoundAppServer(
+            service: session,
+            destructiveActionsAllowed:
+                resetCreditProtectionRuntimeAllowsDestructiveActions
+        )
+        do {
+            let result = try await operation(session, appServer)
+            await session.shutdown()
+            return result
+        } catch {
+            await session.shutdown()
+            throw error
+        }
     }
 
     var dashboardState: DashboardState {
@@ -383,7 +606,38 @@ final class SentinelStore: NSObject, ObservableObject {
         statusBarFontScale = defaults.fontScale
     }
 
+    func configureForStatusScreenshot(
+        language: AppLanguage,
+        metrics: [StatusMetric]
+    ) {
+        precondition(!metrics.isEmpty)
+        appLanguage = language
+        menuTextSize = .large
+        let options = StatusBarDisplayOptions.defaultOptions
+        statusBarPreciseIQEnabled = options.preciseIQ
+        statusBarIQDisplayMode = options.iqDisplayMode
+        statusBarPercentDisplayMode = options.percentDisplayMode
+        statusBarSeparator = options.separator
+        statusBarHorizontalPadding = options.horizontalPadding
+        statusBarFontScale = options.fontScale
+        quotaPacingStrategy = options.quotaPacingStrategy
+        chinaHolidayCalendarEnabled = options.usesChinaHolidayCalendar
+        quotaPacingOptionsExpanded = false
+        statusBarAdvancedOptionsExpanded = false
+        selectedStatusMetrics = metrics
+    }
+
     func start() {
+        startLifecycleObservation()
+        if resetCreditProtectionJournalCorrupt {
+            deliverResetCreditProtectionFailure(
+                identifier: "reset-credit-protection-journal-unavailable",
+                body: appLanguage.text(
+                    "本地保护记录无法可靠读取。为避免重复使用，到期保护已关闭且不会发送请求。",
+                    "The local protection journal cannot be read reliably. Protection is off and no request will be sent to avoid duplicate use."
+                )
+            )
+        }
         refreshNow()
         startAutomaticUpdateChecks()
         startResetCreditAutoRefresh()
@@ -402,8 +656,12 @@ final class SentinelStore: NSObject, ObservableObject {
         automaticUpdateTask?.cancel()
         resetCreditTask?.cancel()
         resetCreditAutoRefreshTask?.cancel()
+        resetCreditProtectionTask?.cancel()
+        stopLifecycleObservation()
         Task {
-            await appServerClient.shutdown()
+            if let client = appServerClient as? CodexAppServerClient {
+                await client.shutdown()
+            }
         }
     }
 
@@ -444,6 +702,105 @@ final class SentinelStore: NSObject, ObservableObject {
 
     func refreshResetCredits() {
         refreshResetCredits(automatic: false)
+    }
+
+    func enableResetCreditExpiryProtection() {
+        guard resetCreditProtectionRuntimeAllowsDestructiveActions,
+              debugPreview == .live else {
+            resetCreditProtectionStatus = .disabled
+            return
+        }
+        guard !resetCreditProtectionJournalCorrupt else {
+            resetCreditProtectionStatus = .blocked(.journalUnavailable, detail: nil)
+            return
+        }
+        guard !resetCreditProtectionEnabled,
+              resetCreditProtectionTask == nil else {
+            return
+        }
+        let clockGeneration = resetCreditProtectionClockGeneration
+        resetCreditProtectionStatus = .enabling
+        resetCreditProtectionTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+            await self.armResetCreditExpiryProtection(
+                clockGeneration: clockGeneration
+            )
+            self.resetCreditProtectionTask = nil
+        }
+    }
+
+    func disableResetCreditExpiryProtection() {
+        resetCreditProtectionTask?.cancel()
+        do {
+            try resetCreditProtectionAuthorizationStore.clear()
+        } catch {
+            failClosedForResetCreditProtectionJournal()
+            return
+        }
+        resetCreditProtectionEnabled = false
+        resetCreditProtectionConsent = nil
+        resetCreditProtectionNextRetryAt = nil
+        defaults.set(false, forKey: DefaultsKey.resetCreditProtectionEnabled)
+        if resetCreditProtectionJournal == nil {
+            resetCreditProtectionStatus = .disabled
+        }
+    }
+
+    func handleSystemClockChange() {
+        resetCreditProtectionClockGeneration &+= 1
+        let protectionWasRelevant = resetCreditProtectionEnabled
+            || resetCreditProtectionJournal != nil
+            || resetCreditProtectionStatus == .enabling
+            || (defaults.object(
+                forKey: DefaultsKey.resetCreditProtectionEnabled
+            ) as? Bool ?? false)
+        guard protectionWasRelevant else {
+            refreshNow()
+            return
+        }
+
+        resetCreditProtectionTask?.cancel()
+        do {
+            try resetCreditProtectionAuthorizationStore.clear()
+        } catch {
+            failClosedForResetCreditProtectionJournal()
+            refreshNow()
+            return
+        }
+        resetCreditProtectionEnabled = false
+        resetCreditProtectionConsent = nil
+        resetCreditProtectionNextRetryAt = nil
+        defaults.set(false, forKey: DefaultsKey.resetCreditProtectionEnabled)
+        resetCreditProtectionStatus = .blocked(.clockChanged, detail: nil)
+        deliverResetCreditProtectionFailure(
+            identifier: "reset-credit-protection-clock-changed",
+            body: appLanguage.text(
+                "系统时间发生变化。为避免提前使用，保护已关闭；核对系统时间与只读计划后再显式开启。",
+                "The system clock changed. Protection was turned off to avoid an early use; verify the clock and read-only plan before enabling again."
+            )
+        )
+        refreshNow()
+    }
+
+    func previewResetCreditExpiryProtectionPlan() {
+        guard !resetCreditProtectionJournalCorrupt else {
+            resetCreditProtectionStatus = .blocked(.journalUnavailable, detail: nil)
+            return
+        }
+        guard !resetCreditProtectionEnabled,
+              resetCreditProtectionTask == nil else {
+            return
+        }
+        resetCreditProtectionStatus = .checking
+        resetCreditProtectionTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+            await self.loadResetCreditProtectionPreview()
+            self.resetCreditProtectionTask = nil
+        }
     }
 
     func refreshResetCreditsIfNeeded(automatic: Bool) {
@@ -514,6 +871,8 @@ final class SentinelStore: NSObject, ObservableObject {
         suppressResetCreditAutoRefreshSideEffects = true
         resetCreditAutoRefreshEnabled = true
         suppressResetCreditAutoRefreshSideEffects = false
+        resetCreditProtectionEnabled = false
+        resetCreditProtectionStatus = .disabled
         updatePhase = .upToDate(Date())
 
         var documentationState = DashboardPreviewFactory.state(
@@ -535,13 +894,15 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private static func documentationRateLimits() -> RateLimitDashboard? {
         let now = Int(Date().timeIntervalSince1970)
-        let weeklyReset = now + 565_200
+        let weeklyReset = now + Int(
+            AppConstants.weeklyWindowMinutes * 60 * 0.48
+        )
         guard let response: RateLimitResponse = decodeDocumentationJSON("""
         {
           "rateLimits": {
             "limitId": "codex",
             "limitName": null,
-            "primary": { "usedPercent": 4, "windowDurationMins": 10080, "resetsAt": \(weeklyReset) },
+            "primary": { "usedPercent": 85, "windowDurationMins": 10080, "resetsAt": \(weeklyReset) },
             "secondary": null,
             "credits": null,
             "planType": "pro",
@@ -556,23 +917,23 @@ final class SentinelStore: NSObject, ObservableObject {
     }
 
     private static func documentationResetCreditSnapshot() -> ResetCreditSnapshot {
-        let checkedAt = Date(timeIntervalSince1970: 1_783_130_400)
+        let checkedAt = Date()
         let credits = [
             ResetCredit(
                 idSuffix: "578aba",
                 title: "Full reset (Weekly + 5 hr)",
                 status: "available",
                 resetType: "codex_rate_limits",
-                grantedAt: Date(timeIntervalSince1970: 1_781_229_309),
-                expiresAt: Date(timeIntervalSince1970: 1_783_821_309)
+                grantedAt: checkedAt.addingTimeInterval(-7 * 86_400),
+                expiresAt: checkedAt.addingTimeInterval(3 * 86_400)
             ),
             ResetCredit(
                 idSuffix: "91f04e",
                 title: "Full reset (Weekly + 5 hr)",
                 status: "available",
                 resetType: "codex_rate_limits",
-                grantedAt: Date(timeIntervalSince1970: 1_781_416_800),
-                expiresAt: Date(timeIntervalSince1970: 1_784_008_800)
+                grantedAt: checkedAt.addingTimeInterval(-5 * 86_400),
+                expiresAt: checkedAt.addingTimeInterval(5 * 86_400)
             ),
         ]
         return ResetCreditSnapshot(
@@ -587,41 +948,50 @@ final class SentinelStore: NSObject, ObservableObject {
     private static func documentationModelIQ() -> ModelIQEnvelope? {
         decodeDocumentationJSON("""
         {
-          "updated_at": "2026-07-17T14:35:21+08:00",
+          "updated_at": "2026-07-22T10:02:00+08:00",
           "data_source": {
             "type": "distributed_community_runs",
             "url": "https://deng.codexradar.com",
-            "checked_at": "2026-07-17T14:35:21+08:00",
-            "valid_cells": 984
+            "checked_at": "2026-07-22T10:02:00+08:00",
+            "valid_cells": 1995
           },
           "latest": {
-            "date": "2026-07-17T14:35:21+08:00",
-            "tasks": 109,
-            "passed": 76,
-            "iq_score": 105.1,
+            "date": "2026-07-22T10:02:00+08:00",
+            "tasks": 112,
+            "passed": 78,
+            "iq_score": 104.5,
             "status": "green",
             "wall_seconds": 241659,
             "wall_time_human": "67小时8分",
-            "average_task_seconds": 2217.055,
-            "average_task_time_human": "37分钟",
+            "average_task_seconds": 2160,
+            "average_task_time_human": "36分钟",
             "input_tokens": 1412468252,
             "cached_input_tokens": 1382173696,
             "output_tokens": 6026231,
             "cost_usd": 1047.309802,
-            "average_cost_usd": 9.608347,
+            "average_cost_usd": 9.2,
             "cost_usd_basis": "total_selected_tasks",
             "model": "gpt-5.6-sol",
             "reasoning_effort": "max"
           },
           "comparisons": {
+            "gpt_56_sol_ultra": { "label": "GPT-5.6 Sol ultra", "model": "gpt-5.6-sol", "reasoning_effort": "ultra", "latest": { "tasks": 112, "passed": 73, "score": 97.8, "status": "green", "average_task_seconds": 3360, "average_task_time_human": "56分钟", "average_cost_usd": 25.9, "model": "gpt-5.6-sol", "reasoning_effort": "ultra" } },
             "gpt_56_sol_xhigh": { "label": "GPT-5.6 Sol xhigh", "model": "gpt-5.6-sol", "reasoning_effort": "xhigh", "latest": { "tasks": 103, "passed": 64, "score": 93.6, "status": "green", "average_task_seconds": 1620, "average_task_time_human": "27分钟", "average_cost_usd": 6.817724, "cache_hit_rate": 97.5, "model": "gpt-5.6-sol", "reasoning_effort": "xhigh" } },
             "gpt_56_sol_high": { "label": "GPT-5.6 Sol high", "model": "gpt-5.6-sol", "reasoning_effort": "high", "latest": { "tasks": 104, "passed": 62, "score": 89.8, "status": "yellow", "average_task_seconds": 1440, "average_task_time_human": "24分钟", "average_cost_usd": 5.203014, "cache_hit_rate": 97.3, "model": "gpt-5.6-sol", "reasoning_effort": "high" } },
             "gpt_56_sol_medium": { "label": "GPT-5.6 Sol medium", "model": "gpt-5.6-sol", "reasoning_effort": "medium", "latest": { "tasks": 107, "passed": 60, "score": 84.5, "status": "yellow", "average_task_seconds": 960, "average_task_time_human": "16分钟", "average_cost_usd": 3.262042, "cache_hit_rate": 96.7, "model": "gpt-5.6-sol", "reasoning_effort": "medium" } },
             "gpt_56_sol_low": { "label": "GPT-5.6 Sol low", "model": "gpt-5.6-sol", "reasoning_effort": "low", "latest": { "tasks": 101, "passed": 49, "score": 73.1, "status": "yellow", "average_task_seconds": 660, "average_task_time_human": "11分钟", "average_cost_usd": 1.908764, "cache_hit_rate": 95.6, "model": "gpt-5.6-sol", "reasoning_effort": "low" } },
+            "gpt_56_terra_ultra": { "label": "GPT-5.6 Terra ultra", "model": "gpt-5.6-terra", "reasoning_effort": "ultra", "latest": { "tasks": 112, "passed": 75, "score": 100.4, "status": "green", "average_task_seconds": 2520, "average_task_time_human": "42分钟", "average_cost_usd": 13.4, "model": "gpt-5.6-terra", "reasoning_effort": "ultra" } },
             "gpt_56_terra_max": { "label": "GPT-5.6 Terra max", "model": "gpt-5.6-terra", "reasoning_effort": "max", "latest": { "tasks": 85, "passed": 54, "score": 95.7, "status": "green", "average_task_seconds": 1860, "average_task_time_human": "31分钟", "average_cost_usd": 4.842206, "cache_hit_rate": 97.7, "model": "gpt-5.6-terra", "reasoning_effort": "max" } },
+            "gpt_56_terra_xhigh": { "label": "GPT-5.6 Terra xhigh", "model": "gpt-5.6-terra", "reasoning_effort": "xhigh", "latest": { "tasks": 112, "passed": 68, "score": 92.4, "status": "green", "average_task_seconds": 1200, "average_task_time_human": "20分钟", "average_cost_usd": 2.4, "model": "gpt-5.6-terra", "reasoning_effort": "xhigh" } },
             "gpt_56_terra_high": { "label": "GPT-5.6 Terra high", "model": "gpt-5.6-terra", "reasoning_effort": "high", "latest": { "tasks": 89, "passed": 46, "score": 77.9, "status": "yellow", "average_task_seconds": 840, "average_task_time_human": "14分钟", "average_cost_usd": 1.320583, "cache_hit_rate": 96.2, "model": "gpt-5.6-terra", "reasoning_effort": "high" } },
+            "gpt_56_terra_medium": { "label": "GPT-5.6 Terra medium", "model": "gpt-5.6-terra", "reasoning_effort": "medium", "latest": { "tasks": 112, "passed": 45, "score": 60.3, "status": "yellow", "average_task_seconds": 600, "average_task_time_human": "10分钟", "average_cost_usd": 0.8, "model": "gpt-5.6-terra", "reasoning_effort": "medium" } },
+            "gpt_56_terra_low": { "label": "GPT-5.6 Terra low", "model": "gpt-5.6-terra", "reasoning_effort": "low", "latest": { "tasks": 112, "passed": 33, "score": 44.2, "status": "red", "average_task_seconds": 480, "average_task_time_human": "8分钟", "average_cost_usd": 0.6, "model": "gpt-5.6-terra", "reasoning_effort": "low" } },
             "gpt_56_luna_max": { "label": "GPT-5.6 Luna max", "model": "gpt-5.6-luna", "reasoning_effort": "max", "latest": { "tasks": 94, "passed": 58, "score": 93.0, "status": "green", "average_task_seconds": 1980, "average_task_time_human": "33分钟", "average_cost_usd": 2.328072, "cache_hit_rate": 97.7, "model": "gpt-5.6-luna", "reasoning_effort": "max" } },
+            "gpt_56_luna_xhigh": { "label": "GPT-5.6 Luna xhigh", "model": "gpt-5.6-luna", "reasoning_effort": "xhigh", "latest": { "tasks": 112, "passed": 59, "score": 79.0, "status": "yellow", "average_task_seconds": 1500, "average_task_time_human": "25分钟", "average_cost_usd": 1.6, "model": "gpt-5.6-luna", "reasoning_effort": "xhigh" } },
             "gpt_56_luna_high": { "label": "GPT-5.6 Luna high", "model": "gpt-5.6-luna", "reasoning_effort": "high", "latest": { "tasks": 82, "passed": 34, "score": 62.5, "status": "yellow", "average_task_seconds": 1080, "average_task_time_human": "18分钟", "average_cost_usd": 1.123607, "cache_hit_rate": 97.2, "model": "gpt-5.6-luna", "reasoning_effort": "high" } },
+            "gpt_56_luna_medium": { "label": "GPT-5.6 Luna medium", "model": "gpt-5.6-luna", "reasoning_effort": "medium", "latest": { "tasks": 112, "passed": 27, "score": 36.2, "status": "red", "average_task_seconds": 660, "average_task_time_human": "11分钟", "average_cost_usd": 0.4, "model": "gpt-5.6-luna", "reasoning_effort": "medium" } },
+            "gpt_56_luna_low": { "label": "GPT-5.6 Luna low", "model": "gpt-5.6-luna", "reasoning_effort": "low", "latest": { "tasks": 112, "passed": 6, "score": 8.0, "status": "red", "average_task_seconds": 480, "average_task_time_human": "8分钟", "average_cost_usd": 0.2, "model": "gpt-5.6-luna", "reasoning_effort": "low" } },
+            "gpt_55_xhigh_distributed": { "label": "GPT-5.5 xhigh", "model": "gpt-5.5", "reasoning_effort": "xhigh", "latest": { "tasks": 112, "passed": 72, "score": 96.4, "status": "green", "average_task_seconds": 1380, "average_task_time_human": "23分钟", "average_cost_usd": 5.8, "model": "gpt-5.5", "reasoning_effort": "xhigh" } },
             "gpt_55_high_distributed": { "label": "GPT-5.5 high", "model": "gpt-5.5", "reasoning_effort": "high", "latest": { "tasks": 110, "passed": 62, "score": 84.9, "status": "yellow", "average_task_seconds": 1620, "average_task_time_human": "27分钟", "average_cost_usd": 3.521559, "cache_hit_rate": 97.0, "model": "gpt-5.5", "reasoning_effort": "high" } }
           },
           "quota_radar": {
@@ -910,7 +1280,14 @@ final class SentinelStore: NSObject, ObservableObject {
         if case .success(let modelRatings) = results.modelRatings {
             next.modelRatings = modelRatings
         }
-        apply(results.rateLimits, to: &next.rateLimits, errors: &errors)
+        switch results.rateLimits {
+        case .success(let payload):
+            next.rateLimits = payload.dashboard
+            cacheResetCreditsFromAppServer(payload.response.rateLimitResetCredits)
+            scheduleResetCreditProtectionEvaluation()
+        case .failure(let error):
+            errors.append(error.localizedDescription)
+        }
 
         next.lastUpdatedAt = Date()
         next.lastError = errors.isEmpty ? nil : errors.joined(separator: "\n")
@@ -936,10 +1313,13 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
-    private func fetchRateLimitResult() async -> Result<RateLimitDashboard, Error> {
+    private func fetchRateLimitResult() async -> Result<RateLimitReadPayload, Error> {
         await capture {
             let response = try await appServerClient.readRateLimits()
-            return RateLimitDashboard(response: response)
+            return RateLimitReadPayload(
+                response: response,
+                dashboard: RateLimitDashboard(response: response)
+            )
         }
     }
 
@@ -997,6 +1377,1377 @@ final class SentinelStore: NSObject, ObservableObject {
         for event in filtered {
             NotificationService.shared.deliver(event, soundEnabled: notificationSoundEnabled)
         }
+    }
+
+    private func loadResetCreditProtectionPreview() async {
+        do {
+            try await withFreshResetCreditProtectionSession {
+                session,
+                appServer in
+                let account = try await session.readAccount()
+                guard let identitySeed = account.account?
+                    .protectionIdentitySeed else {
+                    resetCreditProtectionStatus = .blocked(
+                        .accountIdentityUnavailable,
+                        detail: nil
+                    )
+                    return
+                }
+                let accountFingerprint = ResetCreditPrivacy.fingerprint(
+                    identitySeed
+                )
+                let response = try await appServer.readRateLimits(
+                    boundTo: accountFingerprint
+                )
+                cacheResetCreditsFromAppServer(
+                    response.rateLimitResetCredits,
+                    force: true
+                )
+                guard let summary = response.rateLimitResetCredits else {
+                    resetCreditProtectionStatus = .blocked(
+                        .detailsUnavailable(0),
+                        detail: nil
+                    )
+                    return
+                }
+                switch ResetCreditExpiryProtectionPolicy().decision(
+                    summary: summary,
+                    excludingCreditFingerprints: resetCreditProtectionLedger
+                        .excludedCreditFingerprints
+                ) {
+                case .noCredits:
+                    resetCreditProtectionStatus = .previewNoCredits(Date())
+                case .detailsUnavailable(let availableCount):
+                    resetCreditProtectionStatus = .blocked(
+                        .detailsUnavailable(availableCount),
+                        detail: nil
+                    )
+                case .detailsIncomplete(
+                    let availableCount,
+                    let availableDetails
+                ):
+                    resetCreditProtectionStatus = .blocked(
+                        .detailsIncomplete(
+                            availableCount: availableCount,
+                            availableDetails: availableDetails
+                        ),
+                        detail: nil
+                    )
+                case .noSupportedExpiringCredits(let availableCount):
+                    resetCreditProtectionStatus = .blocked(
+                        .noSupportedExpiringCredits(availableCount),
+                        detail: nil
+                    )
+                case .scheduled(let target):
+                    resetCreditProtectionStatus = .preview(
+                        actionAt: target.actionAt,
+                        expiresAt: target.expiresAt,
+                        availableCount: target.availableCount,
+                        readyNow: false
+                    )
+                case .ready(let target):
+                    resetCreditProtectionStatus = .preview(
+                        actionAt: target.actionAt,
+                        expiresAt: target.expiresAt,
+                        availableCount: target.availableCount,
+                        readyNow: true
+                    )
+                }
+            }
+        } catch ResetCreditProtectionAccountBindingError.accountChanged {
+            resetCreditProtectionStatus = .blocked(
+                .accountChanged,
+                detail: nil
+            )
+        } catch {
+            resetCreditProtectionStatus = protectionBlockedStatus(for: error)
+        }
+    }
+
+    private func armResetCreditExpiryProtection(
+        clockGeneration: UInt64
+    ) async {
+        guard !Task.isCancelled,
+              clockGeneration == resetCreditProtectionClockGeneration else {
+            return
+        }
+        let processLock: ResetCreditProtectionProcessLock
+        do {
+            processLock = try ResetCreditProtectionProcessLock(
+                url: resetCreditProtectionProcessLockURL
+            )
+        } catch {
+            resetCreditProtectionStatus = .blocked(
+                .anotherProcess,
+                detail: nil
+            )
+            return
+        }
+        defer {
+            processLock.release()
+        }
+        guard !Task.isCancelled,
+              clockGeneration == resetCreditProtectionClockGeneration else {
+            return
+        }
+
+        do {
+            try await withFreshResetCreditProtectionSession {
+                session,
+                appServer in
+                guard !Task.isCancelled,
+                      clockGeneration
+                        == resetCreditProtectionClockGeneration else {
+                    return
+                }
+                switch reloadResetCreditProtectionJournal() {
+                case .corrupt:
+                    failClosedForResetCreditProtectionJournal()
+                    return
+                case .loaded(let journal):
+                    await reconcileResetCreditProtectionJournalWhileLocked(
+                        journal,
+                        appServer: appServer
+                    )
+                    if clockGeneration
+                        != resetCreditProtectionClockGeneration {
+                        resetCreditProtectionStatus = .blocked(
+                            .clockChanged,
+                            detail: nil
+                        )
+                    }
+                    return
+                case .absent:
+                    break
+                }
+                let account = try await session.readAccount()
+                guard !Task.isCancelled,
+                      clockGeneration
+                        == resetCreditProtectionClockGeneration else {
+                    return
+                }
+                guard let identitySeed = account.account?
+                    .protectionIdentitySeed else {
+                    resetCreditProtectionStatus = .blocked(
+                        .accountIdentityUnavailable,
+                        detail: nil
+                    )
+                    return
+                }
+                let accountFingerprint = ResetCreditPrivacy.fingerprint(
+                    identitySeed
+                )
+                let response = try await appServer.readRateLimits(
+                    boundTo: accountFingerprint
+                )
+                guard !Task.isCancelled,
+                      clockGeneration
+                        == resetCreditProtectionClockGeneration else {
+                    return
+                }
+                cacheResetCreditsFromAppServer(
+                    response.rateLimitResetCredits,
+                    force: true
+                )
+                guard let summary = response.rateLimitResetCredits else {
+                    resetCreditProtectionStatus = .blocked(
+                        .detailsUnavailable(0),
+                        detail: nil
+                    )
+                    return
+                }
+                let now = Date()
+                let decision = ResetCreditExpiryProtectionPolicy().decision(
+                    summary: summary,
+                    now: now,
+                    excludingCreditFingerprints: resetCreditProtectionLedger
+                        .excludedCreditFingerprints
+                )
+                let target: ResetCreditProtectionTarget
+                switch decision {
+                case .scheduled(let scheduledTarget),
+                     .ready(let scheduledTarget):
+                    target = scheduledTarget
+                default:
+                    applyResetCreditProtectionDecisionStatus(decision)
+                    return
+                }
+                guard let authorizedCreditFingerprints =
+                    currentResetCreditProtectionFingerprints(
+                        summary: summary,
+                        now: now
+                    ) else {
+                    resetCreditProtectionStatus = .blocked(
+                        .detailsIncomplete(
+                            availableCount: summary.availableCount,
+                            availableDetails: summary.credits?
+                                .filter(\.isAvailable).count ?? 0
+                        ),
+                        detail: nil
+                    )
+                    return
+                }
+                guard !authorizedCreditFingerprints.isEmpty,
+                      authorizedCreditFingerprints.contains(
+                          target.creditFingerprint
+                      ) else {
+                    resetCreditProtectionStatus = .blocked(
+                        .noSupportedExpiringCredits(summary.availableCount),
+                        detail: nil
+                    )
+                    return
+                }
+                let consent = ResetCreditProtectionConsent(
+                    version: AppConstants.resetCreditProtectionConsentVersion,
+                    accountFingerprint: accountFingerprint,
+                    grantedAt: now,
+                    authorizedCreditFingerprints:
+                        authorizedCreditFingerprints,
+                    clockAnchor: .now(wallTime: now)
+                )
+                guard !Task.isCancelled,
+                      clockGeneration
+                        == resetCreditProtectionClockGeneration else {
+                    return
+                }
+                try resetCreditProtectionAuthorizationStore.save(consent)
+                guard !Task.isCancelled,
+                      clockGeneration
+                        == resetCreditProtectionClockGeneration else {
+                    try resetCreditProtectionAuthorizationStore.clear()
+                    return
+                }
+                resetCreditProtectionConsent = consent
+                resetCreditProtectionEnabled = true
+                defaults.set(
+                    true,
+                    forKey: DefaultsKey.resetCreditProtectionEnabled
+                )
+                switch decision {
+                case .scheduled:
+                    applyResetCreditProtectionDecisionStatus(decision)
+                case .ready:
+                    await attemptResetCreditProtectionWhileLocked(
+                        target: target,
+                        existingJournal: nil,
+                        appServer: appServer
+                    )
+                    if clockGeneration
+                        != resetCreditProtectionClockGeneration {
+                        resetCreditProtectionStatus = .blocked(
+                            .clockChanged,
+                            detail: nil
+                        )
+                    }
+                default:
+                    break
+                }
+            }
+        } catch ResetCreditProtectionAccountBindingError.accountChanged {
+            resetCreditProtectionStatus = .blocked(
+                .accountChanged,
+                detail: nil
+            )
+        } catch {
+            resetCreditProtectionStatus = protectionBlockedStatus(for: error)
+        }
+    }
+
+    private func scheduleResetCreditProtectionEvaluation() {
+        guard resetCreditProtectionRuntimeAllowsDestructiveActions,
+              debugPreview == .live,
+              resetCreditProtectionEnabled || resetCreditProtectionJournal != nil,
+              resetCreditProtectionTask == nil else {
+            return
+        }
+        resetCreditProtectionTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+            await self.evaluateResetCreditProtection()
+            self.resetCreditProtectionTask = nil
+        }
+    }
+
+    private func evaluateResetCreditProtection() async {
+        guard resetCreditProtectionRuntimeAllowsDestructiveActions,
+              debugPreview == .live else {
+            resetCreditProtectionStatus = .disabled
+            return
+        }
+        if resetCreditProtectionJournalCorrupt {
+            resetCreditProtectionStatus = .blocked(.journalUnavailable, detail: nil)
+            return
+        }
+        if resetCreditProtectionJournal != nil {
+            await reconcilePersistedResetCreditProtectionJournal()
+            return
+        }
+        guard resetCreditProtectionEnabled else {
+            resetCreditProtectionStatus = .disabled
+            return
+        }
+        let requested = defaults.object(
+            forKey: DefaultsKey.resetCreditProtectionEnabled
+        ) as? Bool ?? false
+        guard let consent = resetCreditProtectionConsent,
+              ResetCreditProtectionAuthorization.isEnabled(
+                  requested: requested,
+                  consent: consent
+              ) else {
+            disableResetCreditExpiryProtection()
+            return
+        }
+        let response: RateLimitResponse
+        do {
+            response = try await resetCreditProtectionHintAppServer.readRateLimits(
+                boundTo: consent.accountFingerprint
+            )
+        } catch ResetCreditProtectionAccountBindingError.accountChanged {
+            invalidateResetCreditProtectionForAccountChange(
+                preservingJournal: false,
+                expectedConsent: consent
+            )
+            return
+        } catch ResetCreditProtectionAccountBindingError.accountUnavailable {
+            if revokeResetCreditProtectionAuthorization(
+                expectedConsent: consent
+            ) {
+                resetCreditProtectionStatus = .blocked(
+                    .signedOut,
+                    detail: nil
+                )
+            }
+            return
+        } catch {
+            if isAuthenticationError(error),
+               revokeResetCreditProtectionAuthorization(
+                   expectedConsent: consent
+               ) {
+                resetCreditProtectionStatus = .blocked(
+                    .signedOut,
+                    detail: nil
+                )
+                return
+            }
+            resetCreditProtectionStatus = protectionBlockedStatus(for: error)
+            return
+        }
+        cacheResetCreditsFromAppServer(response.rateLimitResetCredits)
+        guard let summary = response.rateLimitResetCredits else {
+            resetCreditProtectionStatus = .blocked(.detailsUnavailable(0), detail: nil)
+            return
+        }
+
+        let now = Date()
+        let decision = ResetCreditExpiryProtectionPolicy().decision(
+            summary: summary,
+            now: now,
+            excludingCreditFingerprints: resetCreditProtectionLedger
+                .excludedCreditFingerprints
+        )
+        let selectedTarget: ResetCreditProtectionTarget?
+        switch decision {
+        case .scheduled(let target), .ready(let target):
+            selectedTarget = target
+        default:
+            selectedTarget = nil
+        }
+        if let selectedTarget,
+           !ResetCreditProtectionAuthorization.authorizes(
+               requested: requested,
+               consent: consent,
+               target: selectedTarget
+           ) {
+            if revokeResetCreditProtectionAuthorization(
+                expectedConsent: consent
+            ) {
+                resetCreditProtectionStatus = .blocked(
+                    .creditNotAuthorized,
+                    detail: nil
+                )
+            }
+            return
+        }
+        switch decision {
+        case .noCredits:
+            resetCreditProtectionStatus = .noCredits(Date())
+        case .detailsUnavailable(let availableCount):
+            resetCreditProtectionStatus = .blocked(
+                .detailsUnavailable(availableCount),
+                detail: nil
+            )
+        case .detailsIncomplete(let availableCount, let availableDetails):
+            resetCreditProtectionStatus = .blocked(
+                .detailsIncomplete(
+                    availableCount: availableCount,
+                    availableDetails: availableDetails
+                ),
+                detail: nil
+            )
+        case .noSupportedExpiringCredits(let availableCount):
+            resetCreditProtectionStatus = .blocked(
+                .noSupportedExpiringCredits(availableCount),
+                detail: nil
+            )
+        case .scheduled(let target):
+            resetCreditProtectionStatus = .scheduled(
+                actionAt: target.actionAt,
+                expiresAt: target.expiresAt,
+                availableCount: target.availableCount
+            )
+        case .ready(let target):
+            if let retryAt = resetCreditProtectionNextRetryAt,
+               retryAt > Date() {
+                resetCreditProtectionStatus = .waitingForUsage(expiresAt: target.expiresAt)
+                return
+            }
+            await attemptResetCreditProtection(target: target)
+        }
+    }
+
+    private func reconcilePersistedResetCreditProtectionJournal() async {
+        let processLock: ResetCreditProtectionProcessLock
+        do {
+            processLock = try ResetCreditProtectionProcessLock(
+                url: resetCreditProtectionProcessLockURL
+            )
+        } catch {
+            resetCreditProtectionNextRetryAt = Date().addingTimeInterval(
+                AppConstants.resetCreditProtectionRetrySeconds
+            )
+            resetCreditProtectionStatus = .blocked(.anotherProcess, detail: nil)
+            return
+        }
+        defer {
+            processLock.release()
+        }
+
+        await withFreshResetCreditProtectionSession { _, appServer in
+            switch reloadResetCreditProtectionJournal() {
+            case .absent:
+                if !resetCreditProtectionEnabled {
+                    resetCreditProtectionStatus = .disabled
+                }
+            case .corrupt:
+                failClosedForResetCreditProtectionJournal()
+            case .loaded(let journal):
+                await reconcileResetCreditProtectionJournalWhileLocked(
+                    journal,
+                    appServer: appServer
+                )
+            }
+        }
+    }
+
+    private func reconcileResetCreditProtectionJournalWhileLocked(
+        _ journal: ResetCreditProtectionAttemptJournal,
+        appServer: ResetCreditProtectionBoundAppServer
+    ) async {
+        do {
+            let response = try await appServer.readRateLimits(
+                boundTo: journal.accountFingerprint
+            )
+            cacheResetCreditsFromAppServer(response.rateLimitResetCredits)
+            await reconcileResetCreditProtectionJournal(
+                journal,
+                response: response,
+                appServer: appServer
+            )
+        } catch ResetCreditProtectionAccountBindingError.accountChanged {
+            handleResetCreditProtectionJournalAccountFailure(
+                journal,
+                accountChanged: true
+            )
+        } catch ResetCreditProtectionAccountBindingError.accountUnavailable {
+            handleResetCreditProtectionJournalAccountFailure(
+                journal,
+                accountChanged: false
+            )
+        } catch {
+            if isAuthenticationError(error) {
+                handleResetCreditProtectionJournalAccountFailure(
+                    journal,
+                    accountChanged: false
+                )
+                return
+            }
+            resetCreditProtectionStatus = protectionBlockedStatus(for: error)
+        }
+    }
+
+    private func reconcileResetCreditProtectionJournal(
+        _ journal: ResetCreditProtectionAttemptJournal,
+        response: RateLimitResponse,
+        appServer: ResetCreditProtectionBoundAppServer
+    ) async {
+        let decision = ResetCreditProtectionRecoveryPolicy().decision(
+            journal: journal,
+            summary: response.rateLimitResetCredits,
+            protectionEnabled: resetCreditProtectionEnabled,
+            retryAt: resetCreditProtectionNextRetryAt
+        )
+        switch decision {
+        case .confirmedUsed:
+            finishVerifiedResetCreditProtection(journal: journal)
+        case .confirmedNotConsumed(let expiresAt):
+            guard clearResetCreditProtectionJournal() else {
+                return
+            }
+            resetCreditProtectionNextRetryAt = Date().addingTimeInterval(
+                AppConstants.resetCreditProtectionRetrySeconds
+            )
+            resetCreditProtectionStatus = resetCreditProtectionEnabled
+                ? .waitingForUsage(expiresAt: expiresAt)
+                : .disabled
+        case .reconciling:
+            resetCreditProtectionStatus = .reconciling(expiresAt: journal.expiresAt)
+        case .missed:
+            markResetCreditProtectionMissed(journal: journal)
+        case .retry(let target):
+            await attemptResetCreditProtectionWhileLocked(
+                target: target,
+                existingJournal: journal,
+                appServer: appServer
+            )
+        }
+    }
+
+    private func attemptResetCreditProtection(
+        target: ResetCreditProtectionTarget
+    ) async {
+        guard resetCreditProtectionRuntimeAllowsDestructiveActions,
+              debugPreview == .live,
+              resetCreditProtectionEnabled else {
+            return
+        }
+
+        let processLock: ResetCreditProtectionProcessLock
+        do {
+            processLock = try ResetCreditProtectionProcessLock(
+                url: resetCreditProtectionProcessLockURL
+            )
+        } catch {
+            resetCreditProtectionNextRetryAt = Date().addingTimeInterval(
+                AppConstants.resetCreditProtectionRetrySeconds
+            )
+            resetCreditProtectionStatus = .blocked(.anotherProcess, detail: nil)
+            return
+        }
+        defer {
+            processLock.release()
+        }
+
+        await withFreshResetCreditProtectionSession { _, appServer in
+            switch reloadResetCreditProtectionJournal() {
+            case .corrupt:
+                failClosedForResetCreditProtectionJournal()
+            case .loaded(let journal):
+                await reconcileResetCreditProtectionJournalWhileLocked(
+                    journal,
+                    appServer: appServer
+                )
+            case .absent:
+                await attemptResetCreditProtectionWhileLocked(
+                    target: target,
+                    existingJournal: nil,
+                    appServer: appServer
+                )
+            }
+        }
+    }
+
+    private func attemptResetCreditProtectionWhileLocked(
+        target: ResetCreditProtectionTarget,
+        existingJournal: ResetCreditProtectionAttemptJournal?,
+        appServer: ResetCreditProtectionBoundAppServer
+    ) async {
+        guard resetCreditProtectionRuntimeAllowsDestructiveActions,
+              debugPreview == .live else {
+            resetCreditProtectionStatus = .disabled
+            return
+        }
+        let requested = defaults.object(
+            forKey: DefaultsKey.resetCreditProtectionEnabled
+        ) as? Bool ?? false
+        guard requested, resetCreditProtectionEnabled else {
+            resetCreditProtectionEnabled = false
+            resetCreditProtectionConsent = nil
+            if let existingJournal {
+                resetCreditProtectionStatus = .reconciling(
+                    expiresAt: existingJournal.expiresAt
+                )
+            } else {
+                resetCreditProtectionStatus = .disabled
+            }
+            return
+        }
+        let persistedConsent: ResetCreditProtectionConsent
+        switch resetCreditProtectionAuthorizationStore.load() {
+        case .loaded(let consent):
+            persistedConsent = consent
+        case .absent:
+            resetCreditProtectionEnabled = false
+            resetCreditProtectionConsent = nil
+            if existingJournal == nil {
+                resetCreditProtectionStatus = .disabled
+            }
+            return
+        case .corrupt:
+            failClosedForResetCreditProtectionJournal()
+            return
+        }
+        guard ResetCreditProtectionAuthorization.authorizes(
+            requested: requested,
+            consent: persistedConsent,
+            target: target
+        ) else {
+            resetCreditProtectionEnabled = false
+            resetCreditProtectionConsent = nil
+            defaults.set(
+                false,
+                forKey: DefaultsKey.resetCreditProtectionEnabled
+            )
+            if existingJournal == nil {
+                resetCreditProtectionStatus = .blocked(
+                    .creditNotAuthorized,
+                    detail: nil
+                )
+            }
+            return
+        }
+        let consent = persistedConsent
+        resetCreditProtectionConsent = consent
+
+        resetCreditProtectionStatus = .checking
+        do {
+            let accountFingerprint = consent.accountFingerprint
+            let preflight = try await appServer.readRateLimits(
+                boundTo: accountFingerprint
+            )
+            cacheResetCreditsFromAppServer(preflight.rateLimitResetCredits)
+            guard resetCreditProtectionEnabled,
+                  resetCreditProtectionConsent == consent,
+                  let summary = preflight.rateLimitResetCredits else {
+                resetCreditProtectionStatus = .blocked(
+                    .detailsUnavailable(0),
+                    detail: nil
+                )
+                return
+            }
+
+            let now = Date()
+            let validatedTarget: ResetCreditProtectionTarget
+            if let existingJournal {
+                let recoveryDecision = ResetCreditProtectionRecoveryPolicy()
+                    .decision(
+                        journal: existingJournal,
+                        summary: summary,
+                        now: now,
+                        protectionEnabled: true,
+                        retryAt: nil
+                    )
+                guard case .retry(let currentTarget) = recoveryDecision,
+                      currentTarget.creditFingerprint == target.creditFingerprint else {
+                    await reconcileResetCreditProtectionJournal(
+                        existingJournal,
+                        response: preflight,
+                        appServer: appServer
+                    )
+                    return
+                }
+                validatedTarget = currentTarget
+            } else {
+                let currentDecision = ResetCreditExpiryProtectionPolicy()
+                    .decision(
+                        summary: summary,
+                        now: now,
+                        excludingCreditFingerprints: resetCreditProtectionLedger
+                            .excludedCreditFingerprints
+                    )
+                guard case .ready(let currentTarget) = currentDecision,
+                      currentTarget.creditFingerprint == target.creditFingerprint else {
+                    applyResetCreditProtectionDecisionStatus(currentDecision)
+                    return
+                }
+                validatedTarget = currentTarget
+            }
+            guard ResetCreditProtectionAuthorization.authorizes(
+                requested: defaults.object(
+                    forKey: DefaultsKey.resetCreditProtectionEnabled
+                ) as? Bool ?? false,
+                consent: consent,
+                target: validatedTarget
+            ) else {
+                if revokeResetCreditProtectionAuthorization(
+                    expectedConsent: consent
+                ) {
+                    resetCreditProtectionStatus = .blocked(
+                        .creditNotAuthorized,
+                        detail: nil
+                    )
+                }
+                return
+            }
+            guard let currentFingerprints =
+                currentResetCreditProtectionFingerprints(
+                    summary: summary,
+                    now: now
+                ),
+                  currentFingerprints
+                    == remainingAuthorizedResetCreditProtectionFingerprints(
+                        consent: consent
+                    ) else {
+                if revokeResetCreditProtectionAuthorization(
+                    expectedConsent: consent
+                ) {
+                    resetCreditProtectionStatus = .blocked(
+                        .creditNotAuthorized,
+                        detail: nil
+                    )
+                }
+                return
+            }
+            guard let details = summary.credits else {
+                resetCreditProtectionStatus = .blocked(
+                    .detailsUnavailable(summary.availableCount),
+                    detail: nil
+                )
+                return
+            }
+            let matchingCredits = details.filter {
+                ResetCreditPrivacy.fingerprint($0.id)
+                    == validatedTarget.creditFingerprint
+            }
+            guard matchingCredits.count == 1,
+                  let currentCredit = matchingCredits.first else {
+                resetCreditProtectionStatus = .blocked(
+                    .detailsIncomplete(
+                        availableCount: summary.availableCount,
+                        availableDetails: details.filter(\.isAvailable).count
+                    ),
+                    detail: nil
+                )
+                return
+            }
+            let expiresAt = validatedTarget.expiresAt
+
+            var journal = existingJournal ?? ResetCreditProtectionAttemptJournal(
+                accountFingerprint: accountFingerprint,
+                creditFingerprint: validatedTarget.creditFingerprint,
+                idempotencyKey: UUID().uuidString,
+                expiresAt: expiresAt,
+                availableCountBefore: summary.availableCount,
+                phase: .sending,
+                updatedAt: now
+            )
+            guard journal.accountFingerprint == accountFingerprint,
+                  journal.creditFingerprint == validatedTarget.creditFingerprint else {
+                invalidateResetCreditProtectionForAccountChange(
+                    preservingJournal: true,
+                    expectedConsent: consent
+                )
+                return
+            }
+            journal.phase = .sending
+            journal.confirmedOutcome = nil
+            journal.updatedAt = now
+            guard saveResetCreditProtectionJournal(journal) else {
+                return
+            }
+            guard !Task.isCancelled,
+                  resetCreditProtectionRuntimeAllowsDestructiveActions,
+                  debugPreview == .live,
+                  resetCreditProtectionEnabled,
+                  resetCreditProtectionConsent == consent,
+                  ResetCreditProtectionAuthorization.authorizes(
+                      requested: defaults.object(
+                          forKey: DefaultsKey.resetCreditProtectionEnabled
+                      ) as? Bool,
+                      consent: consent,
+                      target: validatedTarget
+                  ) else {
+                if existingJournal == nil,
+                   clearResetCreditProtectionJournal(),
+                   !resetCreditProtectionEnabled {
+                    resetCreditProtectionStatus = .disabled
+                }
+                return
+            }
+            resetCreditProtectionStatus = .using(expiresAt: expiresAt)
+
+            let consumeResult: Result<ResetCreditConsumeResponse, Error>
+            do {
+                consumeResult = .success(
+                    try await appServer.consumeResetCredit(
+                        creditID: currentCredit.id,
+                        idempotencyKey: journal.idempotencyKey,
+                        authorization: ResetCreditProtectionDispatchAuthorization(
+                            store: resetCreditProtectionAuthorizationStore,
+                            consent: consent
+                        ),
+                        boundTo: accountFingerprint
+                    )
+                )
+            } catch {
+                consumeResult = .failure(error)
+            }
+
+            if case .failure(let error) = consumeResult,
+               let bindingError = error
+                as? ResetCreditProtectionAccountBindingError {
+                switch bindingError {
+                case .accountChanged:
+                    invalidateResetCreditProtectionForAccountChange(
+                        preservingJournal: true,
+                        expectedConsent: consent
+                    )
+                case .accountUnavailable:
+                    if revokeResetCreditProtectionAuthorization(
+                        expectedConsent: consent
+                    ) {
+                        resetCreditProtectionStatus = .blocked(
+                            .signedOut,
+                            detail: nil
+                        )
+                    }
+                case .destructiveActionsDisabled:
+                    if let existingJournal {
+                        _ = saveResetCreditProtectionJournal(existingJournal)
+                    } else {
+                        _ = clearResetCreditProtectionJournal()
+                    }
+                    if revokeResetCreditProtectionAuthorization(
+                        expectedConsent: consent
+                    ) {
+                        resetCreditProtectionStatus = .disabled
+                    }
+                }
+                return
+            }
+
+            if case .failure(let error) = consumeResult,
+               isResetCreditPreDispatchFailure(error) {
+                if let existingJournal {
+                    guard saveResetCreditProtectionJournal(existingJournal) else {
+                        return
+                    }
+                } else {
+                    guard clearResetCreditProtectionJournal() else {
+                        return
+                    }
+                }
+                if case CodexAppServerClient.ClientError
+                    .resetCreditDispatchAuthorizationUnavailable = error {
+                    failClosedForResetCreditProtectionJournal()
+                } else {
+                    if revokeResetCreditProtectionAuthorization(
+                        expectedConsent: consent
+                    ) {
+                        resetCreditProtectionStatus = .disabled
+                    }
+                }
+                return
+            }
+
+            switch consumeResult {
+            case .failure(let error):
+                journal.phase = .sentUnknown
+                journal.updatedAt = Date()
+                guard saveResetCreditProtectionJournal(journal) else {
+                    return
+                }
+                if isUnsupportedResetCreditRPC(error) {
+                    if revokeResetCreditProtectionAuthorization(
+                        expectedConsent: consent
+                    ) {
+                        resetCreditProtectionStatus = .blocked(
+                            .unsupportedCodex,
+                            detail: nil
+                        )
+                    }
+                    return
+                }
+                if isAuthenticationError(error) {
+                    if revokeResetCreditProtectionAuthorization(
+                        expectedConsent: consent
+                    ) {
+                        resetCreditProtectionStatus = .blocked(
+                            .signedOut,
+                            detail: nil
+                        )
+                    }
+                    return
+                }
+                resetCreditProtectionNextRetryAt = Date().addingTimeInterval(
+                    AppConstants.resetCreditProtectionRetrySeconds
+                )
+                resetCreditProtectionStatus = .reconciling(expiresAt: expiresAt)
+                if let refreshed = try? await appServer
+                    .readRateLimits(
+                        boundTo: accountFingerprint
+                ) {
+                    cacheResetCreditsFromAppServer(refreshed.rateLimitResetCredits)
+                    await reconcileResetCreditProtectionJournal(
+                        journal,
+                        response: refreshed,
+                        appServer: appServer
+                    )
+                }
+                return
+            case .success(let result):
+                journal.phase = .outcomeConfirmed
+                journal.confirmedOutcome = result.outcome
+                journal.updatedAt = Date()
+                guard saveResetCreditProtectionJournal(journal) else {
+                    return
+                }
+                resetCreditProtectionStatus = .reconciling(expiresAt: expiresAt)
+                do {
+                    let refreshed = try await appServer
+                        .readRateLimits(
+                            boundTo: accountFingerprint
+                    )
+                    cacheResetCreditsFromAppServer(refreshed.rateLimitResetCredits)
+                    await reconcileResetCreditProtectionJournal(
+                        journal,
+                        response: refreshed,
+                        appServer: appServer
+                    )
+                } catch ResetCreditProtectionAccountBindingError.accountChanged {
+                    invalidateResetCreditProtectionForAccountChange(
+                        preservingJournal: true,
+                        expectedConsent: consent
+                    )
+                } catch ResetCreditProtectionAccountBindingError
+                    .accountUnavailable {
+                    if revokeResetCreditProtectionAuthorization(
+                        expectedConsent: consent
+                    ) {
+                        resetCreditProtectionStatus = .blocked(
+                            .signedOut,
+                            detail: nil
+                        )
+                    }
+                } catch {
+                    if isAuthenticationError(error),
+                       revokeResetCreditProtectionAuthorization(
+                           expectedConsent: consent
+                       ) {
+                        resetCreditProtectionStatus = .blocked(
+                            .signedOut,
+                            detail: nil
+                        )
+                    } else {
+                        resetCreditProtectionNextRetryAt = Date()
+                            .addingTimeInterval(
+                                AppConstants.resetCreditProtectionRetrySeconds
+                            )
+                    }
+                }
+            }
+        } catch ResetCreditProtectionAccountBindingError.accountChanged {
+            invalidateResetCreditProtectionForAccountChange(
+                preservingJournal: existingJournal != nil,
+                expectedConsent: consent
+            )
+        } catch ResetCreditProtectionAccountBindingError.accountUnavailable {
+            if revokeResetCreditProtectionAuthorization(
+                expectedConsent: consent
+            ) {
+                resetCreditProtectionStatus = .blocked(
+                    .signedOut,
+                    detail: nil
+                )
+            }
+        } catch {
+            if isAuthenticationError(error),
+               revokeResetCreditProtectionAuthorization(
+                   expectedConsent: consent
+               ) {
+                resetCreditProtectionStatus = .blocked(
+                    .signedOut,
+                    detail: nil
+                )
+            } else {
+                resetCreditProtectionStatus = protectionBlockedStatus(
+                    for: error
+                )
+            }
+        }
+    }
+
+    private func currentResetCreditProtectionFingerprints(
+        summary: RateLimitResetCreditsSummary,
+        now: Date
+    ) -> Set<String>? {
+        let availableCount = max(0, summary.availableCount)
+        guard availableCount > 0 else {
+            guard summary.credits?.contains(where: \.isAvailable) != true else {
+                return nil
+            }
+            return []
+        }
+        guard let details = summary.credits else {
+            return nil
+        }
+        let available = details.filter(\.isAvailable)
+        let uniqueAvailableIDs = Set(available.map(\.id))
+        guard available.count == availableCount,
+              available.allSatisfy({ !$0.id.isEmpty }),
+              uniqueAvailableIDs.count == availableCount else {
+            return nil
+        }
+        let excluded = resetCreditProtectionLedger
+            .excludedCreditFingerprints
+        return Set(
+            available.compactMap { credit -> String? in
+                let fingerprint = ResetCreditPrivacy.fingerprint(credit.id)
+                guard credit.isSupportedCodexReset,
+                      credit.expiresAtDate.map({ $0 > now }) == true,
+                      !excluded.contains(fingerprint) else {
+                    return nil
+                }
+                return fingerprint
+            }
+        )
+    }
+
+    private func remainingAuthorizedResetCreditProtectionFingerprints(
+        consent: ResetCreditProtectionConsent
+    ) -> Set<String> {
+        consent.authorizedCreditFingerprints.subtracting(
+            resetCreditProtectionLedger.excludedCreditFingerprints
+        )
+    }
+
+    private func applyResetCreditProtectionDecisionStatus(
+        _ decision: ResetCreditProtectionDecision
+    ) {
+        switch decision {
+        case .noCredits:
+            resetCreditProtectionStatus = .noCredits(Date())
+        case .detailsUnavailable(let availableCount):
+            resetCreditProtectionStatus = .blocked(
+                .detailsUnavailable(availableCount),
+                detail: nil
+            )
+        case .detailsIncomplete(let availableCount, let availableDetails):
+            resetCreditProtectionStatus = .blocked(
+                .detailsIncomplete(
+                    availableCount: availableCount,
+                    availableDetails: availableDetails
+                ),
+                detail: nil
+            )
+        case .noSupportedExpiringCredits(let availableCount):
+            resetCreditProtectionStatus = .blocked(
+                .noSupportedExpiringCredits(availableCount),
+                detail: nil
+            )
+        case .scheduled(let target):
+            resetCreditProtectionStatus = .scheduled(
+                actionAt: target.actionAt,
+                expiresAt: target.expiresAt,
+                availableCount: target.availableCount
+            )
+        case .ready:
+            resetCreditProtectionStatus = .checking
+        }
+    }
+
+    private func cacheResetCreditsFromAppServer(
+        _ summary: RateLimitResetCreditsSummary?,
+        force: Bool = false
+    ) {
+        guard force || resetCreditProtectionEnabled || resetCreditProtectionJournal != nil,
+              let summary else {
+            return
+        }
+        let snapshot = ResetCreditSnapshot(rateLimitResetCredits: summary)
+        resetCreditSnapshot = snapshot
+        saveResetCreditSnapshot(snapshot)
+        resetCreditPhase = .idle
+    }
+
+    private func finishVerifiedResetCreditProtection(
+        journal: ResetCreditProtectionAttemptJournal
+    ) {
+        guard archiveResetCreditProtectionJournal(
+            journal,
+            disposition: .confirmedUsed
+        ) else {
+            return
+        }
+        resetCreditProtectionNextRetryAt = nil
+        let usedAt = Date()
+        resetCreditProtectionStatus = .succeeded(
+            usedAt: usedAt,
+            expiresAt: journal.expiresAt
+        )
+        NotificationService.shared.deliver(
+            NotificationEvent(
+                identifier: "reset-credit-protection-success-\(journal.creditFingerprint)",
+                title: appLanguage.text(
+                    "已确认重置卡处于已使用状态",
+                    "Reset credit confirmed as used"
+                ),
+                body: appLanguage.text(
+                    "Codex 已确认该卡处于已使用状态，并已读取最新额度。",
+                    "Codex confirmed that the credit is in the used state and the latest limits were read."
+                ),
+                severity: .active
+            ),
+            soundEnabled: notificationSoundEnabled
+        )
+    }
+
+    private func markResetCreditProtectionMissed(
+        journal: ResetCreditProtectionAttemptJournal
+    ) {
+        guard archiveResetCreditProtectionJournal(
+            journal,
+            disposition: .ambiguous
+        ) else {
+            return
+        }
+        resetCreditProtectionStatus = .missed(expiresAt: journal.expiresAt)
+        deliverResetCreditProtectionFailure(
+            identifier: "reset-credit-protection-missed-\(Int(journal.expiresAt.timeIntervalSince1970))",
+            body: appLanguage.text(
+                "重置卡已过期，未能确认到期保护完成。",
+                "The reset credit expired before expiry protection could be confirmed."
+            )
+        )
+    }
+
+    private func deliverResetCreditProtectionFailure(
+        identifier: String,
+        body: String
+    ) {
+        NotificationService.shared.deliver(
+            NotificationEvent(
+                identifier: identifier,
+                title: appLanguage.text(
+                    "重置卡到期保护需要检查",
+                    "Reset credit expiry protection needs attention"
+                ),
+                body: body,
+                severity: .urgent
+            ),
+            soundEnabled: notificationSoundEnabled
+        )
+    }
+
+    private func handleResetCreditProtectionJournalAccountFailure(
+        _ journal: ResetCreditProtectionAttemptJournal,
+        accountChanged: Bool
+    ) {
+        if Date() >= journal.expiresAt {
+            markResetCreditProtectionMissed(journal: journal)
+        } else {
+            resetCreditProtectionStatus = .reconciling(
+                expiresAt: journal.expiresAt
+            )
+        }
+
+        guard let consent = resetCreditProtectionConsent,
+              consent.accountFingerprint == journal.accountFingerprint else {
+            resetCreditProtectionStatus = .blocked(
+                accountChanged ? .accountChanged : .signedOut,
+                detail: nil
+            )
+            return
+        }
+        if accountChanged {
+            invalidateResetCreditProtectionForAccountChange(
+                preservingJournal: Date() < journal.expiresAt,
+                expectedConsent: consent
+            )
+        } else if revokeResetCreditProtectionAuthorization(
+            expectedConsent: consent
+        ) {
+            resetCreditProtectionStatus = .blocked(.signedOut, detail: nil)
+        }
+    }
+
+    private func invalidateResetCreditProtectionForAccountChange(
+        preservingJournal: Bool,
+        expectedConsent: ResetCreditProtectionConsent
+    ) {
+        guard revokeResetCreditProtectionAuthorization(
+            expectedConsent: expectedConsent
+        ) else {
+            return
+        }
+        resetCreditProtectionStatus = .blocked(.accountChanged, detail: nil)
+        deliverResetCreditProtectionFailure(
+            identifier: "reset-credit-protection-account-changed",
+            body: appLanguage.text(
+                preservingJournal
+                    ? "Codex 账号已变化。到期保护已关闭；切回原账号后会先对未决尝试进行只读对账。"
+                    : "Codex 账号已变化。为避免误用其他账号的卡，到期保护已关闭，请重新确认开启。",
+                preservingJournal
+                    ? "The Codex account changed. Protection is off; switch back to the original account to reconcile the unresolved attempt."
+                    : "The Codex account changed. Expiry protection was turned off; enable it again to confirm the new account."
+            )
+        )
+    }
+
+    @discardableResult
+    private func revokeResetCreditProtectionAuthorization(
+        expectedConsent: ResetCreditProtectionConsent
+    ) -> Bool {
+        do {
+            let result = try resetCreditProtectionAuthorizationStore.clear(
+                ifCurrent: expectedConsent
+            )
+            guard result != .superseded else {
+                return false
+            }
+        } catch {
+            resetCreditProtectionJournalCorrupt = true
+            resetCreditProtectionStatus = .blocked(.journalUnavailable, detail: nil)
+            return false
+        }
+        if resetCreditProtectionConsent == expectedConsent {
+            resetCreditProtectionEnabled = false
+            resetCreditProtectionConsent = nil
+        }
+        defaults.set(false, forKey: DefaultsKey.resetCreditProtectionEnabled)
+        return true
+    }
+
+    private func protectionBlockedStatus(for error: Error) -> ResetCreditProtectionStatus {
+        if let clientError = error as? CodexAppServerClient.ClientError {
+            switch clientError {
+            case .codexBinaryNotFound, .processUnavailable:
+                return .blocked(.codexUnavailable, detail: nil)
+            case .rpcError(let code, let message):
+                if code == -32601 {
+                    return .blocked(.unsupportedCodex, detail: nil)
+                }
+                if message.localizedCaseInsensitiveContains("authentication") {
+                    return .blocked(.signedOut, detail: nil)
+                }
+                return .blocked(.requestFailed, detail: message)
+            case .requestTimedOut,
+                 .requestCancelledBeforeDispatch,
+                 .resetCreditSessionUnavailableBeforeDispatch,
+                 .resetCreditDispatchNotAuthorized,
+                 .resetCreditDispatchAuthorizationUnavailable,
+                 .responseMissingResult,
+                 .invalidRequest:
+                return .blocked(.requestFailed, detail: clientError.localizedDescription)
+            }
+        }
+        return .blocked(.requestFailed, detail: error.localizedDescription)
+    }
+
+    private func isUnsupportedResetCreditRPC(_ error: Error) -> Bool {
+        guard case .rpcError(let code, _) = error as? CodexAppServerClient.ClientError else {
+            return false
+        }
+        return code == -32601
+    }
+
+    private func isAuthenticationError(_ error: Error) -> Bool {
+        guard case .rpcError(_, let message)
+            = error as? CodexAppServerClient.ClientError else {
+            return false
+        }
+        return message.localizedCaseInsensitiveContains("authentication")
+    }
+
+    private func isResetCreditPreDispatchFailure(_ error: Error) -> Bool {
+        guard let clientError = error as? CodexAppServerClient.ClientError else {
+            return false
+        }
+        switch clientError {
+        case .requestCancelledBeforeDispatch,
+             .resetCreditSessionUnavailableBeforeDispatch,
+             .resetCreditDispatchNotAuthorized,
+             .resetCreditDispatchAuthorizationUnavailable:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func startLifecycleObservation() {
+        guard lifecycleObservers.isEmpty else {
+            return
+        }
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        let wakeToken = workspaceCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshNow()
+            }
+        }
+        lifecycleObservers.append((workspaceCenter, wakeToken))
+
+        let center = NotificationCenter.default
+        let activeToken = center.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshNow()
+            }
+        }
+        lifecycleObservers.append((center, activeToken))
+
+        let clockToken = center.addObserver(
+            forName: Notification.Name.NSSystemClockDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleSystemClockChange()
+            }
+        }
+        lifecycleObservers.append((center, clockToken))
+    }
+
+    private func stopLifecycleObservation() {
+        for (center, token) in lifecycleObservers {
+            center.removeObserver(token)
+        }
+        lifecycleObservers.removeAll()
+    }
+
+    private static var resetCreditProtectionSupportDirectory: URL {
+        let base = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? FileManager.default.temporaryDirectory
+        return base
+            .appendingPathComponent(AppConstants.bundleIdentifier, isDirectory: true)
+    }
+
+    private static var resetCreditProtectionLockURL: URL {
+        resetCreditProtectionSupportDirectory
+            .appendingPathComponent("reset-credit-protection.lock")
+    }
+
+    private static var resetCreditProtectionDispatchLockURL: URL {
+        resetCreditProtectionSupportDirectory
+            .appendingPathComponent("reset-credit-protection-dispatch.lock")
+    }
+
+    private static var resetCreditProtectionAuthorizationURL: URL {
+        resetCreditProtectionSupportDirectory
+            .appendingPathComponent("reset-credit-protection-authorization-v1.json")
+    }
+
+    private static var resetCreditProtectionJournalURL: URL {
+        resetCreditProtectionSupportDirectory
+            .appendingPathComponent("reset-credit-protection-journal-v1.json")
     }
 
     private func startAutomaticUpdateChecks() {
@@ -1189,6 +2940,104 @@ final class SentinelStore: NSObject, ObservableObject {
             return
         }
         defaults.set(data, forKey: DefaultsKey.resetCreditSnapshot)
+    }
+
+    private func saveResetCreditProtectionJournal(
+        _ journal: ResetCreditProtectionAttemptJournal
+    ) -> Bool {
+        do {
+            var ledger = resetCreditProtectionLedger
+            ledger.activeAttempt = journal
+            try resetCreditProtectionLedgerStore.save(ledger)
+            resetCreditProtectionLedger = ledger
+            resetCreditProtectionJournalCorrupt = false
+            return true
+        } catch {
+            failClosedForResetCreditProtectionJournal()
+            return false
+        }
+    }
+
+    private func clearResetCreditProtectionJournal() -> Bool {
+        do {
+            var ledger = resetCreditProtectionLedger
+            ledger.activeAttempt = nil
+            try resetCreditProtectionLedgerStore.save(ledger)
+            resetCreditProtectionLedger = ledger
+            resetCreditProtectionJournalCorrupt = false
+            return true
+        } catch {
+            failClosedForResetCreditProtectionJournal()
+            return false
+        }
+    }
+
+    private func archiveResetCreditProtectionJournal(
+        _ journal: ResetCreditProtectionAttemptJournal,
+        disposition: ResetCreditProtectionTombstone.Disposition
+    ) -> Bool {
+        guard resetCreditProtectionLedger.activeAttempt == journal else {
+            failClosedForResetCreditProtectionJournal()
+            return false
+        }
+        var ledger = resetCreditProtectionLedger
+        ledger.activeAttempt = nil
+        ledger.tombstones.append(
+            ResetCreditProtectionTombstone(
+                journal: journal,
+                disposition: disposition
+            )
+        )
+        do {
+            try resetCreditProtectionLedgerStore.save(ledger)
+            resetCreditProtectionLedger = ledger
+            resetCreditProtectionJournalCorrupt = false
+            return true
+        } catch {
+            failClosedForResetCreditProtectionJournal()
+            return false
+        }
+    }
+
+    private func reloadResetCreditProtectionJournal(
+    ) -> ResetCreditProtectionJournalLoadResult {
+        let result = resetCreditProtectionLedgerStore.load()
+        switch result {
+        case .absent:
+            resetCreditProtectionLedger = ResetCreditProtectionLedger()
+            resetCreditProtectionJournalCorrupt = false
+            return .absent
+        case .loaded(let ledger):
+            resetCreditProtectionLedger = ledger
+            resetCreditProtectionJournalCorrupt = false
+            if let journal = ledger.activeAttempt {
+                return .loaded(journal)
+            }
+            return .absent
+        case .corrupt:
+            resetCreditProtectionLedger = ResetCreditProtectionLedger()
+            resetCreditProtectionJournalCorrupt = true
+            return .corrupt
+        }
+    }
+
+    private func failClosedForResetCreditProtectionJournal() {
+        resetCreditProtectionEnabled = false
+        resetCreditProtectionConsent = nil
+        resetCreditProtectionJournalCorrupt = true
+        defaults.set(false, forKey: DefaultsKey.resetCreditProtectionEnabled)
+        resetCreditProtectionStatus = .blocked(.journalUnavailable, detail: nil)
+        do {
+            try resetCreditProtectionAuthorizationStore.clear()
+        } catch {
+            deliverResetCreditProtectionFailure(
+                identifier: "reset-credit-protection-authorization-unavailable",
+                body: appLanguage.text(
+                    "本地授权记录无法写入撤销标记。请退出其他 Codex Radar 进程并检查磁盘权限后重试。",
+                    "The local authorization record could not be marked as revoked. Quit other Codex Radar processes, check disk permissions, and try again."
+                )
+            )
+        }
     }
 
     private func saveNotificationMemory() {

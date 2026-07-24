@@ -2,13 +2,27 @@
 
 [中文](README.md) | English
 
-Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, Fast radar, and a distributed community model-quality radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, community knowledge, quota estimates, Fast performance comparisons, Model IQ, local Codex quota state, and reset-credit expiry checks together, while keeping compatibility if the old reset/speed endpoints return.
+Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, Fast radar, and a distributed community intelligence-efficiency radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, community knowledge, quota estimates, Fast performance comparisons, Model IQ, local Codex quota state, reset-credit expiry checks, and optional expiry protection together, while keeping compatibility if the old reset/speed endpoints return.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
 ## News
 
 <details open>
+<summary><strong>v0.1.53: Intelligence Efficiency and reset-credit protection</strong> - Complete the site's 19 configurations and add opt-in expiry protection.</summary>
+
+- CodexRadar now renders 19 model/effort combinations from a separate Intelligence Efficiency source. Sentinel merges that lightweight same-origin JSON instead of stopping at the 12 rows in `current.json`.
+- The menu gains public configurations such as Sol / Terra `ultra`, Terra `low` / `medium`, and Luna `low` / `medium` / `xhigh`. Each row carries IQ, passed tasks, per-task cost, and per-task time while retaining richer matching fields such as Cache from `current.json`.
+- The 19-row matrix is collapsed by default behind an `Intelligence efficiency` row with a configuration count. Primary IQ, cost, and time remain immediately visible, keeping the menu compact until the full matrix is needed.
+- Raw homepage HTML no longer embeds the generated model chart. If `current.json` temporarily returns HTML, the app now synthesizes Model IQ from the Intelligence Efficiency JSON so fallback does not silently disappear.
+- Usage Pace no longer represents overuse as `-33%`. The card now reads `Over target 33%` with a plain-language direction, while spend-more and near-target states also use unsigned values for faster scanning.
+- Adds `Reset credit expiry protection`, strictly off by default. Enabling shows an irreversible-action warning and requires explicit confirmation. A fresh Codex session verifies the login email and complete details, then authorizes only the supported expiring credits visible at that moment. When the earliest one enters its roughly 30-minute window, Sentinel attempts that exact credit through the official Codex app-server; the server authoritatively decides whether a limit can be reset.
+- Every real attempt starts another fresh Codex session and rechecks the login email, complete details, status, type, expiry, and card-level authorization. Sign-out, a different email, an unapproved new credit, or loss of the verified app-server child stops the write or forces full verification again. The same unresolved logical attempt always reuses its original idempotency key and retains terminal state; only an explicit server no-op followed by read-only confirmation that the same credit remains available permits a later logical attempt when resettable usage appears. Timeout or restart reconciles first and never switches credits blindly. Discontinuity between wall time and a sleep-aware monotonic clock, including an unprovable post-reboot state, also turns protection off before a local clock jump can trigger an early use.
+- `Check plan (read only)` verifies the account, detail coverage, and planned time without consuming a credit. Protection is best effort: the app must stay running, online, and signed in; sleep, shutdown, or the server finding no resettable usage can still let a credit expire.
+
+</details>
+
+<details>
 <summary><strong>v0.1.52: Distributed Model IQ</strong> - Correct per-task cost/time and a direct distributed-radar link.</summary>
 
 - CodexRadar's model-quality radar now aggregates distributed community runs, currently around 80-110 valid tasks per model configuration. The menu uses the clearer `Passed` label instead of the old fixed-probe wording.
@@ -387,7 +401,7 @@ CodexRadar's current homepage says speed-window alerts are retired, so live mode
 
 ## Status States
 
-These screenshots are real macOS menu bar captures. The script launches the real app, switches preview states, and crops only this app's menu bar item. They are not hand-drawn mocks and do not include other menu bar icons.
+These screenshots are rendered directly from the real app's status button in isolated preview states, then placed on a fixed neutral background. Text, colors, alert backgrounds, and width all come from the implementation, without risking a capture of the installed app or other menu bar items.
 
 | Normal | Low IQ | Limit reached | Custom |
 | --- | --- | --- | --- |
@@ -413,7 +427,8 @@ This image is captured by the app itself from the real SwiftUI menu window on a 
 - The Reset Radar judgement visible on [CodexRadar](https://codexradar.com/): reset-card and hard-reset paths with levels, summaries, and reasons.
 - The community knowledge visible on CodexRadar: the reset-credit expiry check prompt. The menu keeps copying the prompt as a fallback path.
 - Local reset-credit expiry checks: low-frequency auto refresh is on by default, and `Refresh now` still runs an immediate manual refresh. The app reads the Codex access token from `~/.codex/auth.json`, requests the ChatGPT reset credits endpoint, and caches only sanitized card status, issue time, and expiry time. It never stores the token.
-- The currently public Model IQ, quality status, and probe pass count from CodexRadar.
+- Optional reset-credit expiry protection: it is off by default and, once explicitly enabled, attempts to use the earliest expiring credit through the Codex app-server inside its protection window. `Check plan (read only)` never consumes a credit.
+- CodexRadar's 19 public Intelligence Efficiency configurations: Model IQ, passed tasks, per-task cost, and per-task time, plus cache hit rate when a richer source provides it.
 - The Quota Radar visible on CodexRadar: currently 20x Pro / 5x Pro / Plus 7d USD-equivalent estimates, with the 5h column returning automatically if 5h calibration resumes. These are public estimates, not local remaining quota.
 - The model-quality direction visible on CodexRadar: speed, cost, cache hit rate, and community ratings.
 - Compatibility state for CodexRadar's legacy speed/prediction endpoints. Those are no longer treated as live primary information unless the compatibility path explicitly returns.
@@ -428,6 +443,7 @@ The app sends macOS notifications for:
 - Weekly quota falls below 15%.
 - Weekly quota recovers after a low-remaining state.
 - Codex IQ enters red or falls below 80.
+- Enabled reset-credit expiry protection confirms that a credit is used, or needs attention because a credit expired, the login/card authorization set changed, or the system clock changed.
 - If a legacy compatibility endpoint later reports a speed window, reset, or high prediction, the corresponding alert still works.
 
 Notification sound is off by default and can be enabled in the dropdown. Historical reset windows are seeded on first launch, so starting the app after a reset does not replay old reset notifications. If the legacy compatibility endpoint returns later and the first launch happens during an explicit speed window, it still notifies.
@@ -480,6 +496,7 @@ Codex Radar Sentinel reads these public endpoints:
 
 - [CodexRadar homepage](https://codexradar.com/): currently publishes Reset Radar judgement, reset-credit community knowledge, Quota Radar, Model IQ, and model-quality details.
 - [current.json](https://codexradar.com/current.json): may currently return JSON with Quota Radar, Model IQ, official entitlement events, and legacy prediction fields. When reset judgement is not yet in JSON, the app backfills it from the homepage.
+- [data/intelligence-efficiency.json](https://codexradar.com/data/intelligence-efficiency.json): lightweight same-origin data for the homepage matrix. It completes 19 model/effort IQ, cost, and time points and supplies Model IQ fallback now that raw homepage HTML no longer embeds the generated chart.
 - [api/model-ratings](https://codexradar.com/api/model-ratings): community ratings. The menu's `Rating` value comes from this endpoint.
 - [feed.xml](https://codexradar.com/feed.xml): reserved for official entitlement alerts; when unavailable or returning the homepage, the app keeps using Model IQ from the homepage/JSON.
 
@@ -492,6 +509,10 @@ For local quota, it reads the Codex app-server:
 It selects the `rateLimitsByLimitId.codex` bucket when present. The 5-hour bucket is shown as `Short`; the 10,080-minute bucket is shown as `Weekly`.
 
 For local reset-credit expiry, low-frequency auto refresh is on by default: after launch, or when the cache is older than 6 hours, it reads `~/.codex/auth.json`, sends the access token to ChatGPT's reset credits endpoint as an Authorization header, then stores only sanitized card metadata in local preferences. You can turn auto check off in the dropdown; failures show friendly guidance and keep the old cache.
+
+`Reset credit expiry protection` is independent of that auto-check switch and is strictly off by default. Explicit enabling starts a fresh Codex app-server session. The current `account/read` protocol exposes only login type, email, and plan, so consent is bound both to a login-email fingerprint and to the fingerprints of the supported, explicitly expiring credits visible in that complete detail set. A later new credit, or a same-email workspace that exposes a different card set, requires turning protection off and explicitly enabling it again. Planning and execution use authoritative details from `account/rateLimits/read`; only after the target enters its roughly 30-minute window does the app call the official `account/rateLimitResetCredit/consume`, always with the exact target ID and an idempotency key. The full credit ID exists only in memory and is never persisted. The atomic ledger keeps only account/credit fingerprints, idempotency key, expiry, phase, and terminal state—never the token, email address, or full credit ID. Confirmed uses and still-ambiguous expired attempts retain a sanitized terminal entry. The same unresolved or ambiguous logical attempt always reuses its original key, and credit fingerprints are globally deduplicated across those active and terminal records. Only when Codex explicitly returns `nothingToReset` / `noCredit` and a read-only refresh confirms that the same credit remains available does Sentinel close that non-consuming attempt; a later logical attempt after resettable usage appears uses a new key so it does not reuse a request that may have cached the no-op result.
+
+Every real attempt and unresolved reconciliation creates a one-shot Codex session, then performs identity verification, complete-detail validation, exact selection, request, and postflight refresh within the same app-server child and authentication snapshot. If that verified child exits before the write, the destructive call does not silently launch a replacement; it stops and requires the full verification path again. The long-lived session is used only for non-destructive dashboard hints. Enabling creates a distinct authorization generation, and the final transport write rechecks the raw credit ID's fingerprint and clock continuity while holding the authorization lock. Disabling and that write share a short process lock: if disabling completes first, the old task cannot send; if dispatch crossed the boundary first, disabling waits for the write and cannot recall it afterward. If the server returns `nothingToReset`, the credit is not consumed, and the app continues waiting only after a read-only refresh still confirms that exact credit. If a timeout, disconnect, or restart makes the result uncertain, Sentinel reconciles first; any retry reuses the original idempotency key and never switches credits. Consent persists both wall time and a monotonic clock that includes sleep: normal sleep and an app relaunch within the same boot can continue, while a wall-clock jump, reboot, or any unprovable continuity revokes authorization and requires confirmation again. Quitting, connectivity, and server state can still prevent execution, so this is best-effort protection rather than a guarantee; enabling `Launch at login` is recommended.
 
 ## Manual Install
 
@@ -531,7 +552,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.48
+./scripts/check_release_readiness.sh 0.1.53
 ```
 
 Build release packages:
@@ -539,7 +560,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.48
+./scripts/package_release.sh 0.1.53
 ```
 
 Update README menu bar and menu screenshots:
@@ -548,7 +569,7 @@ Update README menu bar and menu screenshots:
 ./scripts/update_readme_screenshots.sh
 ```
 
-This script launches the real app and crops the macOS menu bar item. It also asks the app to render the full menu from its real SwiftUI view, then crops the compact News image. The Mac must allow System Events accessibility access and screen capture.
+This script asks isolated, non-live preview processes to render their own status buttons, then uses the app's documentation mode for the full menu and compact News image. It verifies that states, languages, and custom metrics produce distinct titles and images. It does not stop or restart a running Sentinel, read live data, request notifications, or enable reset-credit expiry protection; every preview uses temporary preferences and protection storage, with no Accessibility or Screen Recording permission required. The script uses an installed Pillow when available, or a pinned temporary copy through `uv`.
 
 Regenerate the macOS icon:
 

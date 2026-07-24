@@ -4,7 +4,7 @@ public enum AppConstants {
     public static let appName = "Codex Radar Sentinel"
     public static let clientName = "codex-radar-sentinel"
     public static let bundleIdentifier = "com.codexradar.sentinel"
-    public static let appVersion = "0.1.52"
+    public static let appVersion = "0.1.53"
 
     public static let codexLimitID = "codex"
     public static let weeklyWindowMinutes = 10_080.0
@@ -23,6 +23,11 @@ public enum AppConstants {
     public static let resetCreditAutoRefreshInitialDelaySeconds: UInt64 = 8
     public static let resetCreditAutoRefreshIntervalSeconds: UInt64 = 21_600
     public static let resetCreditCacheStaleSeconds: TimeInterval = 21_600
+    public static let resetCreditProtectionLeadTimeSeconds: TimeInterval = 1_800
+    public static let resetCreditProtectionRetrySeconds: TimeInterval = 120
+    public static let resetCreditProtectionConsentVersion = 2
+    public static let resetCreditProtectionJournalVersion = 1
+    public static let resetCreditProtectionLedgerVersion = 1
     public static let speedAlertEmphasisSeconds: TimeInterval = 1_800
     public static let initialUpdateCheckDelaySeconds: UInt64 = 5
     public static let updateCheckIntervalSeconds: UInt64 = 21_600
@@ -32,6 +37,7 @@ public enum AppConstants {
     public static let currentPath = "current.json"
     public static let feedPath = "feed.xml"
     public static let modelRatingsPath = "api/model-ratings"
+    public static let intelligenceEfficiencyPath = "data/intelligence-efficiency.json"
 
     public static let codexAppBinaryPath = "/Applications/Codex.app/Contents/Resources/codex"
     public static let chatGPTAppBinaryPath = "/Applications/ChatGPT.app/Contents/Resources/codex"
@@ -39,6 +45,9 @@ public enum AppConstants {
     public static let codexAuthPathEnvironmentKey = "CODEX_RADAR_CODEX_AUTH_PATH"
     public static let resetCreditsURL = URL(string: "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits")!
     public static let debugPreviewEnvironmentKey = "CODEX_RADAR_PREVIEW"
+    public static let screenshotModeEnvironmentKey = "CODEX_RADAR_SCREENSHOT_MODE"
+    public static let documentationScreenshotEnvironmentKey =
+        "CODEX_RADAR_RENDER_DOC_SCREENSHOTS"
     public static let githubRepositoryURL = URL(string: "https://github.com/WineChord/codex-radar")!
     public static let githubPromptLogURL = URL(string: "https://github.com/WineChord/codex-radar/blob/main/PROMPTS.md")!
     public static let githubReleasesURL = URL(string: "https://github.com/WineChord/codex-radar/releases")!

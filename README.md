@@ -2,13 +2,27 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达、Fast 雷达与分布式社区模型质量雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Fast 性能对比、Model IQ、本机 Codex 额度状态与重置卡过期查询整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达、Fast 雷达与分布式社区智力效率雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Fast 性能对比、Model IQ、本机 Codex 额度状态、重置卡过期查询与可选的到期保护整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
 
 <details open>
+<summary><strong>v0.1.53：智力效率矩阵与重置卡到期保护</strong> - 补齐官网 19 个模型配置，并加入默认关闭的安全保护。</summary>
+
+- CodexRadar 首页现在从独立的智力效率数据源动态渲染 19 个模型/推理强度组合；Sentinel 会合并这份同源小型 JSON，不再只显示 `current.json` 里的 12 行。
+- 新增 Sol / Terra `ultra`、Terra `low` / `medium`、Luna `low` / `medium` / `xhigh` 等公开配置；每行同步 IQ、通过数、单题费用和单题耗时，并保留 `current.json` 已提供的 Cache 等更丰富字段。
+- 19 行明细默认折叠为带配置数量的 `智力效率` 区块；主模型 IQ、费用和耗时仍直接可见，菜单保持紧凑，需要时再展开全矩阵。
+- 原始首页 HTML 已不再内嵌生成后的模型图表；当 `current.json` 临时返回 HTML 时，App 会改用智力效率 JSON 合成 Model IQ，避免兜底静默失效。
+- 用量节奏不再用 `-33%` 表示超出建议：卡片现在直接显示 `超用 33%`，并用“用量超出建议”解释方向；可多用和接近节奏也统一使用无符号数值，扫一眼即可理解。
+- 新增 `重置卡到期保护`，严格默认关闭。开启前会展示不可撤销提示并要求显式确认；开启时用新的 Codex 会话核对登录邮箱和完整明细，只授权当时可见的受支持到期卡集合。在最早一张进入到期前约 30 分钟窗口时，通过 Codex 官方 app-server 精确尝试该卡；是否存在可重置额度由服务端权威判断。
+- 每次真实尝试都会再启动新的 Codex 会话，复核登录邮箱、完整卡片明细、状态、类型、到期时间和卡级授权；检测到退出、不同邮箱、未授权新卡或已验证的 app-server 子进程退出时，会在请求写出前关闭或重新走完整核验。结果不明确的同一次尝试始终复用原幂等键并保留终态；只有服务端明确返回未使用、且只读确认同一卡仍可用后，后续有用量时才会开始新的逻辑尝试。超时或重启后先只读对账，不会换卡盲试。墙钟与跨休眠单调时钟不连续、系统重启后无法证明连续性时也会关闭保护，避免本机时间前跳导致提前使用。
+- 菜单提供 `只读检查保护计划`，可以验证当前账号、卡片覆盖和预计执行时间而不消耗卡。保护属于尽力执行：App 必须保持运行、联网并登录；休眠、关机或服务端判断当前没有可重置额度时，卡可能仍会过期。
+
+</details>
+
+<details>
 <summary><strong>v0.1.52：分布式 Model IQ 对齐</strong> - 正确显示单题平均费用/耗时，并接入分布式雷达。</summary>
 
 - CodexRadar 的降智雷达已升级为分布式社区众测，每个模型配置当前汇总约 80-110 个有效任务；菜单会把旧“探针”改成更准确的“通过”。
@@ -387,7 +401,7 @@
 
 ## 状态展示
 
-这些截图来自真实 macOS 状态栏：脚本会启动真实 app，切换预览状态，然后裁剪本 app 的状态栏 item。不是手绘 mock，也不包含右侧其他菜单栏图标。
+这些截图由真实 app 在隔离预览中直接渲染目标状态栏按钮，再放到固定的中性背景上；文字、颜色、告警底色和宽度都来自实际实现，不会误截正在运行的正式实例或其他状态栏图标。
 
 | 正常 | IQ 偏低 | 本机限额 | 自定义 |
 | --- | --- | --- | --- |
@@ -413,7 +427,8 @@
 - [CodexRadar](https://codexradar.com/) 首页可见的重置雷达研判：发重置卡、硬重置两条路径的等级、摘要和原因。
 - CodexRadar 首页可见的社区知识：`重置卡过期时间自查` prompt。菜单保留复制 prompt 作为兜底路径。
 - 本机重置卡过期查询：默认低频自动刷新，也可以手动点 `立即刷新`；app 会读取 `~/.codex/auth.json` 中的 Codex access token，请求 ChatGPT reset credits 接口，并只缓存脱敏后的卡片状态、发放时间和过期时间，不保存 token。
-- CodexRadar 当前公开的 Model IQ、模型质量状态和探针通过数。
+- 可选的重置卡到期保护：默认关闭，显式开启后在最早到期卡的保护窗口内通过 Codex app-server 尝试使用；`只读检查保护计划` 不会消耗卡。
+- CodexRadar 当前公开的 19 组智力效率数据：Model IQ、通过数、单题费用和单题耗时；有更丰富来源时也显示 cache 命中率。
 - CodexRadar 首页可见的额度雷达：当前展示 20x Pro / 5x Pro / Plus 的 7d 美元等价值估算；5h 恢复校准时会自动增加 5h 列。它不是本机剩余额度，只是公开估算。
 - CodexRadar 首页可见的模型质量方向：速度、费用、cache 命中率和社区体感分。
 - CodexRadar 旧速蹬/预测接口的兼容状态；这些功能不再作为 live 主信息展示，只有明确恢复时才触发旧提醒路径。
@@ -428,6 +443,7 @@
 - 周额度低于 15%。
 - 周额度从低位恢复。
 - Codex IQ 进入 red 或低于 80。
+- 已开启的重置卡到期保护确认卡已使用，或因卡已过期、登录身份/授权卡集合变化、系统时间变化而需要检查。
 - legacy 兼容接口如果未来重新报告速蹬窗口、reset 或 high prediction，仍会触发对应提醒。
 
 通知声音默认关闭，可以在下拉菜单里打开。首次启动会把历史 reset 窗口记为已见过，避免补发旧通知；如果 legacy 兼容接口未来恢复且首次启动时正好处在明确的速蹬窗口中，仍然会提醒。
@@ -480,6 +496,7 @@ Codex Radar Sentinel 读取这些公开入口：
 
 - [CodexRadar homepage](https://codexradar.com/)：当前公开重置雷达研判、重置卡自查社区知识、额度雷达、Model IQ 和模型质量细节。
 - [current.json](https://codexradar.com/current.json)：当前可能返回 JSON，包含额度雷达、Model IQ、官方权益事件和 legacy prediction 字段；当 reset 研判暂未进入 JSON 时，app 会从首页补齐。
+- [data/intelligence-efficiency.json](https://codexradar.com/data/intelligence-efficiency.json)：首页智力效率矩阵的轻量同源数据，补齐 19 个模型/推理强度组合的 IQ、费用和耗时，也在静态首页不再内嵌图表时承担 Model IQ 兜底。
 - [api/model-ratings](https://codexradar.com/api/model-ratings)：社区体感分，菜单里的 `体感` 来自这里。
 - [feed.xml](https://codexradar.com/feed.xml)：后续用于官方权益提醒；不可用或返回首页时，app 会继续以首页/JSON 里的 Model IQ 为准。
 
@@ -492,6 +509,10 @@ Codex Radar Sentinel 读取这些公开入口：
 当响应里存在 `rateLimitsByLimitId.codex` 时，优先使用这个 bucket。5 小时窗口显示为 `短窗`，10,080 分钟窗口显示为 `周额度`。
 
 本机重置卡过期时间默认低频自动刷新：app 启动后、或缓存超过 6 小时时，会从 `~/.codex/auth.json` 取 Codex access token，把它作为 Authorization header 发给 ChatGPT reset credits 接口，然后只把脱敏后的卡片元数据缓存到本机偏好设置里。你可以在下拉菜单里关闭自动查询；失败时只显示友好提示并保留旧缓存。
+
+`重置卡到期保护` 与上述自动查询是两个独立开关，保护严格默认关闭。显式开启时，App 启动一次新的 Codex app-server 会话；当前 `account/read` 协议只提供登录类型、邮箱和套餐，因此授权同时绑定登录邮箱指纹，以及这次完整明细中实际可见、受支持且明确到期的卡片指纹集合。后续新增卡片或同邮箱下切换到显示不同卡集合的 workspace，都需要关闭后重新显式开启。计划与执行使用 `account/rateLimits/read` 返回的权威明细，进入到期前约 30 分钟的保护窗口后才调用官方 `account/rateLimitResetCredit/consume`，并始终传入目标卡 ID 和幂等键。完整卡 ID 只存在于内存中，从不持久化；本地原子 ledger 只保存账号/卡片指纹、幂等键、到期时间、操作阶段和终态，不保存 token、邮箱或完整卡 ID。已确认使用或到期仍无法确认的卡会留下脱敏终态；同一次未决或结果不明确的逻辑尝试始终复用原幂等键，且卡片指纹会在这些未决与终态记录中全局去重。只有 Codex 明确返回 `nothingToReset` / `noCredit`，并且只读刷新确认同一卡仍可用时，才结束这次未发生消费的尝试；以后出现可重置用量时，后续逻辑尝试会使用新的幂等键，避免复用可能已缓存“未使用”结果的旧请求。
+
+每次真实尝试和未决对账都会创建一次性 Codex 会话，并在同一 app-server 子进程与身份快照中完成账号核对、完整明细复核、精确选卡、请求和结果后刷新；已验证的子进程若在写入前退出，消费调用不会静默启动替代进程，而会停止并重新走完整核验。常驻会话只提供无副作用的仪表盘提示。开启时会生成独立授权代际；最终传输写入还会在授权锁内按真实卡 ID 再核对卡片指纹与时钟连续性。关闭与真正写出消费请求共用短时进程锁，因此关闭先完成时旧任务无法继续发送，发送先越过边界时关闭会等写出完成后再生效，已写出的请求无法召回。服务端返回 `nothingToReset` 时卡不会被消耗，App 只会在只读刷新仍确认同一卡可用后继续等待；超时、断线或进程重启造成结果不确定时，会先只读对账，若仍需重试则复用原幂等键，且不会改用另一张卡。授权会持久化墙钟与包含休眠时间的单调时钟锚点；正常休眠和同一次开机内的 App 重启可以继续，墙钟跳变、系统重启或任何无法证明连续的情况都会撤销授权并要求重新确认。因为 App 退出、断网和服务端状态都可能影响执行，这是一项尽力保护而不是绝对保证；建议同时开启 `登录时启动`。
 
 ## 手动安装
 
@@ -531,7 +552,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.48
+./scripts/check_release_readiness.sh 0.1.53
 ```
 
 构建 release 包：
@@ -539,7 +560,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.48
+./scripts/package_release.sh 0.1.53
 ```
 
 更新 README 状态栏和菜单截图：
@@ -548,7 +569,7 @@ swift build -c release
 ./scripts/update_readme_screenshots.sh
 ```
 
-这个脚本会启动真实 app 并裁剪 macOS 状态栏 item，也会调用 app 自己的文档截图模式渲染完整菜单界面，并从完整菜单生成 News 小图。因此需要本机允许 System Events 读取辅助功能信息，并允许屏幕截图。
+这个脚本会让隔离的非 live 预览进程直接渲染自己的状态栏按钮，再调用 app 的文档截图模式生成完整菜单与 News 小图。脚本会校验不同状态、语言和自定义指标确实产生不同标题与图片；它不会停止或重启正在运行的 Sentinel，不会读取 live 数据、请求通知权限或启用重置卡到期保护。每个预览进程使用独立的临时偏好和保护存储，也不需要辅助功能或屏幕录制权限。脚本需要 Pillow；本机 Python 已安装时会直接使用，否则可通过 `uv` 临时提供固定版本。
 
 重新生成 macOS 图标：
 

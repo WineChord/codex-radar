@@ -1,4 +1,5 @@
 import AppKit
+import CodexRadarCore
 import Foundation
 import SwiftUI
 
@@ -44,13 +45,44 @@ enum DocumentationScreenshotRenderer {
             withIntermediateDirectories: true
         )
 
-        let suiteName = "\(defaultsSuitePrefix).\(UUID().uuidString)"
+        let identifier = UUID().uuidString
+        let suiteName = "\(defaultsSuitePrefix).\(identifier)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
             throw DocumentationScreenshotError.defaultsCreationFailed
         }
         defaults.removePersistentDomain(forName: suiteName)
+        let isolationDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "codex-radar-documentation-screenshot-\(identifier)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: isolationDirectory,
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
+        )
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: isolationDirectory)
+        }
 
-        let store = SentinelStore(defaults: defaults)
+        let store = SentinelStore(
+            defaults: defaults,
+            resetCreditProtectionLedgerStore: ResetCreditProtectionLedgerStore(
+                url: isolationDirectory.appendingPathComponent("ledger.json")
+            ),
+            resetCreditProtectionAuthorizationStore:
+                ResetCreditProtectionAuthorizationStore(
+                    url: isolationDirectory.appendingPathComponent(
+                        "authorization.json"
+                    ),
+                    dispatchLockURL: isolationDirectory.appendingPathComponent(
+                        "authorization.lock"
+                    )
+                ),
+            resetCreditProtectionProcessLockURL: isolationDirectory
+                .appendingPathComponent("process.lock")
+        )
         store.configureForDocumentation(language: language)
 
         let view = DashboardMenuView(store: store, scrolling: false)
@@ -59,7 +91,6 @@ enum DocumentationScreenshotRenderer {
         let destination = languageDirectory.appendingPathComponent("menu-full.png")
         try writePNG(image, to: destination)
 
-        defaults.removePersistentDomain(forName: suiteName)
         print("\(destination.path)")
     }
 

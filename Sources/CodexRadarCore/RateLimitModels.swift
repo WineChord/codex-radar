@@ -3,6 +3,7 @@ import Foundation
 public struct RateLimitResponse: Decodable, Equatable {
     public let rateLimits: RateLimitSnapshot
     public let rateLimitsByLimitId: [String: RateLimitSnapshot]?
+    public let rateLimitResetCredits: RateLimitResetCreditsSummary?
 }
 
 public struct RateLimitSnapshot: Decodable, Equatable {
@@ -30,6 +31,37 @@ public struct CreditsSnapshot: Decodable, Equatable {
     public let hasCredits: Bool
     public let unlimited: Bool
     public let balance: String?
+}
+
+public struct RateLimitResetCreditsSummary: Decodable, Equatable {
+    public let availableCount: Int
+    public let credits: [RateLimitResetCredit]?
+}
+
+public struct RateLimitResetCredit: Decodable, Equatable {
+    public let id: String
+    public let resetType: String
+    public let status: String
+    public let grantedAt: Int64
+    public let expiresAt: Int64?
+    public let title: String?
+    public let description: String?
+
+    public var grantedAtDate: Date {
+        Date(timeIntervalSince1970: TimeInterval(grantedAt))
+    }
+
+    public var expiresAtDate: Date? {
+        expiresAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+    }
+
+    public var isAvailable: Bool {
+        status == "available"
+    }
+
+    public var isSupportedCodexReset: Bool {
+        resetType == "codexRateLimits"
+    }
 }
 
 public struct RateLimitDashboard: Equatable {

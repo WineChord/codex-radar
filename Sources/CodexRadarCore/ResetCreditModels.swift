@@ -34,6 +34,33 @@ public struct ResetCreditSnapshot: Codable, Equatable {
         )
     }
 
+    public init(
+        rateLimitResetCredits summary: RateLimitResetCreditsSummary,
+        checkedAt: Date = Date()
+    ) {
+        let credits = (summary.credits ?? []).map { credit in
+            ResetCredit(
+                idSuffix: String(credit.id.suffix(6)),
+                title: credit.title,
+                status: credit.status,
+                resetType: credit.resetType,
+                grantedAt: credit.grantedAtDate,
+                expiresAt: credit.expiresAtDate
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.isAvailable != rhs.isAvailable {
+                return lhs.isAvailable
+            }
+            return (lhs.expiresAt ?? .distantFuture) < (rhs.expiresAt ?? .distantFuture)
+        }
+        self.init(
+            checkedAt: checkedAt,
+            credits: credits,
+            availableCount: summary.availableCount
+        )
+    }
+
     public var effectiveAvailableCount: Int {
         availableCount ?? credits.filter(\.isAvailable).count
     }

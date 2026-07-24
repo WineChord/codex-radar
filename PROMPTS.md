@@ -87,6 +87,9 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 66 | [e7dfb54](https://github.com/WineChord/codex-radar/commit/e7dfb54), [`Prompt-Id: 66 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+66%22&type=commits) | 自动健康检查发现 CodexRadar 官方窗口 action 变更，修复速蹬漏报。 |
 | 67 | [53d5ae0](https://github.com/WineChord/codex-radar/commit/53d5ae0), [`Prompt-Id: 67 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+67%22&type=commits) | 自动健康检查发现 CodexRadar 社区知识卡结构变更，兼容指南卡并修正菜单语义。 |
 | 68 | [3592eeb](https://github.com/WineChord/codex-radar/commit/3592eeb), [`Prompt-Id: 68 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+68%22&type=commits) | 自动健康检查发现 CodexRadar 新增 Fast 雷达，将公开性能对比映射到菜单。 |
+| 69 | [`Prompt-Id: 69 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+69%22&type=commits) | 每日巡检发现 CodexRadar 新增智力效率矩阵与动态数据源，补齐全模型配置并修复首页兜底。 |
+| 70 | [`Prompt-Id: 70 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+70%22&type=commits) | 增加严格默认关闭、显式授权并经过离线编排验证的重置卡到期保护。 |
+| 71 | [`Prompt-Id: 71 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+71%22&type=commits) | 把负数超用差值改成无符号“超用 33%”，并同步解释文案和截图。 |
 
 ## Prompts
 
@@ -554,4 +557,22 @@ commit 要求是可以点击的链接
 
 ```text
 检查下目前各种功能是否正常，有异常的就进行修复然后自己测试 review 并发布新版本。如果功能都没有问题，那就什么都不做。在保证你做的各种效果的基础上，尽你可能地提高 token efficiency。查看 https://codexradar.com/ 实际网页功能，做一些改进和功能对齐，保持和网站能力的与时俱进。假如有修复的问题或者特性变更等，你要在会话里向我详细汇报。请充分挖掘 https://codexradar.com/ 网站提供的能力并进行充分使用，但要保证用户产品第一位的体验，好用易用美观清晰直观。仓库的 README 等相关文档要始终保持最新，和实现与提供的功能能力对齐。
+```
+
+### 69. 每日巡检发现 CodexRadar 智力效率矩阵
+
+```text
+对 codex-radar 做每日自主产品与工程巡检：先保护工作区并核对仓库和发布约束，再实际操作 https://codexradar.com/ 的主要用户路径，以线上证据对照实现。只有发现可复现问题或明确、高价值的功能/体验对齐机会时才做最小完整改进，补充测试、同步文档并严格 review；关键检查未通过不得发布。没有问题或值得发布的改进时不修改、不提交、不发布。
+```
+
+### 70. 重置卡到期保护
+
+```text
+设计并实现一个重置卡到期保护功能：严格默认关闭，只有用户显式开启并确认后，才会在目标卡临近过期时尝试使用。不要用真实卡做测试；授权必须同时绑定当次可见的具体卡集合，每次真实尝试使用新的 Codex 会话复核身份与完整明细。通过可注入假服务、幂等重试、崩溃恢复、账号/workspace 变化、系统时钟变化和禁用竞态等离线场景，验证只会精确处理已授权目标卡。
+```
+
+### 71. 用量节奏超用语义
+
+```text
+用量节奏在实际剩余低于建议剩余时，不要显示带负号的“已超用 -33%”；改为“超用 33%”，并同步优化标签、解释和中英文截图，让差值方向一眼可懂。
 ```

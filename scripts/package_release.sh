@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-version="${1:-0.1.51}"
+version="${1:-}"
+if [[ -z "$version" ]]; then
+  echo "Usage: $0 <version>" >&2
+  exit 2
+fi
 app_name="Codex Radar Sentinel"
 archive_name="CodexRadarSentinel-${version}-macOS"
 dist_dir="dist"

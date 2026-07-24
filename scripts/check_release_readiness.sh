@@ -37,6 +37,20 @@ print(len(data.get("models", [])))
 PY
 )"
 echo "  api/model-ratings: ${ratings_count} models"
+fetch_url "https://codexradar.com/data/intelligence-efficiency.json" "${tmp_dir}/intelligence-efficiency.json"
+efficiency_points="$(python3 - <<'PY' "${tmp_dir}/intelligence-efficiency.json"
+import json
+import sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+print(len(data.get("points", [])))
+PY
+)"
+if (( efficiency_points < 19 )); then
+  echo "  data/intelligence-efficiency.json: expected at least 19 points, got ${efficiency_points}" >&2
+  exit 1
+fi
+echo "  data/intelligence-efficiency.json: ${efficiency_points} points"
 
 echo "Running Swift tests with live CodexRadar contract checks..."
 CODEX_RADAR_LIVE_CONTRACT_TESTS=1 swift test

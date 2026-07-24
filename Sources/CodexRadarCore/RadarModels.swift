@@ -399,12 +399,241 @@ public struct RadarPrediction: Decodable, Equatable {
     }
 }
 
+public struct IntelligenceEfficiencyEnvelope: Decodable, Equatable {
+    public let schema: Int?
+    public let type: String?
+    public let sourceUpdatedAt: String?
+    public let points: [IntelligenceEfficiencyPoint]
+
+    enum CodingKeys: String, CodingKey {
+        case schema
+        case type
+        case sourceUpdatedAt = "source_updated_at"
+        case points
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try container.decodeIfPresent(Int.self, forKey: .schema)
+        type = try container.decodeIfPresent(String.self, forKey: .type)
+        sourceUpdatedAt = try container.decodeIfPresent(String.self, forKey: .sourceUpdatedAt)
+        points = try container.decodeIfPresent([IntelligenceEfficiencyPoint].self, forKey: .points) ?? []
+    }
+
+    fileprivate var usablePoints: [IntelligenceEfficiencyPoint] {
+        points.filter(\.isUsable)
+    }
+}
+
+public struct IntelligenceEfficiencyPoint: Decodable, Equatable {
+    public let model: String?
+    public let effort: String?
+    public let iq: Double?
+    public let passed: Int?
+    public let validTasks: Int?
+    public let averagePriceUSD: Double?
+    public let averageMinutes: Double?
+    public let latestGradedAt: String?
+    public let cacheHitRate: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case effort
+        case iq
+        case passed
+        case validTasks = "valid_tasks"
+        case averagePriceUSD = "average_price_usd"
+        case averageMinutes = "average_minutes"
+        case latestGradedAt = "latest_graded_at"
+        case cacheHitRate = "cache_hit_rate"
+    }
+
+    fileprivate var pairKey: String? {
+        guard let model = model?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !model.isEmpty,
+              let effort = effort?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !effort.isEmpty else {
+            return nil
+        }
+        return "\(model)/\(effort)"
+    }
+
+    fileprivate var isUsable: Bool {
+        guard pairKey != nil,
+              let iq,
+              iq.isFinite,
+              let validTasks,
+              validTasks > 0,
+              let passed,
+              (0...validTasks).contains(passed) else {
+            return false
+        }
+        if let averagePriceUSD, (!averagePriceUSD.isFinite || averagePriceUSD < 0) {
+            return false
+        }
+        if let averageMinutes, (!averageMinutes.isFinite || averageMinutes < 0) {
+            return false
+        }
+        return true
+    }
+}
+
 public struct ModelIQEnvelope: Decodable, Equatable {
     public let updatedAt: String?
     public let latest: ModelIQSnapshot?
     public let comparisons: [String: ModelIQComparison]
     public let quotaRadar: QuotaRadar?
     public let dataSource: ModelIQDataSource?
+
+    init(
+        updatedAt: String?,
+        latest: ModelIQSnapshot?,
+        comparisons: [String: ModelIQComparison],
+        quotaRadar: QuotaRadar?,
+        dataSource: ModelIQDataSource?
+    ) {
+        self.updatedAt = updatedAt
+        self.latest = latest
+        self.comparisons = comparisons
+        self.quotaRadar = quotaRadar
+        self.dataSource = dataSource
+    }
+
+    init?(intelligenceEfficiency: IntelligenceEfficiencyEnvelope) {
+        let points = intelligenceEfficiency.usablePoints
+        guard let primary = Self.preferredPrimaryPoint(in: points) else {
+            return nil
+        }
+        let latest = ModelIQSnapshot(
+            intelligenceEfficiencyPoint: primary,
+            sourceUpdatedAt: intelligenceEfficiency.sourceUpdatedAt
+        )
+        var comparisons = [String: ModelIQComparison]()
+        for point in points where point.pairKey != primary.pairKey {
+            let snapshot = ModelIQSnapshot(
+                intelligenceEfficiencyPoint: point,
+                sourceUpdatedAt: intelligenceEfficiency.sourceUpdatedAt
+            )
+            comparisons[Self.comparisonKey(for: point)] = ModelIQComparison(
+                label: Self.modelLabel(snapshot),
+                model: point.model,
+                reasoningEffort: point.effort,
+                latest: snapshot,
+                recentDays: []
+            )
+        }
+        let validCells = Self.validCellCount(
+            latest: latest,
+            comparisons: comparisons
+        )
+        self.init(
+            updatedAt: intelligenceEfficiency.sourceUpdatedAt,
+            latest: latest,
+            comparisons: comparisons,
+            quotaRadar: nil,
+            dataSource: ModelIQDataSource(
+                type: "distributed_community_runs",
+                url: "https://deng.codexradar.com",
+                checkedAt: intelligenceEfficiency.sourceUpdatedAt,
+                validCells: validCells
+            )
+        )
+    }
+
+    func merging(intelligenceEfficiency: IntelligenceEfficiencyEnvelope) -> ModelIQEnvelope {
+        let points = intelligenceEfficiency.usablePoints
+        guard !points.isEmpty else {
+            return self
+        }
+
+        var mergedComparisons = comparisons
+        var existingComparisonKeys = [String: String]()
+        for (key, comparison) in comparisons {
+            if let pairKey = Self.pairKey(
+                model: comparison.model ?? comparison.latest?.model,
+                effort: comparison.reasoningEffort ?? comparison.latest?.reasoningEffort
+            ) {
+                existingComparisonKeys[pairKey] = key
+            }
+        }
+
+        let existingPrimaryKey = Self.pairKey(model: latest?.model, effort: latest?.reasoningEffort)
+        let primaryPoint = existingPrimaryKey.flatMap { key in
+            points.first { $0.pairKey == key }
+        }
+        let mergedLatest: ModelIQSnapshot?
+        let mergedPrimaryKey: String?
+        if let primaryPoint {
+            mergedLatest = ModelIQSnapshot(
+                intelligenceEfficiencyPoint: primaryPoint,
+                sourceUpdatedAt: intelligenceEfficiency.sourceUpdatedAt,
+                preserving: latest
+            )
+            mergedPrimaryKey = primaryPoint.pairKey
+        } else if let latest {
+            mergedLatest = latest
+            mergedPrimaryKey = existingPrimaryKey
+        } else if let fallbackPrimary = Self.preferredPrimaryPoint(in: points) {
+            mergedLatest = ModelIQSnapshot(
+                intelligenceEfficiencyPoint: fallbackPrimary,
+                sourceUpdatedAt: intelligenceEfficiency.sourceUpdatedAt
+            )
+            mergedPrimaryKey = fallbackPrimary.pairKey
+        } else {
+            mergedLatest = nil
+            mergedPrimaryKey = nil
+        }
+
+        if let mergedPrimaryKey,
+           let duplicateKey = existingComparisonKeys[mergedPrimaryKey] {
+            mergedComparisons.removeValue(forKey: duplicateKey)
+        }
+
+        for point in points where point.pairKey != mergedPrimaryKey {
+            guard let pairKey = point.pairKey else {
+                continue
+            }
+            if let existingKey = existingComparisonKeys[pairKey],
+               let existing = comparisons[existingKey] {
+                mergedComparisons[existingKey] = existing.merging(
+                    intelligenceEfficiencyPoint: point,
+                    sourceUpdatedAt: intelligenceEfficiency.sourceUpdatedAt
+                )
+            } else {
+                let snapshot = ModelIQSnapshot(
+                    intelligenceEfficiencyPoint: point,
+                    sourceUpdatedAt: intelligenceEfficiency.sourceUpdatedAt
+                )
+                mergedComparisons[Self.comparisonKey(for: point)] = ModelIQComparison(
+                    label: Self.modelLabel(snapshot),
+                    model: point.model,
+                    reasoningEffort: point.effort,
+                    latest: snapshot,
+                    recentDays: []
+                )
+            }
+        }
+
+        let validCells = Self.validCellCount(
+            latest: mergedLatest,
+            comparisons: mergedComparisons
+        )
+        let mergedDataSource = ModelIQDataSource(
+            type: dataSource?.type ?? "distributed_community_runs",
+            url: dataSource?.url ?? "https://deng.codexradar.com",
+            checkedAt: intelligenceEfficiency.sourceUpdatedAt
+                ?? dataSource?.checkedAt,
+            validCells: validCells ?? dataSource?.validCells
+        )
+
+        return ModelIQEnvelope(
+            updatedAt: intelligenceEfficiency.sourceUpdatedAt ?? updatedAt,
+            latest: mergedLatest,
+            comparisons: mergedComparisons,
+            quotaRadar: quotaRadar,
+            dataSource: mergedDataSource
+        )
+    }
 
     public var latestRows: [ModelIQLatestRow] {
         var rows = [ModelIQLatestRow]()
@@ -455,6 +684,30 @@ public struct ModelIQEnvelope: Decodable, Equatable {
         return (lhs.label ?? "") < (rhs.label ?? "")
     }
 
+    private static func validCellCount(
+        latest: ModelIQSnapshot?,
+        comparisons: [String: ModelIQComparison]
+    ) -> Int? {
+        let snapshots = [latest].compactMap { $0 }
+            + comparisons.values.compactMap(\.latest)
+        guard !snapshots.isEmpty else {
+            return nil
+        }
+        var total = 0
+        for snapshot in snapshots {
+            guard let count = snapshot.validTasks ?? snapshot.tasks,
+                  count > 0 else {
+                return nil
+            }
+            let result = total.addingReportingOverflow(count)
+            guard !result.overflow else {
+                return nil
+            }
+            total = result.partialValue
+        }
+        return total
+    }
+
     private static func modelLabel(_ snapshot: ModelIQSnapshot) -> String? {
         guard let model = snapshot.model else {
             return snapshot.label ?? snapshot.reasoningEffort
@@ -476,6 +729,30 @@ public struct ModelIQEnvelope: Decodable, Equatable {
         }
         return "\(prefix) \(effort)"
     }
+
+    private static func preferredPrimaryPoint(
+        in points: [IntelligenceEfficiencyPoint]
+    ) -> IntelligenceEfficiencyPoint? {
+        points.first { $0.pairKey == "gpt-5.6-sol/max" }
+            ?? points.max { ($0.iq ?? -.infinity) < ($1.iq ?? -.infinity) }
+    }
+
+    private static func pairKey(model: String?, effort: String?) -> String? {
+        guard let model = model?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !model.isEmpty,
+              let effort = effort?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !effort.isEmpty else {
+            return nil
+        }
+        return "\(model)/\(effort)"
+    }
+
+    private static func comparisonKey(for point: IntelligenceEfficiencyPoint) -> String {
+        (point.pairKey ?? "intelligence-efficiency")
+            .replacingOccurrences(of: ".", with: "_")
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
+    }
 }
 
 public struct ModelIQDataSource: Decodable, Equatable {
@@ -483,6 +760,13 @@ public struct ModelIQDataSource: Decodable, Equatable {
     public let url: String?
     public let checkedAt: String?
     public let validCells: Int?
+
+    init(type: String?, url: String?, checkedAt: String?, validCells: Int?) {
+        self.type = type
+        self.url = url
+        self.checkedAt = checkedAt
+        self.validCells = validCells
+    }
 
     public var isDistributedCommunityRuns: Bool {
         type == "distributed_community_runs"
@@ -590,6 +874,37 @@ public struct ModelIQComparison: Decodable, Equatable {
     public let reasoningEffort: String?
     public let latest: ModelIQSnapshot?
     public let recentDays: [ModelIQSnapshot]
+
+    init(
+        label: String?,
+        model: String?,
+        reasoningEffort: String?,
+        latest: ModelIQSnapshot?,
+        recentDays: [ModelIQSnapshot]
+    ) {
+        self.label = label
+        self.model = model
+        self.reasoningEffort = reasoningEffort
+        self.latest = latest
+        self.recentDays = recentDays
+    }
+
+    fileprivate func merging(
+        intelligenceEfficiencyPoint point: IntelligenceEfficiencyPoint,
+        sourceUpdatedAt: String?
+    ) -> ModelIQComparison {
+        ModelIQComparison(
+            label: label,
+            model: point.model ?? model,
+            reasoningEffort: point.effort ?? reasoningEffort,
+            latest: ModelIQSnapshot(
+                intelligenceEfficiencyPoint: point,
+                sourceUpdatedAt: sourceUpdatedAt,
+                preserving: latest
+            ),
+            recentDays: recentDays
+        )
+    }
 
     enum CodingKeys: String, CodingKey {
         case label
@@ -699,6 +1014,59 @@ public struct ModelIQSnapshot: Decodable, Equatable {
     public let averageCostUSD: Double?
     public let averageTaskSeconds: Double?
     public let averageTaskTimeHuman: String?
+
+    fileprivate init(
+        intelligenceEfficiencyPoint point: IntelligenceEfficiencyPoint,
+        sourceUpdatedAt: String?,
+        preserving existing: ModelIQSnapshot? = nil
+    ) {
+        let validTasks = point.validTasks ?? existing?.validTasks ?? existing?.tasks
+        let passed = point.passed ?? existing?.passed
+        let score = point.iq ?? existing?.iqScore
+        date = point.latestGradedAt ?? sourceUpdatedAt ?? existing?.date
+        label = existing?.label
+        model = point.model ?? existing?.model
+        reasoningEffort = point.effort ?? existing?.reasoningEffort
+        tasks = validTasks
+        self.validTasks = validTasks
+        self.passed = passed
+        if let validTasks, let passed {
+            failed = max(0, validTasks - passed)
+            passRate = validTasks > 0 ? Double(passed) / Double(validTasks) : nil
+        } else {
+            failed = existing?.failed
+            passRate = existing?.passRate
+        }
+        baselinePassRate = existing?.baselinePassRate
+        iqScore = score
+        if let score {
+            if score < 80 {
+                status = "red"
+            } else if score < 95 {
+                status = "yellow"
+            } else {
+                status = "green"
+            }
+        } else {
+            status = existing?.status
+        }
+        wallSeconds = existing?.wallSeconds
+        wallTimeHuman = existing?.wallTimeHuman
+        totalTokens = existing?.totalTokens
+        inputTokens = existing?.inputTokens
+        cachedInputTokens = existing?.cachedInputTokens
+        cacheHitRate = point.cacheHitRate ?? existing?.cacheHitRate
+        outputTokens = existing?.outputTokens
+        costUSD = existing?.costUSD
+        costUSDBasis = existing?.costUSDBasis ?? "per_task_average"
+        averageCostUSD = point.averagePriceUSD ?? existing?.averageCostUSD
+        averageTaskSeconds = point.averageMinutes.map { $0 * 60 } ?? existing?.averageTaskSeconds
+        if let averageMinutes = point.averageMinutes {
+            averageTaskTimeHuman = "\(max(1, Int(round(averageMinutes))))分钟"
+        } else {
+            averageTaskTimeHuman = existing?.averageTaskTimeHuman
+        }
+    }
 
     public var displayedCostUSD: Double? {
         averageCostUSD ?? costUSD

@@ -6,6 +6,8 @@ struct DashboardMenuView: View {
     @ObservedObject var store: SentinelStore
     @State private var copiedCommunityPrompt = false
     @State private var expandedTextKeys: Set<String> = []
+    @State private var modelIQModelsExpanded = false
+    @State private var showsResetCreditProtectionConfirmation = false
     var scrolling: Bool = true
 
     private enum Layout {
@@ -403,7 +405,10 @@ struct DashboardMenuView: View {
 
     private var communityKnowledgeSection: some View {
         VStack(alignment: .leading, spacing: 7) {
-            sectionTitle(text("重置卡过期", "Reset Credit Expiry"), systemImage: "creditcard")
+            sectionTitle(
+                text("重置卡过期与保护", "Reset Credit Expiry & Protection"),
+                systemImage: "creditcard"
+            )
             Text(resetCreditCommunityKnowledge?.title ?? text("重置卡过期时间自查", "Reset credit expiry check"))
                 .font(.system(size: metrics.body, weight: .semibold))
                 .lineLimit(1)
@@ -433,6 +438,8 @@ struct DashboardMenuView: View {
                 )
             }
 
+            resetCreditProtectionControls
+
             HStack(spacing: Layout.tileSpacing) {
                 compactActionButton(
                     title: resetCreditRefreshButtonTitle,
@@ -450,6 +457,296 @@ struct DashboardMenuView: View {
                     store.openCodexApp()
                 }
             }
+        }
+    }
+
+    private var resetCreditProtectionControls: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(
+                text("重置卡到期保护", "Reset credit expiry protection"),
+                isOn: Binding(
+                    get: { store.resetCreditProtectionEnabled },
+                    set: { enabled in
+                        if enabled {
+                            showsResetCreditProtectionConfirmation = true
+                        } else {
+                            showsResetCreditProtectionConfirmation = false
+                            store.disableResetCreditExpiryProtection()
+                        }
+                    }
+                )
+            )
+            .toggleStyle(.checkbox)
+            .font(.system(size: metrics.label, weight: .semibold))
+            .disabled(
+                store.resetCreditProtectionStatus.isBusy
+                    && !store.resetCreditProtectionEnabled
+            )
+
+            expandableCaptionText(
+                text(
+                    "默认关闭。显式开启时会用新的 Codex 会话核对登录邮箱与完整明细，只授权当时可见的受支持到期卡；约在最早一张到期前 30 分钟通过官方接口尝试，是否可重置由服务端判断。",
+                    "Off by default. Enabling uses a fresh Codex session to verify the login email and complete details, then authorizes only the supported expiring credits visible at that moment. The official attempt occurs roughly 30 minutes before the earliest expiry; the server decides whether a limit can be reset."
+                ),
+                key: "reset-credit-protection-description",
+                collapsedLines: 4
+            )
+
+            if showsResetCreditProtectionConfirmation {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(text("确认开启到期保护", "Confirm expiry protection"))
+                        .font(.system(size: metrics.caption, weight: .semibold))
+                        .foregroundStyle(.orange)
+                    expandableCaptionText(
+                        text(
+                            "条件满足时会真实尝试一张已确认授权的重置卡；成功后不可撤销，关闭也无法召回已经写出的请求。每次尝试前会用新的 Codex 会话复核登录邮箱、完整明细和精确卡片；若检测到退出、不同邮箱、未授权新卡或无法证明系统时间连续，会在写请求前关闭。App 必须保持运行联网；关机或没有可重置额度仍可能失败。",
+                            "When conditions are met, protection makes a real attempt with one explicitly authorized credit. Success is irreversible, and turning protection off cannot recall a request already written. Before every attempt, a fresh Codex session rechecks the login email, complete details, and exact credit; sign-out, a different email, an unapproved new credit, or unprovable clock continuity turns protection off before the write. The app must stay running and online; shutdown or no resettable usage can still prevent redemption."
+                        ),
+                        key: "reset-credit-protection-confirmation",
+                        collapsedLines: 6
+                    )
+                    HStack(spacing: Layout.tileSpacing) {
+                        compactActionButton(
+                            title: text("确认开启", "Enable protection"),
+                            systemImage: "checkmark.shield"
+                        ) {
+                            showsResetCreditProtectionConfirmation = false
+                            store.enableResetCreditExpiryProtection()
+                        }
+                        compactActionButton(
+                            title: text("取消", "Cancel"),
+                            systemImage: "xmark"
+                        ) {
+                            showsResetCreditProtectionConfirmation = false
+                        }
+                    }
+                }
+                .padding(8)
+                .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            if !store.resetCreditProtectionEnabled,
+               !showsResetCreditProtectionConfirmation {
+                compactActionButton(
+                    title: text("只读检查保护计划", "Check plan (read only)"),
+                    systemImage: store.resetCreditProtectionStatus.isBusy
+                        ? "hourglass"
+                        : "checkmark.shield"
+                ) {
+                    store.previewResetCreditExpiryProtectionPlan()
+                }
+                .disabled(store.resetCreditProtectionStatus.isBusy)
+            }
+
+            resetCreditProtectionStatusView
+        }
+        .padding(8)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var resetCreditProtectionStatusView: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(resetCreditProtectionStatusTitle)
+                .font(.system(size: metrics.caption, weight: .semibold))
+                .foregroundStyle(resetCreditProtectionStatusColor)
+                .fixedSize(horizontal: false, vertical: true)
+            if let detail = resetCreditProtectionStatusDetail {
+                expandableCaptionText(
+                    detail,
+                    key: "reset-credit-protection-status-\(String(describing: store.resetCreditProtectionStatus))",
+                    collapsedLines: 4
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var resetCreditProtectionStatusTitle: String {
+        switch store.resetCreditProtectionStatus {
+        case .disabled:
+            return text("未开启，不会自动使用任何卡", "Off; no credit will be used automatically")
+        case .enabling:
+            return text("正在只读核对账号与重置卡…", "Checking the account and credits without using one…")
+        case .checking:
+            return text("正在执行使用前只读检查…", "Running the read-only preflight…")
+        case .noCredits:
+            return text("已开启 · 当前没有可用重置卡", "On · no reset credits are currently available")
+        case .preview(_, _, _, let readyNow):
+            return readyNow
+                ? text("只读检查完成 · 当前已进入保护窗口", "Read-only check complete · protection window is open")
+                : text("只读检查完成 · 可以排期", "Read-only check complete · ready to schedule")
+        case .previewNoCredits:
+            return text("只读检查完成 · 当前没有可用重置卡", "Read-only check complete · no credits available")
+        case .scheduled(let actionAt, _, _):
+            return text(
+                "已开启 · 计划 \(DisplayFormatters.compactDateTime(actionAt)) 尝试",
+                "On · attempt scheduled for \(DisplayFormatters.compactDateTime(actionAt))"
+            )
+        case .waitingForUsage:
+            return text("已进入保护窗口 · 等待出现可重置额度", "Protection window open · waiting for eligible usage")
+        case .using:
+            return text("正在请求 Codex 使用重置卡…", "Asking Codex to use the reset credit…")
+        case .reconciling:
+            return text("正在与 Codex 对账使用结果…", "Reconciling the result with Codex…")
+        case .succeeded:
+            return text("已验证该卡已使用", "Verified credit is used")
+        case .unavailable:
+            return text("卡已不再可用", "The credit is no longer available")
+        case .missed:
+            return text("未能在过期前确认使用", "Usage was not confirmed before expiry")
+        case .blocked:
+            return text("到期保护暂时受阻", "Expiry protection is blocked")
+        }
+    }
+
+    private var resetCreditProtectionStatusDetail: String? {
+        switch store.resetCreditProtectionStatus {
+        case .disabled:
+            return text(
+                "普通过期时间查询仍可单独使用。",
+                "The regular expiry-time check remains available."
+            )
+        case .enabling, .checking, .using:
+            return nil
+        case .noCredits(let checkedAt):
+            return text(
+                "最近检查 \(DisplayFormatters.compactDateTime(checkedAt))；保持开启后会继续只读检查。",
+                "Last checked \(DisplayFormatters.compactDateTime(checkedAt)); read-only checks continue while enabled."
+            )
+        case .preview(let actionAt, let expiresAt, let availableCount, let readyNow):
+            if readyNow {
+                return text(
+                    "服务端 \(availableCount) 张可用卡的明细完整；下一张 \(DisplayFormatters.compactDateTime(expiresAt)) 到期。现在开启后可能立即真实使用。",
+                    "Details are complete for \(availableCount) available credit(s); the next expires \(DisplayFormatters.compactDateTime(expiresAt)). Enabling now may trigger real usage immediately."
+                )
+            }
+            return text(
+                "服务端 \(availableCount) 张可用卡的明细完整；如果开启，预计 \(DisplayFormatters.compactDateTime(actionAt)) 尝试使用，卡片 \(DisplayFormatters.compactDateTime(expiresAt)) 到期。本次检查没有消费。",
+                "Details are complete for \(availableCount) available credit(s). If enabled, usage is planned for \(DisplayFormatters.compactDateTime(actionAt)); the credit expires \(DisplayFormatters.compactDateTime(expiresAt)). This check consumed nothing."
+            )
+        case .previewNoCredits(let checkedAt):
+            return text(
+                "检查于 \(DisplayFormatters.compactDateTime(checkedAt)) 完成，本次没有消费。",
+                "Checked at \(DisplayFormatters.compactDateTime(checkedAt)); nothing was consumed."
+            )
+        case .scheduled(_, let expiresAt, let availableCount):
+            return text(
+                "服务端明细完整，共 \(availableCount) 张可用卡；下一张到期 \(DisplayFormatters.compactDateTime(expiresAt))。登录时启动能降低错过风险。",
+                "Server details are complete for \(availableCount) available credit(s). The next expires \(DisplayFormatters.compactDateTime(expiresAt)). Launch at login reduces the chance of missing it."
+            )
+        case .waitingForUsage(let expiresAt):
+            return text(
+                "下一张卡将在 \(DisplayFormatters.compactDateTime(expiresAt)) 到期。当前尚未出现需要重置的额度，App 会继续检查至到期；能否最终使用仍取决于运行、网络和 Codex 状态。",
+                "The next credit expires \(DisplayFormatters.compactDateTime(expiresAt)). No limit currently needs a reset. The app keeps checking until expiry; eventual use still depends on runtime, network, and Codex state."
+            )
+        case .reconciling(let expiresAt):
+            return text(
+                "下一张卡到期 \(DisplayFormatters.compactDateTime(expiresAt))。结果不明确时只会对账，并仅用原幂等键重试同一张卡。",
+                "The credit expires \(DisplayFormatters.compactDateTime(expiresAt)). Ambiguous results are reconciled first, and only the same credit is retried with its original idempotency key."
+            )
+        case .succeeded(let usedAt, _):
+            return text(
+                "Codex 已确认该卡处于已使用状态，并已读取最新额度；确认于 \(DisplayFormatters.compactDateTime(usedAt))。",
+                "Codex confirmed that the credit is in the used state; latest limits were read at \(DisplayFormatters.compactDateTime(usedAt))."
+            )
+        case .unavailable(let checkedAt, _):
+            return text(
+                "最近确认 \(DisplayFormatters.compactDateTime(checkedAt))。可能由你在其他位置使用；Sentinel 不会冒充自己成功。",
+                "Confirmed \(DisplayFormatters.compactDateTime(checkedAt)). It may have been used elsewhere; Sentinel does not claim the action as its own."
+            )
+        case .missed(let expiresAt):
+            return text(
+                "到期时间 \(DisplayFormatters.compactDateTime(expiresAt))。请检查 App 是否运行、网络和 Codex 登录态。",
+                "It expired \(DisplayFormatters.compactDateTime(expiresAt)). Check that the app was running, online, and signed in to Codex."
+            )
+        case .blocked(let reason, let detail):
+            return resetCreditProtectionBlockMessage(reason, detail: detail)
+        }
+    }
+
+    private var resetCreditProtectionStatusColor: Color {
+        switch store.resetCreditProtectionStatus {
+        case .succeeded, .scheduled, .noCredits, .preview, .previewNoCredits:
+            return .green
+        case .enabling, .checking, .using, .reconciling, .waitingForUsage:
+            return .orange
+        case .blocked, .missed:
+            return .red
+        case .disabled, .unavailable:
+            return .secondary
+        }
+    }
+
+    private func resetCreditProtectionBlockMessage(
+        _ reason: ResetCreditProtectionStatus.BlockReason,
+        detail: String?
+    ) -> String {
+        switch reason {
+        case .accountIdentityUnavailable:
+            return text(
+                "Codex 没有提供可稳定绑定的 ChatGPT 账号身份，因此保持关闭。请确认使用 ChatGPT 账号登录。",
+                "Codex did not provide a stable ChatGPT account identity, so protection remains off. Confirm that Codex is signed in with ChatGPT."
+            )
+        case .accountChanged:
+            return text(
+                "Codex 账号已变化，到期保护已自动关闭。若存在未决尝试，切回原账号后会先对账；否则可核对账号后重新显式开启。",
+                "The Codex account changed, so protection was turned off. If an attempt is unresolved, switch back to the original account for reconciliation; otherwise verify the account and explicitly enable protection again."
+            )
+        case .detailsUnavailable(let availableCount):
+            return text(
+                "Codex 未返回可安全选卡的完整明细；当前已知可用数量为 \(availableCount)。不会盲目使用。",
+                "Codex did not return complete details for safe credit selection; the known available count is \(availableCount). Nothing will be used blindly."
+            )
+        case .detailsIncomplete(let availableCount, let availableDetails):
+            return text(
+                "Codex 显示 \(availableCount) 张可用卡，但只提供 \(availableDetails) 张唯一明细；覆盖不完整，不会自动使用。",
+                "Codex reports \(availableCount) available credit(s) but only \(availableDetails) unique detail row(s). Coverage is incomplete, so no automatic use occurs."
+            )
+        case .noSupportedExpiringCredits(let availableCount):
+            return text(
+                "当前 \(availableCount) 张卡里没有同时满足“可用、Codex 重置类型、有明确过期时间”的卡。",
+                "None of the \(availableCount) credit(s) is simultaneously available, a supported Codex reset, and explicitly expiring."
+            )
+        case .codexUnavailable:
+            return text(
+                "没有找到可用的 Codex app-server。请安装或更新 Codex，然后重试。",
+                "A usable Codex app-server was not found. Install or update Codex, then try again."
+            )
+        case .signedOut:
+            return text(
+                "Codex 当前没有可用的 ChatGPT 登录态。重新登录后会继续只读检查。",
+                "Codex does not currently have usable ChatGPT authentication. Read-only checks resume after sign-in."
+            )
+        case .unsupportedCodex:
+            return text(
+                "当前 Codex 版本不支持官方重置卡消费 RPC；保护已关闭。更新 Codex 后请重新开启。",
+                "This Codex version does not support the official reset-credit RPC, so protection was turned off. Update Codex and enable it again."
+            )
+        case .anotherProcess:
+            return text(
+                "另一个 Codex Radar 进程正在处理同一账号。当前进程不会并发使用卡，稍后会重试。",
+                "Another Codex Radar process is handling this account. This process will not use a credit concurrently and will retry later."
+            )
+        case .journalUnavailable:
+            return text(
+                "本地保护记录无法可靠读取或写入。为避免重复使用，保护已关闭且不会发送请求；请更新 App 或联系维护者检查 Application Support 中的保护记录。",
+                "The local protection journal cannot be read or written reliably. Protection is off and no request will be sent to avoid duplicate use; update the app or ask the maintainer to inspect its Application Support journal."
+            )
+        case .creditNotAuthorized:
+            return text(
+                "当前受支持卡片集合或最早到期目标已不同于本次显式授权，保护已关闭且不会发送请求。先做只读检查，再重新开启以确认当前可见卡片。",
+                "The current supported-credit set or earliest target no longer matches this explicit authorization. Protection is off and no request will be sent. Run the read-only check, then enable again to confirm the currently visible credits."
+            )
+        case .clockChanged:
+            return text(
+                "系统时间发生变化，或重启后无法证明时间连续。为避免提前使用，保护已关闭且不会发送新请求；核对系统时间与只读计划后再显式开启。",
+                "The clock changed, or continuity could not be proven after restart. Protection is off and no new request will be sent. Verify the clock and read-only plan before explicitly enabling again."
+            )
+        case .requestFailed:
+            return detail ?? text(
+                "Codex 请求暂时失败。不会根据不确定结果换用另一张卡。",
+                "The Codex request failed. Sentinel will not switch to another credit based on an uncertain result."
+            )
         }
     }
 
@@ -829,7 +1126,14 @@ struct DashboardMenuView: View {
                 }
             }
             if let rows = state.modelIQ?.latestRows, rows.count > 1 {
-                modelIQComparisonTable(rows)
+                collapsibleSection(
+                    isExpanded: $modelIQModelsExpanded,
+                    systemImage: "square.grid.2x2",
+                    title: text("智力效率", "Intelligence efficiency"),
+                    trailing: text("\(rows.count) 组", "\(rows.count) configs")
+                ) {
+                    modelIQComparisonTable(rows)
+                }
             }
         }
     }
@@ -1295,10 +1599,9 @@ struct DashboardMenuView: View {
     private func modelIQAverageDetailText(_ snapshot: ModelIQSnapshot) -> String {
         let cost = DisplayFormatters.costUSD(snapshot.displayedCostUSD)
         let time = modelIQTimeText(snapshot)
-        return text(
-            "单题 \(cost) · \(time) · Cache \(snapshot.cacheHitRateText)",
-            "Per task \(cost) · \(time) · Cache \(snapshot.cacheHitRateText)"
-        )
+        let cache = snapshot.cacheHitRateText
+        let cacheSuffix = cache == DisplayFormatters.percentPlaceholder ? "" : " · Cache \(cache)"
+        return text("单题 \(cost) · \(time)\(cacheSuffix)", "Per task \(cost) · \(time)\(cacheSuffix)")
     }
 
     private func iqColor(for snapshot: ModelIQSnapshot) -> Color {
@@ -2019,36 +2322,35 @@ struct DashboardMenuView: View {
     }
 
     private func quotaPacingDeltaValue(_ pacing: QuotaPacingSnapshot) -> String {
-        let delta = pacing.roundedRemainingDeltaPercent
-        if delta > 0 {
-            return "+\(delta)%"
-        }
-        if delta < 0 {
-            return "\(delta)%"
-        }
-        return "0%"
+        "\(abs(pacing.roundedRemainingDeltaPercent))%"
     }
 
     private func quotaPacingDeltaTitle(_ pacing: QuotaPacingSnapshot) -> String {
         let delta = pacing.roundedRemainingDeltaPercent
         if delta >= 3 {
-            return text("可多用", "Can spend")
+            return text("可多用", "Can spend more")
         }
         if delta <= -3 {
-            return text("已超用", "Over pace")
+            return text("超用", "Over target")
         }
-        return text("节奏差", "Delta")
+        return text("接近节奏", "On pace")
     }
 
     private func quotaPacingDeltaDetail(_ pacing: QuotaPacingSnapshot) -> String {
         let delta = pacing.roundedRemainingDeltaPercent
         if delta >= 3 {
-            return text("比建议多", "above target")
+            return text("剩余额度高于建议", "remaining above target")
         }
         if delta <= -3 {
-            return text("比建议少", "below target")
+            return text("用量超出建议", "usage above target")
         }
-        return text("接近节奏", "on pace")
+        if delta > 0 {
+            return text("剩余额度略高于建议", "remaining slightly above target")
+        }
+        if delta < 0 {
+            return text("用量略超出建议", "usage slightly above target")
+        }
+        return text("与建议一致", "matches target")
     }
 
     private func quotaPacingExplanation(_ pacing: QuotaPacingSnapshot) -> String {
@@ -2063,9 +2365,22 @@ struct DashboardMenuView: View {
         if pacing.roundedRemainingDeltaPercent >= 3 {
             action = text("实际还剩 \(actual)，比建议多 \(delta)%，可以多用一点。", "Actual is \(actual), \(delta)% above target, so you can spend more.")
         } else if pacing.roundedRemainingDeltaPercent <= -3 {
-            action = text("实际还剩 \(actual)，比建议少 \(delta)%，建议放慢一点。", "Actual is \(actual), \(delta)% below target, so slow down a bit.")
+            action = text(
+                "实际还剩 \(actual)，比建议少 \(delta)%；也就是用量已超出建议 \(delta)%，建议放慢一点。",
+                "Actual remaining is \(actual), \(delta)% below target; usage is \(delta)% above the suggested pace, so slow down a little."
+            )
+        } else if pacing.roundedRemainingDeltaPercent > 0 {
+            action = text(
+                "实际还剩 \(actual)，比建议多 \(delta)%，整体接近节奏。",
+                "Actual remaining is \(actual), \(delta)% above target, so usage is close to pace."
+            )
+        } else if pacing.roundedRemainingDeltaPercent < 0 {
+            action = text(
+                "实际还剩 \(actual)，比建议少 \(delta)%；用量略超出建议，但整体接近节奏。",
+                "Actual remaining is \(actual), \(delta)% below target; usage is slightly above the suggested pace but remains close to pace."
+            )
         } else {
-            action = text("实际还剩 \(actual)，基本贴近节奏。", "Actual is \(actual), close to pace.")
+            action = text("实际还剩 \(actual)，与建议一致。", "Actual remaining is \(actual), exactly on target.")
         }
         switch pacing.strategy {
         case .timeProportional:

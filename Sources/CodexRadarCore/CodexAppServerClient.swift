@@ -1,12 +1,17 @@
 import Foundation
 
-public actor CodexAppServerClient {
+public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
     public enum ClientError: LocalizedError {
         case codexBinaryNotFound
         case processUnavailable
         case requestTimedOut
+        case requestCancelledBeforeDispatch
+        case resetCreditSessionUnavailableBeforeDispatch
+        case resetCreditDispatchNotAuthorized
+        case resetCreditDispatchAuthorizationUnavailable
         case responseMissingResult
-        case rpcError(String)
+        case invalidRequest(String)
+        case rpcError(code: Int?, message: String)
 
         public var errorDescription: String? {
             switch self {
@@ -16,9 +21,19 @@ public actor CodexAppServerClient {
                 return "Codex app-server is not available"
             case .requestTimedOut:
                 return "Codex app-server request timed out"
+            case .requestCancelledBeforeDispatch:
+                return "The reset-credit request was cancelled before dispatch"
+            case .resetCreditSessionUnavailableBeforeDispatch:
+                return "The verified Codex app-server session ended before dispatch"
+            case .resetCreditDispatchNotAuthorized:
+                return "Reset-credit protection was disabled before dispatch"
+            case .resetCreditDispatchAuthorizationUnavailable:
+                return "Reset-credit dispatch authorization could not be verified"
             case .responseMissingResult:
                 return "Codex app-server response did not contain a result"
-            case .rpcError(let message):
+            case .invalidRequest(let message):
+                return message
+            case .rpcError(_, let message):
                 return message
             }
         }
@@ -36,19 +51,30 @@ public actor CodexAppServerClient {
     }
 
     private let binaryURLProvider: () -> URL?
+    private let allowsAutomaticRestart: Bool
     private var process: Process?
     private var inputHandle: FileHandle?
+    private var outputHandle: FileHandle?
+    private var errorHandle: FileHandle?
     private var outputBuffer = Data()
     private var nextID = 1
     private var processGeneration = 0
     private var initialized = false
+    private var hasStartedProcess = false
     private var pending: [Int: CheckedContinuation<Data, Error>] = [:]
 
-    public init(binaryURLProvider: @escaping () -> URL? = CodexBinaryLocator.findBinary) {
+    public init(
+        binaryURLProvider: @escaping () -> URL? = CodexBinaryLocator.findBinary,
+        allowsAutomaticRestart: Bool = true
+    ) {
         self.binaryURLProvider = binaryURLProvider
+        self.allowsAutomaticRestart = allowsAutomaticRestart
     }
 
     deinit {
+        process?.terminationHandler = nil
+        outputHandle?.readabilityHandler = nil
+        errorHandle?.readabilityHandler = nil
         process?.terminate()
     }
 
@@ -61,18 +87,88 @@ public actor CodexAppServerClient {
         return try decodeResult(data, as: RateLimitResponse.self)
     }
 
+    public func readAccount() async throws -> CodexAccountResponse {
+        try await ensureStarted()
+        let data = try await sendRequest(
+            method: "account/read",
+            params: ["refreshToken": false]
+        )
+        return try decodeResult(data, as: CodexAccountResponse.self)
+    }
+
+    public func consumeResetCredit(
+        creditID: String,
+        idempotencyKey: String,
+        authorization: ResetCreditProtectionDispatchAuthorization
+    ) async throws -> ResetCreditConsumeResponse {
+        guard !creditID.isEmpty else {
+            throw ClientError.invalidRequest("Reset credit ID must not be empty")
+        }
+        guard !idempotencyKey.isEmpty else {
+            throw ClientError.invalidRequest("Reset credit idempotency key must not be empty")
+        }
+        guard process?.isRunning == true, initialized else {
+            throw ClientError.resetCreditSessionUnavailableBeforeDispatch
+        }
+        let data = try await sendRequest(
+            method: "account/rateLimitResetCredit/consume",
+            params: [
+                "idempotencyKey": idempotencyKey,
+                "creditId": creditID,
+            ],
+            dispatchAuthorization: authorization,
+            authorizedCreditID: creditID
+        )
+        return try decodeResult(data, as: ResetCreditConsumeResponse.self)
+    }
+
     public func shutdown() {
+        let hasResources = process != nil
+            || inputHandle != nil
+            || outputHandle != nil
+            || errorHandle != nil
+            || initialized
+            || !outputBuffer.isEmpty
+            || !pending.isEmpty
+        guard hasResources else {
+            return
+        }
+
         processGeneration += 1
-        process?.terminate()
-        process = nil
-        inputHandle = nil
+        let process = self.process
+        let inputHandle = self.inputHandle
+        let outputHandle = self.outputHandle
+        let errorHandle = self.errorHandle
+
+        process?.terminationHandler = nil
+        outputHandle?.readabilityHandler = nil
+        errorHandle?.readabilityHandler = nil
+        self.process = nil
+        self.inputHandle = nil
+        self.outputHandle = nil
+        self.errorHandle = nil
         initialized = false
+        outputBuffer.removeAll(keepingCapacity: false)
         failPending(ClientError.processUnavailable)
+
+        if process?.isRunning == true {
+            process?.terminate()
+        }
+        try? inputHandle?.close()
+        try? outputHandle?.close()
+        try? errorHandle?.close()
+    }
+
+    func hasLiveInitializedSession() -> Bool {
+        process?.isRunning == true && initialized
     }
 
     private func ensureStarted() async throws {
         if process?.isRunning == true, initialized {
             return
+        }
+        guard allowsAutomaticRestart || !hasStartedProcess else {
+            throw ClientError.processUnavailable
         }
         try startProcess()
         let params: [String: Any] = [
@@ -103,12 +199,12 @@ public actor CodexAppServerClient {
         let process = Process()
         let input = Pipe()
         let output = Pipe()
-        let error = Pipe()
+        let standardError = Pipe()
         process.executableURL = binaryURL
         process.arguments = ["app-server", "--listen", "stdio://"]
         process.standardInput = input
         process.standardOutput = output
-        process.standardError = error
+        process.standardError = standardError
         process.terminationHandler = { [weak self] _ in
             Task {
                 await self?.handleTermination(generation: generation)
@@ -120,19 +216,37 @@ public actor CodexAppServerClient {
                 return
             }
             Task {
-                await self?.handleOutput(data)
+                await self?.handleOutput(data, generation: generation)
             }
         }
-        error.fileHandleForReading.readabilityHandler = { handle in
+        standardError.fileHandleForReading.readabilityHandler = { handle in
             _ = handle.availableData
         }
 
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            process.terminationHandler = nil
+            output.fileHandleForReading.readabilityHandler = nil
+            standardError.fileHandleForReading.readabilityHandler = nil
+            try? input.fileHandleForWriting.close()
+            try? output.fileHandleForReading.close()
+            try? standardError.fileHandleForReading.close()
+            throw error
+        }
+        hasStartedProcess = true
         self.process = process
         self.inputHandle = input.fileHandleForWriting
+        self.outputHandle = output.fileHandleForReading
+        self.errorHandle = standardError.fileHandleForReading
     }
 
-    private func sendRequest(method: String, params: [String: Any]?) async throws -> Data {
+    private func sendRequest(
+        method: String,
+        params: [String: Any]?,
+        dispatchAuthorization: ResetCreditProtectionDispatchAuthorization? = nil,
+        authorizedCreditID: String? = nil
+    ) async throws -> Data {
         guard process?.isRunning == true, let inputHandle else {
             throw ClientError.processUnavailable
         }
@@ -152,8 +266,47 @@ public actor CodexAppServerClient {
         return try await withTimeout(seconds: AppConstants.requestTimeoutSeconds) {
             try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation { continuation in
+                    guard !Task.isCancelled else {
+                        continuation.resume(
+                            throwing: ClientError.requestCancelledBeforeDispatch
+                        )
+                        return
+                    }
                     self.pending[id] = continuation
-                    inputHandle.write(line)
+                    do {
+                        if let dispatchAuthorization, let authorizedCreditID {
+                            try dispatchAuthorization.perform(
+                                creditID: authorizedCreditID
+                            ) {
+                                guard !Task.isCancelled else {
+                                    throw ClientError.requestCancelledBeforeDispatch
+                                }
+                                inputHandle.write(line)
+                            }
+                        } else if dispatchAuthorization != nil {
+                            throw ClientError.resetCreditDispatchNotAuthorized
+                        } else {
+                            guard !Task.isCancelled else {
+                                throw ClientError.requestCancelledBeforeDispatch
+                            }
+                            inputHandle.write(line)
+                        }
+                    } catch {
+                        self.pending.removeValue(forKey: id)
+                        switch error {
+                        case ResetCreditProtectionStorageError.authorizationRevoked:
+                            continuation.resume(
+                                throwing: ClientError.resetCreditDispatchNotAuthorized
+                            )
+                        case ResetCreditProtectionStorageError.authorizationUnavailable:
+                            continuation.resume(
+                                throwing: ClientError
+                                    .resetCreditDispatchAuthorizationUnavailable
+                            )
+                        default:
+                            continuation.resume(throwing: error)
+                        }
+                    }
                 }
             } onCancel: {
                 Task {
@@ -163,7 +316,10 @@ public actor CodexAppServerClient {
         }
     }
 
-    private func handleOutput(_ data: Data) {
+    private func handleOutput(_ data: Data, generation: Int) {
+        guard generation == processGeneration else {
+            return
+        }
         outputBuffer.append(data)
         let newline = Data([0x0A])
         while let range = outputBuffer.range(of: newline) {
@@ -192,10 +348,7 @@ public actor CodexAppServerClient {
         guard generation == processGeneration else {
             return
         }
-        process = nil
-        inputHandle = nil
-        initialized = false
-        failPending(ClientError.processUnavailable)
+        shutdown()
     }
 
     private func cancelPending(id: Int) {
@@ -213,7 +366,7 @@ public actor CodexAppServerClient {
     private func decodeResult<T: Decodable>(_ data: Data, as type: T.Type) throws -> T {
         let envelope = try JSONDecoder().decode(RPCEnvelope<T>.self, from: data)
         if let error = envelope.error {
-            throw ClientError.rpcError(error.message)
+            throw ClientError.rpcError(code: error.code, message: error.message)
         }
         guard let result = envelope.result else {
             throw ClientError.responseMissingResult
@@ -253,6 +406,17 @@ public actor CodexAppServerClient {
             return value
         }
     }
+}
+
+public struct ResetCreditConsumeResponse: Decodable, Equatable {
+    public let outcome: ResetCreditConsumeOutcome
+}
+
+public enum ResetCreditConsumeOutcome: String, Codable, CaseIterable, Equatable {
+    case reset
+    case alreadyRedeemed
+    case nothingToReset
+    case noCredit
 }
 
 private struct InitializeResult: Decodable {

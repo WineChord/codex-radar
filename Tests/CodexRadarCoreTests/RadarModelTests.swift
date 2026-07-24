@@ -158,6 +158,56 @@ final class RadarModelTests: XCTestCase {
         XCTAssertTrue(current.modelIQ?.dataSource?.isDistributedCommunityRuns == true)
     }
 
+    func testMergesIntelligenceEfficiencyPointsIntoDistributedModelIQ() throws {
+        let decoder = JSONDecoder()
+        let current = try decoder.decode(ModelIQEnvelope.self, from: Data(distributedModelIQJSON.utf8))
+        let efficiency = try decoder.decode(
+            IntelligenceEfficiencyEnvelope.self,
+            from: Data(intelligenceEfficiencyJSON.utf8)
+        )
+
+        let merged = current.merging(intelligenceEfficiency: efficiency)
+
+        XCTAssertEqual(merged.updatedAt, "2026-07-22T10:02:00+08:00")
+        XCTAssertEqual(merged.latest?.iqScore, 104.5)
+        XCTAssertEqual(merged.latest?.passed, 78)
+        XCTAssertEqual(merged.latest?.tasks, 112)
+        XCTAssertEqual(merged.latest?.averageCostUSD, 9.2)
+        XCTAssertEqual(merged.latest?.averageTaskSeconds, 2_160)
+        XCTAssertEqual(merged.latest?.costUSD, 1_047.309802)
+        XCTAssertEqual(
+            merged.dataSource?.validCells,
+            merged.latestRows.compactMap {
+                $0.snapshot.validTasks ?? $0.snapshot.tasks
+            }.reduce(0, +)
+        )
+        XCTAssertEqual(merged.dataSource?.validCells, 717)
+        XCTAssertEqual(merged.latestRows.count, 7)
+        XCTAssertTrue(merged.latestRows.contains { $0.label == "GPT-5.6 Sol ultra" })
+        XCTAssertTrue(merged.latestRows.contains { $0.label == "GPT-5.6 Luna low" })
+    }
+
+    func testHomepageFallbackUsesDynamicIntelligenceEfficiencyData() throws {
+        let efficiency = try JSONDecoder().decode(
+            IntelligenceEfficiencyEnvelope.self,
+            from: Data(intelligenceEfficiencyJSON.utf8)
+        )
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            "<html><body><h1>Codex Radar</h1></body></html>",
+            checkedAt: Date(timeIntervalSince1970: 1_784_256_000),
+            intelligenceEfficiency: efficiency
+        )
+
+        XCTAssertEqual(current.schemaVersion, "homepage-fallback-v1")
+        XCTAssertEqual(current.modelIQ?.latest?.model, "gpt-5.6-sol")
+        XCTAssertEqual(current.modelIQ?.latest?.reasoningEffort, "max")
+        XCTAssertEqual(current.modelIQ?.latestRows.count, 3)
+        XCTAssertEqual(current.modelIQ?.dataSource?.validCells, 336)
+        XCTAssertTrue(current.modelIQ?.dataSource?.isDistributedCommunityRuns == true)
+        XCTAssertEqual(current.modelIQ?.dataSource?.linkURL?.host, "deng.codexradar.com")
+    }
+
     func testBuildsCommunityKnowledgeFromGuideDiv() throws {
         let html = """
         <html>
@@ -531,6 +581,46 @@ private let distributedModelIQJSON = """
       "latest": { "score": 84.9, "passed": 62, "tasks": 110, "model": "gpt-5.5", "reasoning_effort": "high" }
     }
   }
+}
+"""
+
+private let intelligenceEfficiencyJSON = """
+{
+  "schema": 2,
+  "type": "distributed_intelligence_efficiency",
+  "source_updated_at": "2026-07-22T10:02:00+08:00",
+  "points": [
+    {
+      "model": "gpt-5.6-sol",
+      "effort": "max",
+      "iq": 104.5,
+      "passed": 78,
+      "valid_tasks": 112,
+      "average_price_usd": 9.2,
+      "average_minutes": 36.0,
+      "latest_graded_at": "2026-07-22T02:01:00+00:00"
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "effort": "ultra",
+      "iq": 97.8,
+      "passed": 73,
+      "valid_tasks": 112,
+      "average_price_usd": 25.9,
+      "average_minutes": 56.0,
+      "latest_graded_at": "2026-07-22T01:58:00+00:00"
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "effort": "low",
+      "iq": 8.0,
+      "passed": 6,
+      "valid_tasks": 112,
+      "average_price_usd": 0.2,
+      "average_minutes": 8.0,
+      "latest_graded_at": "2026-07-22T01:55:00+00:00"
+    }
+  ]
 }
 """
 

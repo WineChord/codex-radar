@@ -15,7 +15,10 @@ final class LiveCodexRadarContractTests: XCTestCase {
         XCTAssertNotNil(current.predictionDetail?.level)
         XCTAssertNotNil(current.modelIQ?.latest?.iqScore)
         XCTAssertNotEqual(DisplayFormatters.iqScore(current.modelIQ?.latest?.iqScore), DisplayFormatters.percentPlaceholder)
-        XCTAssertGreaterThanOrEqual(current.modelIQ?.latestRows.count ?? 0, 1)
+        XCTAssertGreaterThanOrEqual(current.modelIQ?.latestRows.count ?? 0, 19)
+        XCTAssertTrue(current.modelIQ?.latestRows.contains {
+            $0.snapshot.model == "gpt-5.6-sol" && $0.snapshot.reasoningEffort == "ultra"
+        } == true)
         XCTAssertGreaterThanOrEqual(current.modelIQ?.quotaRadar?.rows.count ?? 0, 1)
         XCTAssertGreaterThanOrEqual(current.resetJudgement?.cards.count ?? 0, 1)
         XCTAssertNotNil(current.communityKnowledge?.prompt)
@@ -30,7 +33,15 @@ final class LiveCodexRadarContractTests: XCTestCase {
         }
         if current.modelIQ?.dataSource?.isDistributedCommunityRuns == true {
             XCTAssertNotNil(current.modelIQ?.dataSource?.linkURL)
-            XCTAssertGreaterThan(current.modelIQ?.dataSource?.validCells ?? 0, 0)
+            let rows = current.modelIQ?.latestRows ?? []
+            let validTasks = rows.compactMap {
+                $0.snapshot.validTasks ?? $0.snapshot.tasks
+            }
+            XCTAssertEqual(validTasks.count, rows.count)
+            XCTAssertEqual(
+                current.modelIQ?.dataSource?.validCells,
+                validTasks.reduce(0, +)
+            )
         }
         if current.modelIQ?.comparisons.isEmpty == false {
             XCTAssertGreaterThan(current.modelIQ?.latestRows.count ?? 0, 1)
@@ -43,9 +54,40 @@ final class LiveCodexRadarContractTests: XCTestCase {
         let (homepageData, response) = try await URLSession.shared.data(for: homepageRequest)
         XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
         let html = try XCTUnwrap(String(data: homepageData, encoding: .utf8))
-        let homepageCurrent = try CodexRadarClient.currentFromHomepageHTML(html)
+
+        let intelligenceEfficiencyURL = AppConstants.codexRadarBaseURL
+            .appending(path: AppConstants.intelligenceEfficiencyPath)
+        var intelligenceEfficiencyRequest = URLRequest(url: intelligenceEfficiencyURL)
+        intelligenceEfficiencyRequest.timeoutInterval = TimeInterval(AppConstants.requestTimeoutSeconds)
+        let (intelligenceEfficiencyData, intelligenceEfficiencyResponse) =
+            try await URLSession.shared.data(for: intelligenceEfficiencyRequest)
+        XCTAssertEqual((intelligenceEfficiencyResponse as? HTTPURLResponse)?.statusCode, 200)
+        let intelligenceEfficiency = try JSONDecoder().decode(
+            IntelligenceEfficiencyEnvelope.self,
+            from: intelligenceEfficiencyData
+        )
+        XCTAssertGreaterThanOrEqual(intelligenceEfficiency.points.count, 19)
+
+        let homepageCurrent = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            intelligenceEfficiency: intelligenceEfficiency
+        )
         XCTAssertNotNil(homepageCurrent.modelIQ?.latest?.averageCostUSD)
         XCTAssertNotNil(homepageCurrent.modelIQ?.latest?.averageTaskSeconds)
         XCTAssertTrue(homepageCurrent.modelIQ?.dataSource?.isDistributedCommunityRuns == true)
+        XCTAssertGreaterThanOrEqual(homepageCurrent.modelIQ?.latestRows.count ?? 0, 19)
+        let homepageRows = homepageCurrent.modelIQ?.latestRows ?? []
+        let homepageValidTasks = homepageRows.compactMap {
+            $0.snapshot.validTasks ?? $0.snapshot.tasks
+        }
+        XCTAssertEqual(homepageValidTasks.count, homepageRows.count)
+        XCTAssertEqual(
+            homepageCurrent.modelIQ?.dataSource?.validCells,
+            homepageValidTasks.reduce(0, +)
+        )
+        XCTAssertGreaterThanOrEqual(homepageCurrent.resetJudgement?.cards.count ?? 0, 1)
+        XCTAssertGreaterThanOrEqual(homepageCurrent.communityKnowledges.count, 1)
+        XCTAssertNotNil(homepageCurrent.siteAnnouncement?.message)
+        XCTAssertGreaterThanOrEqual(homepageCurrent.fastRadar?.rows.count ?? 0, 1)
     }
 }

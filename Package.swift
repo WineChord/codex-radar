@@ -25,5 +25,9 @@ let package = Package(
             name: "CodexRadarCoreTests",
             dependencies: ["CodexRadarCore"]
         ),
+        .testTarget(
+            name: "CodexRadarSentinelTests",
+            dependencies: ["CodexRadarSentinel", "CodexRadarCore"]
+        ),
     ]
 )
