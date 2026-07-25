@@ -479,8 +479,11 @@ struct DashboardMenuView: View {
             .toggleStyle(.checkbox)
             .font(.system(size: metrics.label, weight: .semibold))
             .disabled(
-                store.resetCreditProtectionStatus.isBusy
-                    && !store.resetCreditProtectionEnabled
+                !store.resetCreditProtectionEnabled
+                    && (
+                        store.resetCreditProtectionStatus.isBusy
+                            || isResetCreditProtectionOffWithUnresolvedAttempt
+                    )
             )
 
             expandableCaptionText(
@@ -492,7 +495,8 @@ struct DashboardMenuView: View {
                 collapsedLines: 4
             )
 
-            if showsResetCreditProtectionConfirmation {
+            if showsResetCreditProtectionConfirmation,
+               !isResetCreditProtectionOffWithUnresolvedAttempt {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(text("确认开启到期保护", "Confirm expiry protection"))
                         .font(.system(size: metrics.caption, weight: .semibold))
@@ -526,22 +530,47 @@ struct DashboardMenuView: View {
             }
 
             if !store.resetCreditProtectionEnabled,
-               !showsResetCreditProtectionConfirmation {
-                compactActionButton(
-                    title: text("只读检查保护计划", "Check plan (read only)"),
-                    systemImage: store.resetCreditProtectionStatus.isBusy
-                        ? "hourglass"
-                        : "checkmark.shield"
-                ) {
-                    store.previewResetCreditExpiryProtectionPlan()
+               (
+                   !showsResetCreditProtectionConfirmation
+                       || isResetCreditProtectionOffWithUnresolvedAttempt
+               ) {
+                if isResetCreditProtectionOffWithUnresolvedAttempt {
+                    compactActionButton(
+                        title: text("立即只读对账", "Reconcile now (read only)"),
+                        systemImage: store.resetCreditProtectionStatus.isBusy
+                            ? "hourglass"
+                            : "arrow.triangle.2.circlepath"
+                    ) {
+                        store.refreshNow()
+                    }
+                    .disabled(store.resetCreditProtectionStatus.isBusy)
+                } else {
+                    compactActionButton(
+                        title: text("只读检查保护计划", "Check plan (read only)"),
+                        systemImage: store.resetCreditProtectionStatus.isBusy
+                            ? "hourglass"
+                            : "checkmark.shield"
+                    ) {
+                        store.previewResetCreditExpiryProtectionPlan()
+                    }
+                    .disabled(store.resetCreditProtectionStatus.isBusy)
                 }
-                .disabled(store.resetCreditProtectionStatus.isBusy)
             }
 
             resetCreditProtectionStatusView
         }
         .padding(8)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        .onChange(of: store.hasUnresolvedResetCreditProtectionAttempt) {
+            if $0 {
+                showsResetCreditProtectionConfirmation = false
+            }
+        }
+    }
+
+    private var isResetCreditProtectionOffWithUnresolvedAttempt: Bool {
+        !store.resetCreditProtectionEnabled
+            && store.hasUnresolvedResetCreditProtectionAttempt
     }
 
     private var resetCreditProtectionStatusView: some View {
@@ -587,14 +616,31 @@ struct DashboardMenuView: View {
         case .using:
             return text("正在请求 Codex 使用重置卡…", "Asking Codex to use the reset credit…")
         case .reconciling:
-            return text("正在与 Codex 对账使用结果…", "Reconciling the result with Codex…")
+            return store.resetCreditProtectionEnabled
+                ? text("正在与 Codex 对账使用结果…", "Reconciling the result with Codex…")
+                : text(
+                    "保护已关闭 · 上次请求仅做只读对账",
+                    "Protection off · prior request stays read only"
+                )
         case .succeeded:
             return text("已验证该卡已使用", "Verified credit is used")
         case .unavailable:
             return text("卡已不再可用", "The credit is no longer available")
         case .missed:
             return text("未能在过期前确认使用", "Usage was not confirmed before expiry")
-        case .blocked:
+        case .blocked(let reason, _):
+            if isResetCreditProtectionOffWithUnresolvedAttempt {
+                return text(
+                    "保护已关闭 · 上次请求结果仍未确认",
+                    "Protection off · prior request remains unresolved"
+                )
+            }
+            if case .clockChanged = reason {
+                return text(
+                    "到期保护已自动关闭 · 需重新确认",
+                    "Expiry protection turned off · confirmation required"
+                )
+            }
             return text("到期保护暂时受阻", "Expiry protection is blocked")
         }
     }
@@ -640,9 +686,15 @@ struct DashboardMenuView: View {
                 "The next credit expires \(DisplayFormatters.compactDateTime(expiresAt)). No limit currently needs a reset. The app keeps checking until expiry; eventual use still depends on runtime, network, and Codex state."
             )
         case .reconciling(let expiresAt):
+            if store.resetCreditProtectionEnabled {
+                return text(
+                    "下一张卡到期 \(DisplayFormatters.compactDateTime(expiresAt))。结果不明确时先只读对账；只有仍需重试时，才会用原幂等键重试同一张卡，绝不换卡。",
+                    "The credit expires \(DisplayFormatters.compactDateTime(expiresAt)). Ambiguous results are reconciled read only first. Only if a retry is still needed can the same credit be retried with its original idempotency key; Sentinel never switches credits."
+                )
+            }
             return text(
-                "下一张卡到期 \(DisplayFormatters.compactDateTime(expiresAt))。结果不明确时只会对账，并仅用原幂等键重试同一张卡。",
-                "The credit expires \(DisplayFormatters.compactDateTime(expiresAt)). Ambiguous results are reconciled first, and only the same credit is retried with its original idempotency key."
+                "上次请求结果仍未确认；卡片到期 \(DisplayFormatters.compactDateTime(expiresAt))。保护已关闭，只会只读对账，不会重试或换卡。为避免重复请求，确认结果前不能重新开启；可点“立即只读对账”主动复核。",
+                "The prior request is still unresolved; the credit expires \(DisplayFormatters.compactDateTime(expiresAt)). Protection is off, so Sentinel only reconciles read only and will not retry or switch credits. To avoid a duplicate request, protection cannot be re-enabled until the result is known. Use “Reconcile now (read only)” to check again."
             )
         case .succeeded(let usedAt, _):
             return text(
@@ -660,7 +712,17 @@ struct DashboardMenuView: View {
                 "It expired \(DisplayFormatters.compactDateTime(expiresAt)). Check that the app was running, online, and signed in to Codex."
             )
         case .blocked(let reason, let detail):
-            return resetCreditProtectionBlockMessage(reason, detail: detail)
+            let blockMessage = resetCreditProtectionBlockMessage(
+                reason,
+                detail: detail
+            )
+            guard isResetCreditProtectionOffWithUnresolvedAttempt else {
+                return blockMessage
+            }
+            return text(
+                "上次请求结果仍未确认。保护已关闭，只会只读对账，绝不重试或换卡；为避免重复请求，确认结果前不能重新开启。可点“立即只读对账”主动复核。",
+                "The prior request remains unresolved. Protection is off, so reconciliation is read only and never retries or switches credits. To avoid a duplicate request, protection cannot be re-enabled until the result is known. Use “Reconcile now (read only)” to check again."
+            ) + "\n" + blockMessage
         }
     }
 
@@ -738,9 +800,9 @@ struct DashboardMenuView: View {
                 "The current supported-credit set or earliest target no longer matches this explicit authorization. Protection is off and no request will be sent. Run the read-only check, then enable again to confirm the currently visible credits."
             )
         case .clockChanged:
-            return text(
-                "系统时间发生变化，或重启后无法证明时间连续。为避免提前使用，保护已关闭且不会发送新请求；核对系统时间与只读计划后再显式开启。",
-                "The clock changed, or continuity could not be proven after restart. Protection is off and no new request will be sent. Verify the clock and read-only plan before explicitly enabling again."
+            return detail ?? text(
+                "已确认系统计时连续性失效：墙钟相对连续计时的偏差已超出安全容差，或连续计时已重置（通常由 Mac 重启造成）。保护已自动关闭且不会发送新请求；核对 Mac 时间与只读计划后再显式确认。普通 App 退出重开本身不会触发此状态。",
+                "Clock continuity is confirmed lost: wall time diverged from continuous time beyond the safe tolerance, or continuous time reset (usually because the Mac restarted). Protection was turned off automatically and no new request will be sent. Verify the Mac clock and read-only plan, then explicitly confirm again. Relaunching the app within the same boot does not cause this state by itself."
             )
         case .requestFailed:
             return detail ?? text(

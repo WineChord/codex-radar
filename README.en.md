@@ -9,6 +9,15 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details open>
+<summary><strong>v0.1.54: More reliable expiry protection</strong> - Normal clock synchronization no longer turns protection off, and unresolved requests have a clear, safe recovery path.</summary>
+
+- On a system clock-change notification, Sentinel first revalidates the persisted wall-time and continuous-time anchors while holding the authorization lock. Consent remains active when the delta stays within the safe tolerance. Protection is turned off and requires confirmation only when the delta exceeds tolerance, continuous time resets (usually because the Mac restarted), or continuity cannot be proven. A normal app relaunch within the same boot does not trigger this state.
+- Copy and controls for unresolved requests now depend strictly on protection state. While protection remains enabled, a necessary retry uses the original idempotency key for the same credit. Once protection is off, reconciliation stays read only: Sentinel never retries or switches credits, and re-enabling remains locked until the prior result is known.
+- When protection is off with an unresolved request, the menu keeps `Reconcile now (read only)` available. It actively checks the server result without sending a consume request. A lost clock-continuity check now clearly says protection was turned off and requires confirmation instead of showing a generic temporary block.
+
+</details>
+
+<details>
 <summary><strong>v0.1.53: Intelligence Efficiency and reset-credit protection</strong> - Complete the site's 19 configurations and add opt-in expiry protection.</summary>
 
 - CodexRadar now renders 19 model/effort combinations from a separate Intelligence Efficiency source. Sentinel merges that lightweight same-origin JSON instead of stopping at the 12 rows in `current.json`.
@@ -512,7 +521,7 @@ For local reset-credit expiry, low-frequency auto refresh is on by default: afte
 
 `Reset credit expiry protection` is independent of that auto-check switch and is strictly off by default. Explicit enabling starts a fresh Codex app-server session. The current `account/read` protocol exposes only login type, email, and plan, so consent is bound both to a login-email fingerprint and to the fingerprints of the supported, explicitly expiring credits visible in that complete detail set. A later new credit, or a same-email workspace that exposes a different card set, requires turning protection off and explicitly enabling it again. Planning and execution use authoritative details from `account/rateLimits/read`; only after the target enters its roughly 30-minute window does the app call the official `account/rateLimitResetCredit/consume`, always with the exact target ID and an idempotency key. The full credit ID exists only in memory and is never persisted. The atomic ledger keeps only account/credit fingerprints, idempotency key, expiry, phase, and terminal state—never the token, email address, or full credit ID. Confirmed uses and still-ambiguous expired attempts retain a sanitized terminal entry. The same unresolved or ambiguous logical attempt always reuses its original key, and credit fingerprints are globally deduplicated across those active and terminal records. Only when Codex explicitly returns `nothingToReset` / `noCredit` and a read-only refresh confirms that the same credit remains available does Sentinel close that non-consuming attempt; a later logical attempt after resettable usage appears uses a new key so it does not reuse a request that may have cached the no-op result.
 
-Every real attempt and unresolved reconciliation creates a one-shot Codex session, then performs identity verification, complete-detail validation, exact selection, request, and postflight refresh within the same app-server child and authentication snapshot. If that verified child exits before the write, the destructive call does not silently launch a replacement; it stops and requires the full verification path again. The long-lived session is used only for non-destructive dashboard hints. Enabling creates a distinct authorization generation, and the final transport write rechecks the raw credit ID's fingerprint and clock continuity while holding the authorization lock. Disabling and that write share a short process lock: if disabling completes first, the old task cannot send; if dispatch crossed the boundary first, disabling waits for the write and cannot recall it afterward. If the server returns `nothingToReset`, the credit is not consumed, and the app continues waiting only after a read-only refresh still confirms that exact credit. If a timeout, disconnect, or restart makes the result uncertain, Sentinel reconciles first; any retry reuses the original idempotency key and never switches credits. Consent persists both wall time and a monotonic clock that includes sleep: normal sleep and an app relaunch within the same boot can continue, while a wall-clock jump, reboot, or any unprovable continuity revokes authorization and requires confirmation again. Quitting, connectivity, and server state can still prevent execution, so this is best-effort protection rather than a guarantee; enabling `Launch at login` is recommended.
+Every real attempt and unresolved reconciliation creates a one-shot Codex session, then performs identity verification, complete-detail validation, exact selection, request, and postflight refresh within the same app-server child and authentication snapshot. If that verified child exits before the write, the destructive call does not silently launch a replacement; it stops and requires the full verification path again. The long-lived session is used only for non-destructive dashboard hints. Enabling creates a distinct authorization generation, and the final transport write rechecks the raw credit ID's fingerprint and clock continuity while holding the authorization lock. Disabling and that write share a short process lock: if disabling completes first, the old task cannot send; if dispatch crossed the boundary first, disabling waits for the write and cannot recall it afterward. If the server returns `nothingToReset`, the credit is not consumed, and the app continues waiting only after a read-only refresh still confirms that exact credit. If a timeout, disconnect, or restart makes the result uncertain, Sentinel reconciles read only first. While protection remains enabled, a necessary retry reuses the original idempotency key for that same credit. Once protection is off, Sentinel retains the unresolved journal for read-only reconciliation only: it does not retry or switch credits, and re-enabling stays locked until the result is known or the credit expires. `Reconcile now (read only)` starts a fresh non-consuming check. Consent persists both wall time and a monotonic clock that includes sleep. A normal system clock-change notification rechecks the anchors and does not revoke consent when the observed delta remains within tolerance; normal sleep and an app relaunch within the same boot can continue too. Protection is turned off automatically and requires confirmation only when wall time diverges from continuous time beyond the safe tolerance, continuous time resets (usually because the Mac restarted), or continuity otherwise cannot be proven. Quitting, connectivity, and server state can still prevent execution, so this is best-effort protection rather than a guarantee; enabling `Launch at login` is recommended.
 
 ## Manual Install
 
@@ -552,7 +561,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.53
+./scripts/check_release_readiness.sh 0.1.54
 ```
 
 Build release packages:
@@ -560,7 +569,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.53
+./scripts/package_release.sh 0.1.54
 ```
 
 Update README menu bar and menu screenshots:

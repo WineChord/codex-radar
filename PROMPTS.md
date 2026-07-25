@@ -90,6 +90,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 69 | [`Prompt-Id: 69 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+69%22&type=commits) | 每日巡检发现 CodexRadar 新增智力效率矩阵与动态数据源，补齐全模型配置并修复首页兜底。 |
 | 70 | [`Prompt-Id: 70 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+70%22&type=commits) | 增加严格默认关闭、显式授权并经过离线编排验证的重置卡到期保护。 |
 | 71 | [`Prompt-Id: 71 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+71%22&type=commits) | 把负数超用差值改成无符号“超用 33%”，并同步解释文案和截图。 |
+| 72 | [`Prompt-Id: 72 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+72%22&type=commits) | 修复正常系统校时误关到期保护，并全面核对时钟、多进程和未决对账状态。 |
 
 ## Prompts
 
@@ -575,4 +576,10 @@ commit 要求是可以点击的链接
 
 ```text
 用量节奏在实际剩余低于建议剩余时，不要显示带负号的“已超用 -33%”；改为“超用 33%”，并同步优化标签、解释和中英文截图，让差值方向一眼可懂。
+```
+
+### 72. 到期保护时钟误报与整体修复
+
+```text
+到期保护突然提示“系统时间发生变化，或重启后无法证明时间连续”。请查清为什么会出现，全面检查整体逻辑，修复正常系统校时误报、状态可读性、多进程竞态和未决对账体验，充分测试后发布新版本。
 ```

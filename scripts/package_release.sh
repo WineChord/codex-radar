@@ -11,8 +11,41 @@ archive_name="CodexRadarSentinel-${version}-macOS"
 dist_dir="dist"
 dmg_root="${dist_dir}/dmg-root"
 app_bundle=".build/${app_name}.app"
+source_version="$(
+  sed -nE 's/^[[:space:]]*public static let appVersion = "([^"]+)".*/\1/p' \
+    Sources/CodexRadarCore/AppConstants.swift
+)"
+plist_version="$(
+  /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+    Resources/Info.plist
+)"
+plist_build="$(
+  /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Resources/Info.plist
+)"
+
+if [[ "$source_version" != "$version" || "$plist_version" != "$version" ]]; then
+  echo "Release version mismatch: requested ${version}, source ${source_version:-<missing>}, plist ${plist_version:-<missing>}" >&2
+  exit 1
+fi
+if [[ ! "$plist_build" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Invalid CFBundleVersion: ${plist_build:-<missing>}" >&2
+  exit 1
+fi
 
 "$(dirname "$0")/build_app.sh" >/dev/null
+
+built_version="$(
+  /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+    "${app_bundle}/Contents/Info.plist"
+)"
+built_build="$(
+  /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' \
+    "${app_bundle}/Contents/Info.plist"
+)"
+if [[ "$built_version" != "$version" || "$built_build" != "$plist_build" ]]; then
+  echo "Built app version mismatch: expected ${version} (${plist_build}), got ${built_version:-<missing>} (${built_build:-<missing>})" >&2
+  exit 1
+fi
 
 rm -rf "${dist_dir}"
 mkdir -p "${dmg_root}"

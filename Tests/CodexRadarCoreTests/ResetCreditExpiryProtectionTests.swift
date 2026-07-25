@@ -115,6 +115,40 @@ final class ResetCreditExpiryProtectionTests: XCTestCase {
                 )
             )
         )
+        for offset in [
+            0.070,
+            ResetCreditProtectionAuthorization.clockToleranceSeconds,
+            -ResetCreditProtectionAuthorization.clockToleranceSeconds,
+        ] {
+            XCTAssertTrue(
+                ResetCreditProtectionAuthorization.isEnabled(
+                    requested: true,
+                    consent: consent,
+                    currentClock: ResetCreditProtectionClockSample(
+                        wallTime: Date(
+                            timeIntervalSince1970: 1_120 + offset
+                        ),
+                        continuousTimeSeconds: 620
+                    )
+                ),
+                "Expected offset \(offset) to remain inside the tolerance"
+            )
+        }
+        for offset in [5.001, -5.001] {
+            XCTAssertFalse(
+                ResetCreditProtectionAuthorization.isEnabled(
+                    requested: true,
+                    consent: consent,
+                    currentClock: ResetCreditProtectionClockSample(
+                        wallTime: Date(
+                            timeIntervalSince1970: 1_120 + offset
+                        ),
+                        continuousTimeSeconds: 620
+                    )
+                ),
+                "Expected offset \(offset) to exceed the tolerance"
+            )
+        }
         XCTAssertFalse(
             ResetCreditProtectionAuthorization.isEnabled(
                 requested: true,
@@ -125,6 +159,16 @@ final class ResetCreditExpiryProtectionTests: XCTestCase {
                 )
             )
         )
+        XCTAssertEqual(
+            ResetCreditProtectionAuthorization.clockDiscontinuityReason(
+                consent: consent,
+                current: ResetCreditProtectionClockSample(
+                    wallTime: Date(timeIntervalSince1970: 1_126),
+                    continuousTimeSeconds: 620
+                )
+            ),
+            .wallClockOffset(seconds: 6)
+        )
         XCTAssertFalse(
             ResetCreditProtectionAuthorization.isEnabled(
                 requested: true,
@@ -134,6 +178,16 @@ final class ResetCreditExpiryProtectionTests: XCTestCase {
                     continuousTimeSeconds: 20
                 )
             )
+        )
+        XCTAssertEqual(
+            ResetCreditProtectionAuthorization.clockDiscontinuityReason(
+                consent: consent,
+                current: ResetCreditProtectionClockSample(
+                    wallTime: Date(timeIntervalSince1970: 1_120),
+                    continuousTimeSeconds: 20
+                )
+            ),
+            .continuousClockReset
         )
     }
 
@@ -823,7 +877,9 @@ final class ResetCreditExpiryProtectionTests: XCTestCase {
         ) {
             dispatchCount += 1
         }
-        try store.clear()
+        try store.clear {
+            XCTAssertEqual(store.load(), .absent)
+        }
         XCTAssertThrowsError(
             try store.withAuthorizedDispatch(
                 expected: second,
@@ -857,6 +913,208 @@ final class ResetCreditExpiryProtectionTests: XCTestCase {
             .superseded
         )
         XCTAssertEqual(store.load(), .loaded(newConsent))
+    }
+
+    func testClockValidationKeepsBenignNTPAndRevokesLargeOffsets() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "codex-radar-clock-validation-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = ResetCreditProtectionAuthorizationStore(
+            url: directory.appendingPathComponent("authorization.json"),
+            dispatchLockURL: directory.appendingPathComponent("dispatch.lock")
+        )
+        let anchor = ResetCreditProtectionClockSample(
+            wallTime: Date(timeIntervalSince1970: 1_000),
+            continuousTimeSeconds: 500
+        )
+        let currentConsent = ResetCreditProtectionConsent(
+            version: AppConstants.resetCreditProtectionConsentVersion,
+            accountFingerprint: ResetCreditPrivacy.fingerprint("account"),
+            grantedAt: anchor.wallTime,
+            authorizedCreditFingerprints: [
+                ResetCreditPrivacy.fingerprint("credit-selected"),
+            ],
+            clockAnchor: anchor
+        )
+        var requested = false
+        try store.save(currentConsent) {
+            XCTAssertEqual(store.load(), .loaded(currentConsent))
+            requested = true
+        }
+
+        XCTAssertEqual(
+            try store.validateCurrentClockOrRevoke(
+                currentClock: ResetCreditProtectionClockSample(
+                    wallTime: Date(timeIntervalSince1970: 1_120.070),
+                    continuousTimeSeconds: 620
+                )
+            ) {
+                XCTAssertEqual(store.load(), .absent)
+                requested = false
+            },
+            .continuous(currentConsent)
+        )
+        XCTAssertTrue(requested)
+        XCTAssertEqual(store.load(), .loaded(currentConsent))
+
+        XCTAssertEqual(
+            try store.validateCurrentClockOrRevoke(
+                currentClock: ResetCreditProtectionClockSample(
+                    wallTime: Date(timeIntervalSince1970: 1_126),
+                    continuousTimeSeconds: 620
+                )
+            ) {
+                requested = false
+            },
+            .revoked(
+                currentConsent,
+                .wallClockOffset(seconds: 6)
+            )
+        )
+        XCTAssertFalse(requested)
+        XCTAssertEqual(store.load(), .absent)
+
+        try store.save(currentConsent) {
+            XCTAssertEqual(store.load(), .loaded(currentConsent))
+            requested = true
+        }
+        XCTAssertEqual(
+            try store.validateCurrentClockOrRevoke(
+                currentClock: ResetCreditProtectionClockSample(
+                    wallTime: Date(timeIntervalSince1970: 1_114),
+                    continuousTimeSeconds: 620
+                )
+            ) {
+                XCTAssertEqual(store.load(), .absent)
+                requested = false
+            },
+            .revoked(
+                currentConsent,
+                .wallClockOffset(seconds: -6)
+            )
+        )
+        XCTAssertFalse(requested)
+        XCTAssertEqual(store.load(), .absent)
+    }
+
+    func testClockValidationUsesNewestGenerationWithoutClearingItsDefault()
+        throws
+    {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "codex-radar-clock-generation-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = ResetCreditProtectionAuthorizationStore(
+            url: directory.appendingPathComponent("authorization.json"),
+            dispatchLockURL: directory.appendingPathComponent("dispatch.lock")
+        )
+        let fingerprint = ResetCreditPrivacy.fingerprint("credit-selected")
+        let oldConsent = ResetCreditProtectionConsent(
+            version: AppConstants.resetCreditProtectionConsentVersion,
+            accountFingerprint: ResetCreditPrivacy.fingerprint("account"),
+            authorizationID: "11111111-1111-4111-8111-111111111111",
+            grantedAt: Date(timeIntervalSince1970: 1_000),
+            authorizedCreditFingerprints: [fingerprint],
+            clockAnchor: ResetCreditProtectionClockSample(
+                wallTime: Date(timeIntervalSince1970: 1_000),
+                continuousTimeSeconds: 100
+            )
+        )
+        let newConsent = ResetCreditProtectionConsent(
+            version: AppConstants.resetCreditProtectionConsentVersion,
+            accountFingerprint: ResetCreditPrivacy.fingerprint("account"),
+            authorizationID: "22222222-2222-4222-8222-222222222222",
+            grantedAt: Date(timeIntervalSince1970: 2_000),
+            authorizedCreditFingerprints: [fingerprint],
+            clockAnchor: ResetCreditProtectionClockSample(
+                wallTime: Date(timeIntervalSince1970: 2_000),
+                continuousTimeSeconds: 1_500
+            )
+        )
+        var requested = false
+        try store.save(oldConsent) {
+            XCTAssertEqual(store.load(), .loaded(oldConsent))
+            requested = true
+        }
+        try store.save(newConsent) {
+            XCTAssertEqual(store.load(), .loaded(newConsent))
+            requested = true
+        }
+
+        var staleClearCallbackRan = false
+        XCTAssertEqual(
+            try store.clear(ifCurrent: oldConsent) {
+                staleClearCallbackRan = true
+                requested = false
+            },
+            .superseded
+        )
+        XCTAssertFalse(staleClearCallbackRan)
+        XCTAssertTrue(requested)
+        XCTAssertEqual(store.load(), .loaded(newConsent))
+        XCTAssertEqual(
+            try store.clear(ifCurrent: newConsent) {
+                XCTAssertEqual(store.load(), .absent)
+                requested = false
+            },
+            .cleared
+        )
+        XCTAssertFalse(requested)
+        try store.save(newConsent) {
+            requested = true
+        }
+        XCTAssertEqual(
+            try store.validateCurrentClockOrRevoke(
+                currentClock: ResetCreditProtectionClockSample(
+                    wallTime: Date(timeIntervalSince1970: 2_120),
+                    continuousTimeSeconds: 1_620
+                )
+            ) {
+                XCTFail("A continuous current generation must not be revoked")
+                requested = false
+            },
+            .continuous(newConsent)
+        )
+        XCTAssertTrue(requested)
+        XCTAssertEqual(store.load(), .loaded(newConsent))
+    }
+
+    func testClockValidationReplacesCorruptionWithARevocationMarker()
+        throws
+    {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "codex-radar-clock-corrupt-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let authorizationURL = directory.appendingPathComponent(
+            "authorization.json"
+        )
+        let store = ResetCreditProtectionAuthorizationStore(
+            url: authorizationURL,
+            dispatchLockURL: directory.appendingPathComponent("dispatch.lock")
+        )
+        try Data(#"{"broken":true}"#.utf8).write(to: authorizationURL)
+        var requested = true
+
+        XCTAssertEqual(
+            try store.validateCurrentClockOrRevoke {
+                requested = false
+            },
+            .corrupt
+        )
+        XCTAssertFalse(requested)
+        XCTAssertEqual(store.load(), .absent)
     }
 
     func testLedgerRejectsTwoKeysForTheSameAccountAndCredit() throws {

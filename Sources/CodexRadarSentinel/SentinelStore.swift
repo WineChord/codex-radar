@@ -326,10 +326,14 @@ final class SentinelStore: NSObject, ObservableObject {
     private var resetCreditProtectionJournalCorrupt: Bool
     private var resetCreditProtectionNextRetryAt: Date?
     private var resetCreditProtectionClockGeneration: UInt64 = 0
+    private var resetCreditProtectionEnablingClockAnchor:
+        ResetCreditProtectionClockSample?
     private let resetCreditProtectionLedgerStore: ResetCreditProtectionLedgerStore
     private let resetCreditProtectionAuthorizationStore:
         ResetCreditProtectionAuthorizationStore
     private let resetCreditProtectionProcessLockURL: URL
+    private let resetCreditProtectionClock:
+        () -> ResetCreditProtectionClockSample
     private var lifecycleObservers: [(NotificationCenter, NSObjectProtocol)] = []
     private var suppressResetCreditAutoRefreshSideEffects = false
     private var emphasizedSpeedAlertKey: String?
@@ -346,7 +350,12 @@ final class SentinelStore: NSObject, ObservableObject {
         resetCreditProtectionLedgerStore: ResetCreditProtectionLedgerStore? = nil,
         resetCreditProtectionAuthorizationStore:
             ResetCreditProtectionAuthorizationStore? = nil,
-        resetCreditProtectionProcessLockURL: URL? = nil
+        resetCreditProtectionProcessLockURL: URL? = nil,
+        resetCreditProtectionClock:
+            @escaping () -> ResetCreditProtectionClockSample = {
+                .now()
+            },
+        resetCreditProtectionDestructiveActionsAllowed: Bool? = nil
     ) {
         let rawPreview = ProcessInfo.processInfo.environment[
             AppConstants.debugPreviewEnvironmentKey
@@ -359,9 +368,13 @@ final class SentinelStore: NSObject, ObservableObject {
         let capturesStatusScreenshot = ProcessInfo.processInfo.environment[
             AppConstants.screenshotModeEnvironmentKey
         ] == "1"
-        let destructiveActionsAllowed = initialPreview == .live
-            && !rendersDocumentation
-            && !capturesStatusScreenshot
+        let destructiveActionsAllowed =
+            resetCreditProtectionDestructiveActionsAllowed
+            ?? (
+                initialPreview == .live
+                    && !rendersDocumentation
+                    && !capturesStatusScreenshot
+            )
         let resolvedAppServerClient = appServerClient ?? CodexAppServerClient()
 
         self.defaults = defaults
@@ -397,8 +410,11 @@ final class SentinelStore: NSObject, ObservableObject {
         self.resetCreditProtectionProcessLockURL =
             resetCreditProtectionProcessLockURL
             ?? Self.resetCreditProtectionLockURL
+        self.resetCreditProtectionClock = resetCreditProtectionClock
         let rawLanguage = defaults.string(forKey: DefaultsKey.appLanguage)
-        self.appLanguage = rawLanguage.flatMap(AppLanguage.init(rawValue:)) ?? .zhHans
+        let resolvedAppLanguage = rawLanguage
+            .flatMap(AppLanguage.init(rawValue:)) ?? .zhHans
+        self.appLanguage = resolvedAppLanguage
         let rawTextSize = defaults.string(forKey: DefaultsKey.menuTextSize)
         self.menuTextSize = rawTextSize.flatMap(DashboardTextSize.init(rawValue:)) ?? .large
         self.statusBarPreciseIQEnabled = defaults.object(forKey: DefaultsKey.statusBarPreciseIQEnabled) as? Bool ?? false
@@ -425,44 +441,79 @@ final class SentinelStore: NSObject, ObservableObject {
         self.notificationSoundEnabled = defaults.object(forKey: DefaultsKey.notificationSoundEnabled) as? Bool ?? false
         self.automaticUpdatesEnabled = defaults.object(forKey: DefaultsKey.automaticUpdatesEnabled) as? Bool ?? true
         self.resetCreditAutoRefreshEnabled = defaults.object(forKey: DefaultsKey.resetCreditAutoRefreshEnabled) as? Bool ?? true
-        let authorizationLoad = protectionAuthorizationStore.load()
         var protectionConsent: ResetCreditProtectionConsent?
-        var authorizationCorrupt: Bool
-        switch authorizationLoad {
-        case .absent:
-            protectionConsent = nil
-            authorizationCorrupt = false
-        case .loaded(let consent):
-            protectionConsent = consent
-            authorizationCorrupt = false
-        case .corrupt:
-            protectionConsent = nil
-            authorizationCorrupt = true
-        }
         var protectionRequested = defaults.object(
             forKey: DefaultsKey.resetCreditProtectionEnabled
         ) as? Bool ?? false
-        let protectionClockDiscontinuity = protectionRequested
-            && protectionConsent != nil
-            && !ResetCreditProtectionAuthorization.isClockContinuous(
-                consent: protectionConsent
-            )
-        if protectionClockDiscontinuity {
+        var authorizationCorrupt = false
+        var protectionClockDiscontinuity = false
+        var protectionClockDiscontinuityReason:
+            ResetCreditProtectionAuthorization.ClockDiscontinuityReason?
+        let initialProtectionClock = resetCreditProtectionClock()
+        if protectionRequested {
             do {
-                try protectionAuthorizationStore.clear()
+                let clockValidation = try protectionAuthorizationStore
+                    .validateCurrentClockOrRevoke(
+                        currentClock: initialProtectionClock
+                    ) {
+                        defaults.set(
+                            false,
+                            forKey: DefaultsKey.resetCreditProtectionEnabled
+                        )
+                    }
+                switch clockValidation {
+                case .continuous(let consent):
+                    protectionConsent = consent
+                case .absent:
+                    protectionConsent = nil
+                    protectionRequested = false
+                case .revoked(_, let reason):
+                    protectionConsent = nil
+                    protectionRequested = false
+                    protectionClockDiscontinuity = true
+                    protectionClockDiscontinuityReason = reason
+                case .corrupt:
+                    protectionConsent = nil
+                    protectionRequested = false
+                    authorizationCorrupt = true
+                }
             } catch {
                 authorizationCorrupt = true
+                protectionConsent = nil
+                protectionRequested = false
+                defaults.set(
+                    false,
+                    forKey: DefaultsKey.resetCreditProtectionEnabled
+                )
             }
-            protectionConsent = nil
-            protectionRequested = false
-            defaults.set(
-                false,
-                forKey: DefaultsKey.resetCreditProtectionEnabled
-            )
+        } else {
+            switch protectionAuthorizationStore.load() {
+            case .absent:
+                protectionConsent = nil
+            case .loaded(let consent):
+                do {
+                    _ = try protectionAuthorizationStore.clear(
+                        ifCurrent: consent
+                    ) {
+                        defaults.set(
+                            false,
+                            forKey: DefaultsKey.resetCreditProtectionEnabled
+                        )
+                    }
+                    protectionConsent = nil
+                } catch {
+                    protectionConsent = nil
+                    authorizationCorrupt = true
+                }
+            case .corrupt:
+                protectionConsent = nil
+                authorizationCorrupt = true
+            }
         }
         let protectionEnabled = ResetCreditProtectionAuthorization.isEnabled(
             requested: protectionRequested,
-            consent: protectionConsent
+            consent: protectionConsent,
+            currentClock: initialProtectionClock
         )
         let journalLoad = protectionLedgerStore.load()
         let loadedLedger: ResetCreditProtectionLedger
@@ -488,7 +539,15 @@ final class SentinelStore: NSObject, ObservableObject {
             : (protectionStorageCorrupt
             ? .blocked(.journalUnavailable, detail: nil)
             : (protectionClockDiscontinuity
-            ? .blocked(.clockChanged, detail: nil)
+            ? .blocked(
+                .clockChanged,
+                detail: protectionClockDiscontinuityReason.map {
+                    Self.resetCreditProtectionClockDiscontinuityDetail(
+                        $0,
+                        language: resolvedAppLanguage
+                    )
+                }
+            )
             : ((protectionEnabled || loadedLedger.activeAttempt != nil)
                 ? .checking
                 : .disabled)))
@@ -507,6 +566,10 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private var resetCreditProtectionJournal: ResetCreditProtectionAttemptJournal? {
         resetCreditProtectionLedger.activeAttempt
+    }
+
+    var hasUnresolvedResetCreditProtectionAttempt: Bool {
+        resetCreditProtectionJournal != nil
     }
 
     private func withFreshResetCreditProtectionSession<T>(
@@ -657,6 +720,7 @@ final class SentinelStore: NSObject, ObservableObject {
         resetCreditTask?.cancel()
         resetCreditAutoRefreshTask?.cancel()
         resetCreditProtectionTask?.cancel()
+        resetCreditProtectionEnablingClockAnchor = nil
         stopLifecycleObservation()
         Task {
             if let client = appServerClient as? CodexAppServerClient {
@@ -719,22 +783,34 @@ final class SentinelStore: NSObject, ObservableObject {
             return
         }
         let clockGeneration = resetCreditProtectionClockGeneration
+        let clockAnchor = resetCreditProtectionClock()
+        resetCreditProtectionEnablingClockAnchor = clockAnchor
         resetCreditProtectionStatus = .enabling
         resetCreditProtectionTask = Task { [weak self] in
             guard let self else {
                 return
             }
             await self.armResetCreditExpiryProtection(
-                clockGeneration: clockGeneration
+                clockGeneration: clockGeneration,
+                clockAnchor: clockAnchor
             )
+            if self.resetCreditProtectionEnablingClockAnchor == clockAnchor {
+                self.resetCreditProtectionEnablingClockAnchor = nil
+            }
             self.resetCreditProtectionTask = nil
         }
     }
 
     func disableResetCreditExpiryProtection() {
         resetCreditProtectionTask?.cancel()
+        resetCreditProtectionEnablingClockAnchor = nil
         do {
-            try resetCreditProtectionAuthorizationStore.clear()
+            try resetCreditProtectionAuthorizationStore.clear { [defaults] in
+                defaults.set(
+                    false,
+                    forKey: DefaultsKey.resetCreditProtectionEnabled
+                )
+            }
         } catch {
             failClosedForResetCreditProtectionJournal()
             return
@@ -742,45 +818,239 @@ final class SentinelStore: NSObject, ObservableObject {
         resetCreditProtectionEnabled = false
         resetCreditProtectionConsent = nil
         resetCreditProtectionNextRetryAt = nil
-        defaults.set(false, forKey: DefaultsKey.resetCreditProtectionEnabled)
         if resetCreditProtectionJournal == nil {
             resetCreditProtectionStatus = .disabled
         }
     }
 
     func handleSystemClockChange() {
-        resetCreditProtectionClockGeneration &+= 1
+        let requestedBeforeValidation = defaults.object(
+            forKey: DefaultsKey.resetCreditProtectionEnabled
+        ) as? Bool ?? false
         let protectionWasRelevant = resetCreditProtectionEnabled
             || resetCreditProtectionJournal != nil
             || resetCreditProtectionStatus == .enabling
-            || (defaults.object(
-                forKey: DefaultsKey.resetCreditProtectionEnabled
-            ) as? Bool ?? false)
+            || requestedBeforeValidation
         guard protectionWasRelevant else {
             refreshNow()
             return
         }
 
-        resetCreditProtectionTask?.cancel()
+        let currentClock = resetCreditProtectionClock()
+        let clockValidation: ResetCreditProtectionAuthorizationStore
+            .ClockValidationResult
         do {
-            try resetCreditProtectionAuthorizationStore.clear()
+            clockValidation = try resetCreditProtectionAuthorizationStore
+                .validateCurrentClockOrRevoke(
+                    currentClock: currentClock
+                ) { [defaults] in
+                    defaults.set(
+                        false,
+                        forKey: DefaultsKey.resetCreditProtectionEnabled
+                    )
+                }
         } catch {
-            failClosedForResetCreditProtectionJournal()
+            resetCreditProtectionClockGeneration &+= 1
+            resetCreditProtectionTask?.cancel()
+            resetCreditProtectionEnablingClockAnchor = nil
+            resetCreditProtectionEnabled = false
+            resetCreditProtectionConsent = nil
+            resetCreditProtectionNextRetryAt = nil
+            resetCreditProtectionJournalCorrupt = true
+            defaults.set(false, forKey: DefaultsKey.resetCreditProtectionEnabled)
+            resetCreditProtectionStatus = .blocked(
+                .journalUnavailable,
+                detail: nil
+            )
             refreshNow()
             return
         }
+
+        if case .continuous(let consent) = clockValidation {
+            guard resetCreditProtectionRuntimeAllowsDestructiveActions,
+                  debugPreview == .live else {
+                resetCreditProtectionEnablingClockAnchor = nil
+                resetCreditProtectionEnabled = false
+                resetCreditProtectionConsent = nil
+                resetCreditProtectionNextRetryAt = nil
+                if resetCreditProtectionJournal == nil {
+                    resetCreditProtectionStatus = .disabled
+                }
+                refreshNow()
+                return
+            }
+            let requested = defaults.object(
+                forKey: DefaultsKey.resetCreditProtectionEnabled
+            ) as? Bool ?? false
+            guard requested else {
+                resetCreditProtectionClockGeneration &+= 1
+                resetCreditProtectionTask?.cancel()
+                resetCreditProtectionEnablingClockAnchor = nil
+                do {
+                    _ = try resetCreditProtectionAuthorizationStore.clear(
+                        ifCurrent: consent
+                    ) { [defaults] in
+                        defaults.set(
+                            false,
+                            forKey: DefaultsKey.resetCreditProtectionEnabled
+                        )
+                    }
+                } catch {
+                    resetCreditProtectionEnabled = false
+                    resetCreditProtectionConsent = nil
+                    resetCreditProtectionNextRetryAt = nil
+                    resetCreditProtectionJournalCorrupt = true
+                    resetCreditProtectionStatus = .blocked(
+                        .journalUnavailable,
+                        detail: nil
+                    )
+                    refreshNow()
+                    return
+                }
+                resetCreditProtectionEnabled = false
+                resetCreditProtectionConsent = nil
+                resetCreditProtectionNextRetryAt = nil
+                if let journal = resetCreditProtectionJournal {
+                    resetCreditProtectionStatus = .reconciling(
+                        expiresAt: journal.expiresAt
+                    )
+                } else {
+                    resetCreditProtectionStatus = .disabled
+                }
+                refreshNow()
+                return
+            }
+            if resetCreditProtectionStatus == .enabling
+                || resetCreditProtectionConsent != consent {
+                resetCreditProtectionClockGeneration &+= 1
+                resetCreditProtectionTask?.cancel()
+                resetCreditProtectionEnablingClockAnchor = nil
+            }
+            resetCreditProtectionEnabled = true
+            resetCreditProtectionConsent = consent
+            if resetCreditProtectionStatus == .enabling {
+                resetCreditProtectionStatus = .checking
+            }
+            refreshNow()
+            return
+        }
+
+        var enablingDiscontinuityReason:
+            ResetCreditProtectionAuthorization.ClockDiscontinuityReason?
+        if clockValidation == .absent,
+           resetCreditProtectionStatus == .enabling,
+           let clockAnchor = resetCreditProtectionEnablingClockAnchor {
+            enablingDiscontinuityReason = ResetCreditProtectionAuthorization
+                .clockDiscontinuityReason(
+                    anchor: clockAnchor,
+                    current: currentClock
+                )
+            if enablingDiscontinuityReason == nil {
+                refreshNow()
+                return
+            }
+        }
+
+        if clockValidation == .absent,
+           let journal = resetCreditProtectionJournal,
+           resetCreditProtectionStatus != .enabling {
+            resetCreditProtectionClockGeneration &+= 1
+            resetCreditProtectionTask?.cancel()
+            resetCreditProtectionEnablingClockAnchor = nil
+            resetCreditProtectionEnabled = false
+            resetCreditProtectionConsent = nil
+            resetCreditProtectionNextRetryAt = nil
+            resetCreditProtectionStatus = .reconciling(
+                expiresAt: journal.expiresAt
+            )
+            refreshNow()
+            return
+        }
+
+        if clockValidation == .absent,
+           resetCreditProtectionStatus != .enabling {
+            let protectionExpectedAuthorization =
+                requestedBeforeValidation || resetCreditProtectionEnabled
+            resetCreditProtectionClockGeneration &+= 1
+            resetCreditProtectionTask?.cancel()
+            resetCreditProtectionEnablingClockAnchor = nil
+            resetCreditProtectionEnabled = false
+            resetCreditProtectionConsent = nil
+            resetCreditProtectionNextRetryAt = nil
+            if protectionExpectedAuthorization {
+                resetCreditProtectionStatus = .blocked(
+                    .creditNotAuthorized,
+                    detail: appLanguage.text(
+                        "本地授权记录不存在，保护已安全关闭；请重新显式开启。",
+                        "The local authorization record is missing. Protection was safely turned off; enable it again explicitly."
+                    )
+                )
+                deliverResetCreditProtectionFailure(
+                    identifier:
+                        "reset-credit-protection-authorization-missing",
+                    body: appLanguage.text(
+                        "重置卡到期保护的本地授权记录不存在。未发送用卡请求；请重新显式开启。",
+                        "The local authorization for reset-credit expiry protection is missing. No consume request was sent; enable protection again explicitly."
+                    )
+                )
+            } else {
+                resetCreditProtectionStatus = .disabled
+            }
+            refreshNow()
+            return
+        }
+
+        resetCreditProtectionClockGeneration &+= 1
+        resetCreditProtectionTask?.cancel()
+        resetCreditProtectionEnablingClockAnchor = nil
         resetCreditProtectionEnabled = false
         resetCreditProtectionConsent = nil
         resetCreditProtectionNextRetryAt = nil
-        defaults.set(false, forKey: DefaultsKey.resetCreditProtectionEnabled)
-        resetCreditProtectionStatus = .blocked(.clockChanged, detail: nil)
-        deliverResetCreditProtectionFailure(
-            identifier: "reset-credit-protection-clock-changed",
-            body: appLanguage.text(
-                "系统时间发生变化。为避免提前使用，保护已关闭；核对系统时间与只读计划后再显式开启。",
-                "The system clock changed. Protection was turned off to avoid an early use; verify the clock and read-only plan before enabling again."
+        if clockValidation == .corrupt {
+            resetCreditProtectionJournalCorrupt = true
+            resetCreditProtectionStatus = .blocked(
+                .journalUnavailable,
+                detail: nil
             )
-        )
+        } else {
+            let wasAlreadyBlocked: Bool
+            if case .blocked(.clockChanged, _) =
+                resetCreditProtectionStatus {
+                wasAlreadyBlocked = true
+            } else {
+                wasAlreadyBlocked = false
+            }
+            let detail: String?
+            if case .revoked(_, let reason) = clockValidation {
+                detail = Self.resetCreditProtectionClockDiscontinuityDetail(
+                    reason,
+                    language: appLanguage
+                )
+            } else if let enablingDiscontinuityReason {
+                detail = Self.resetCreditProtectionClockDiscontinuityDetail(
+                    enablingDiscontinuityReason,
+                    language: appLanguage
+                )
+            } else {
+                detail = appLanguage.text(
+                    "时钟变化发生在保护启用完成前，未建立稳定授权。",
+                    "The clock changed before protection finished enabling, so no stable authorization was established."
+                )
+            }
+            resetCreditProtectionStatus = .blocked(
+                .clockChanged,
+                detail: detail
+            )
+            if !wasAlreadyBlocked {
+                deliverResetCreditProtectionFailure(
+                    identifier: "reset-credit-protection-clock-changed",
+                    body: appLanguage.text(
+                        "检测到系统时间与连续计时偏差超过 5 秒，或连续计时器已重置。为避免提前使用，保护已关闭；核对系统时间与只读计划后再显式开启。",
+                        "The system clock differed from continuous time by more than 5 seconds, or the continuous clock reset. Protection was turned off to avoid an early use; verify the clock and read-only plan before enabling again."
+                    )
+                )
+            }
+        }
         refreshNow()
     }
 
@@ -1465,10 +1735,19 @@ final class SentinelStore: NSObject, ObservableObject {
     }
 
     private func armResetCreditExpiryProtection(
-        clockGeneration: UInt64
+        clockGeneration: UInt64,
+        clockAnchor: ResetCreditProtectionClockSample
     ) async {
         guard !Task.isCancelled,
               clockGeneration == resetCreditProtectionClockGeneration else {
+            return
+        }
+        if let reason = ResetCreditProtectionAuthorization
+            .clockDiscontinuityReason(
+                anchor: clockAnchor,
+                current: resetCreditProtectionClock()
+            ) {
+            blockResetCreditProtectionEnableForClockDiscontinuity(reason)
             return
         }
         let processLock: ResetCreditProtectionProcessLock
@@ -1597,32 +1876,52 @@ final class SentinelStore: NSObject, ObservableObject {
                     )
                     return
                 }
+                if let reason = ResetCreditProtectionAuthorization
+                    .clockDiscontinuityReason(
+                        anchor: clockAnchor,
+                        current: resetCreditProtectionClock()
+                    ) {
+                    blockResetCreditProtectionEnableForClockDiscontinuity(
+                        reason
+                    )
+                    return
+                }
                 let consent = ResetCreditProtectionConsent(
                     version: AppConstants.resetCreditProtectionConsentVersion,
                     accountFingerprint: accountFingerprint,
                     grantedAt: now,
                     authorizedCreditFingerprints:
                         authorizedCreditFingerprints,
-                    clockAnchor: .now(wallTime: now)
+                    clockAnchor: clockAnchor
                 )
                 guard !Task.isCancelled,
                       clockGeneration
                         == resetCreditProtectionClockGeneration else {
                     return
                 }
-                try resetCreditProtectionAuthorizationStore.save(consent)
+                try resetCreditProtectionAuthorizationStore.save(
+                    consent
+                ) { [defaults] in
+                    defaults.set(
+                        true,
+                        forKey: DefaultsKey.resetCreditProtectionEnabled
+                    )
+                }
                 guard !Task.isCancelled,
                       clockGeneration
                         == resetCreditProtectionClockGeneration else {
-                    try resetCreditProtectionAuthorizationStore.clear()
+                    _ = try resetCreditProtectionAuthorizationStore.clear(
+                        ifCurrent: consent
+                    ) { [defaults] in
+                        defaults.set(
+                            false,
+                            forKey: DefaultsKey.resetCreditProtectionEnabled
+                        )
+                    }
                     return
                 }
                 resetCreditProtectionConsent = consent
                 resetCreditProtectionEnabled = true
-                defaults.set(
-                    true,
-                    forKey: DefaultsKey.resetCreditProtectionEnabled
-                )
                 switch decision {
                 case .scheduled:
                     applyResetCreditProtectionDecisionStatus(decision)
@@ -2539,6 +2838,59 @@ final class SentinelStore: NSObject, ObservableObject {
         )
     }
 
+    private static func resetCreditProtectionClockDiscontinuityDetail(
+        _ reason: ResetCreditProtectionAuthorization.ClockDiscontinuityReason,
+        language: AppLanguage
+    ) -> String {
+        switch reason {
+        case .wallClockOffset(let seconds):
+            let amount = String(format: "%.3f", abs(seconds))
+            return language.text(
+                seconds >= 0
+                    ? "系统时间相对连续计时快了 \(amount) 秒，超过 5 秒安全阈值。"
+                    : "系统时间相对连续计时慢了 \(amount) 秒，超过 5 秒安全阈值。",
+                seconds >= 0
+                    ? "The system clock was \(amount) seconds ahead of continuous time, exceeding the 5-second safety threshold."
+                    : "The system clock was \(amount) seconds behind continuous time, exceeding the 5-second safety threshold."
+            )
+        case .continuousClockReset:
+            return language.text(
+                "连续计时器已重置，可能是系统重启。",
+                "The continuous clock reset, which can indicate a system restart."
+            )
+        case .invalidSample:
+            return language.text(
+                "无法验证系统时钟与连续计时的连续性。",
+                "System-clock continuity could not be verified."
+            )
+        }
+    }
+
+    private func blockResetCreditProtectionEnableForClockDiscontinuity(
+        _ reason: ResetCreditProtectionAuthorization.ClockDiscontinuityReason
+    ) {
+        resetCreditProtectionClockGeneration &+= 1
+        resetCreditProtectionEnablingClockAnchor = nil
+        resetCreditProtectionEnabled = false
+        resetCreditProtectionConsent = nil
+        resetCreditProtectionNextRetryAt = nil
+        defaults.set(false, forKey: DefaultsKey.resetCreditProtectionEnabled)
+        resetCreditProtectionStatus = .blocked(
+            .clockChanged,
+            detail: Self.resetCreditProtectionClockDiscontinuityDetail(
+                reason,
+                language: appLanguage
+            )
+        )
+        deliverResetCreditProtectionFailure(
+            identifier: "reset-credit-protection-clock-changed",
+            body: appLanguage.text(
+                "启用期间检测到系统时间与连续计时偏差超过 5 秒，或连续计时器已重置。保护未启用，请核对系统时间与只读计划后重试。",
+                "During enabling, the system clock differed from continuous time by more than 5 seconds, or the continuous clock reset. Protection was not enabled; verify the clock and read-only plan before trying again."
+            )
+        )
+    }
+
     private func handleResetCreditProtectionJournalAccountFailure(
         _ journal: ResetCreditProtectionAttemptJournal,
         accountChanged: Bool
@@ -2601,7 +2953,12 @@ final class SentinelStore: NSObject, ObservableObject {
         do {
             let result = try resetCreditProtectionAuthorizationStore.clear(
                 ifCurrent: expectedConsent
-            )
+            ) { [defaults] in
+                defaults.set(
+                    false,
+                    forKey: DefaultsKey.resetCreditProtectionEnabled
+                )
+            }
             guard result != .superseded else {
                 return false
             }
@@ -2614,7 +2971,6 @@ final class SentinelStore: NSObject, ObservableObject {
             resetCreditProtectionEnabled = false
             resetCreditProtectionConsent = nil
         }
-        defaults.set(false, forKey: DefaultsKey.resetCreditProtectionEnabled)
         return true
     }
 
@@ -3025,11 +3381,16 @@ final class SentinelStore: NSObject, ObservableObject {
         resetCreditProtectionEnabled = false
         resetCreditProtectionConsent = nil
         resetCreditProtectionJournalCorrupt = true
-        defaults.set(false, forKey: DefaultsKey.resetCreditProtectionEnabled)
         resetCreditProtectionStatus = .blocked(.journalUnavailable, detail: nil)
         do {
-            try resetCreditProtectionAuthorizationStore.clear()
+            try resetCreditProtectionAuthorizationStore.clear { [defaults] in
+                defaults.set(
+                    false,
+                    forKey: DefaultsKey.resetCreditProtectionEnabled
+                )
+            }
         } catch {
+            defaults.set(false, forKey: DefaultsKey.resetCreditProtectionEnabled)
             deliverResetCreditProtectionFailure(
                 identifier: "reset-credit-protection-authorization-unavailable",
                 body: appLanguage.text(

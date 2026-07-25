@@ -141,6 +141,7 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
         XCTAssertFalse(
             context.defaults.bool(forKey: "resetCreditProtectionEnabled")
         )
+        XCTAssertEqual(context.authorizationStore.load(), .absent)
         XCTAssertEqual(sessions.count, 0)
         let longLivedSnapshot = await longLived.snapshot()
         XCTAssertEqual(longLivedSnapshot.consumeCallCount, 0)
@@ -190,6 +191,16 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
         )
 
         XCTAssertFalse(store.resetCreditProtectionEnabled)
+        store.handleSystemClockChange()
+        if case .blocked(.clockChanged, _) =
+            store.resetCreditProtectionStatus {
+            XCTFail("An absent authorization must not mask read-only reconciliation")
+        }
+        guard case .loaded(let preservedLedger) =
+            context.ledgerStore.load() else {
+            return XCTFail("Expected the unresolved journal to remain durable")
+        }
+        XCTAssertEqual(preservedLedger.activeAttempt, journal)
         store.refreshNow()
         try await waitUntil {
             guard let service = sessions.services.first else {
@@ -215,6 +226,80 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
             return XCTFail("Expected the unresolved journal to remain durable")
         }
         XCTAssertEqual(ledger.activeAttempt, journal)
+    }
+
+    func testDisabledJournalSurvivesOrdinaryNetworkFailure() async throws {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "disabled-network-failure-credit"
+        let expiresAt = Date().addingTimeInterval(10 * 60)
+        let account = accountResponse(email: "account-a@example.com")
+        let journal = ResetCreditProtectionAttemptJournal(
+            accountFingerprint: try accountFingerprint(account),
+            creditFingerprint: ResetCreditPrivacy.fingerprint(creditID),
+            idempotencyKey: UUID().uuidString,
+            expiresAt: expiresAt,
+            availableCountBefore: 1,
+            phase: .sentUnknown,
+            updatedAt: Date()
+        )
+        context.defaults.set(false, forKey: "resetCreditProtectionEnabled")
+        context.disableBackgroundFeatures()
+        try context.ledgerStore.save(
+            ResetCreditProtectionLedger(activeAttempt: journal)
+        )
+
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: expiresAt
+        )
+        let longLived = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let failingService = NetworkFailingAppServer(account: account)
+        let factory = ResetCreditProtectionAppServerSessionFactory {
+            ResetCreditProtectionAppServerSession(
+                service: failingService,
+                shutdown: {
+                    await failingService.recordShutdown()
+                }
+            )
+        }
+        let store = context.makeStore(
+            appServer: longLived,
+            sessionFactory: factory
+        )
+
+        XCTAssertFalse(store.resetCreditProtectionEnabled)
+        XCTAssertTrue(store.hasUnresolvedResetCreditProtectionAttempt)
+        XCTAssertEqual(context.authorizationStore.load(), .absent)
+        store.handleSystemClockChange()
+        try await waitUntil {
+            guard case .blocked(.requestFailed, _) =
+                store.resetCreditProtectionStatus else {
+                return false
+            }
+            return await failingService.snapshot().shutdownCount >= 1
+        }
+
+        XCTAssertFalse(store.resetCreditProtectionEnabled)
+        XCTAssertFalse(
+            context.defaults.bool(forKey: "resetCreditProtectionEnabled")
+        )
+        XCTAssertTrue(store.hasUnresolvedResetCreditProtectionAttempt)
+        XCTAssertEqual(context.authorizationStore.load(), .absent)
+        guard case .loaded(let ledger) = context.ledgerStore.load() else {
+            return XCTFail("Expected the unresolved journal to remain durable")
+        }
+        XCTAssertEqual(ledger.activeAttempt, journal)
+        XCTAssertEqual(
+            ledger.activeAttempt?.idempotencyKey,
+            journal.idempotencyKey
+        )
+        let snapshot = await failingService.snapshot()
+        XCTAssertGreaterThanOrEqual(snapshot.rateLimitReadCount, 1)
+        XCTAssertEqual(snapshot.consumeCallCount, 0)
     }
 
     func testExplicitReenableReconcilesActiveJournalWithoutReplacingOrConsuming()
@@ -668,10 +753,21 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
         defer { context.cleanup() }
         let creditID = "clock-change-credit"
         let account = accountResponse(email: "account-a@example.com")
-        try context.authorizationStore.save(
-            consent(account: account, creditIDs: [creditID])
+        let anchor = ResetCreditProtectionClockSample(
+            wallTime: Date(timeIntervalSince1970: 2_000_000_000),
+            continuousTimeSeconds: 1_000
         )
-        context.defaults.set(true, forKey: "resetCreditProtectionEnabled")
+        let storedConsent = try consent(
+            account: account,
+            creditIDs: [creditID],
+            clockAnchor: anchor
+        )
+        try context.authorizationStore.save(storedConsent) {
+            context.defaults.set(
+                true,
+                forKey: "resetCreditProtectionEnabled"
+            )
+        }
 
         let response = rateLimitResponse(
             creditID: creditID,
@@ -686,27 +782,71 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
         }
         let store = context.makeStore(
             appServer: longLived,
-            sessionFactory: sessions.factory
+            sessionFactory: sessions.factory,
+            clock: {
+                ResetCreditProtectionClockSample(
+                    wallTime: anchor.wallTime.addingTimeInterval(126),
+                    continuousTimeSeconds: 1_120
+                )
+            }
         )
 
-        XCTAssertTrue(store.resetCreditProtectionEnabled)
-        store.handleSystemClockChange()
+        XCTAssertFalse(store.resetCreditProtectionEnabled)
+        guard case .blocked(.clockChanged, let detail) =
+            store.resetCreditProtectionStatus else {
+            return XCTFail("Expected a clock discontinuity at startup")
+        }
+        XCTAssertTrue(detail?.contains("6.000") == true)
+
+        try context.authorizationStore.save(storedConsent) {
+            context.defaults.set(
+                true,
+                forKey: "resetCreditProtectionEnabled"
+            )
+        }
+        let enabledStore = context.makeStore(
+            appServer: longLived,
+            sessionFactory: sessions.factory,
+            clock: {
+                ResetCreditProtectionClockSample(
+                    wallTime: anchor.wallTime.addingTimeInterval(120),
+                    continuousTimeSeconds: 1_120
+                )
+            }
+        )
+        XCTAssertTrue(enabledStore.resetCreditProtectionEnabled)
+        var changedClock = ResetCreditProtectionClockSample(
+            wallTime: anchor.wallTime.addingTimeInterval(120),
+            continuousTimeSeconds: 1_120
+        )
+        let handlerStore = context.makeStore(
+            appServer: longLived,
+            sessionFactory: sessions.factory,
+            clock: { changedClock }
+        )
+        XCTAssertTrue(handlerStore.resetCreditProtectionEnabled)
+        changedClock = ResetCreditProtectionClockSample(
+            wallTime: anchor.wallTime.addingTimeInterval(126),
+            continuousTimeSeconds: 1_120
+        )
+        handlerStore.handleSystemClockChange()
         try await waitUntil {
             await longLived.snapshot().rateLimitReadCount >= 1
         }
-        store.refreshNow()
+        handlerStore.refreshNow()
         try await waitUntil {
             await longLived.snapshot().rateLimitReadCount >= 2
         }
 
-        XCTAssertFalse(store.resetCreditProtectionEnabled)
+        XCTAssertFalse(handlerStore.resetCreditProtectionEnabled)
         XCTAssertFalse(
             context.defaults.bool(forKey: "resetCreditProtectionEnabled")
         )
-        XCTAssertEqual(
-            store.resetCreditProtectionStatus,
-            .blocked(.clockChanged, detail: nil)
-        )
+        guard case .blocked(.clockChanged, let handlerDetail) =
+            handlerStore.resetCreditProtectionStatus else {
+            return XCTFail("Expected the handler to report a clock offset")
+        }
+        XCTAssertTrue(handlerDetail?.contains("6.000") == true)
         XCTAssertEqual(context.authorizationStore.load(), .absent)
         XCTAssertEqual(sessions.count, 0)
         let longLivedSnapshot = await longLived.snapshot()
@@ -740,9 +880,12 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
                 }
             )
         }
+        let clockAnchor = ResetCreditProtectionClockSample.now()
+        var currentClock = clockAnchor
         let store = context.makeStore(
             appServer: longLived,
-            sessionFactory: factory
+            sessionFactory: factory,
+            clock: { currentClock }
         )
 
         store.enableResetCreditExpiryProtection()
@@ -751,6 +894,11 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
         }
         XCTAssertEqual(store.resetCreditProtectionStatus, .enabling)
 
+        currentClock = ResetCreditProtectionClockSample(
+            wallTime: clockAnchor.wallTime.addingTimeInterval(126),
+            continuousTimeSeconds:
+                clockAnchor.continuousTimeSeconds + 120
+        )
         store.handleSystemClockChange()
         await suspended.releaseAccountRead()
         try await waitUntil {
@@ -761,14 +909,148 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
         XCTAssertFalse(
             context.defaults.bool(forKey: "resetCreditProtectionEnabled")
         )
-        XCTAssertEqual(
-            store.resetCreditProtectionStatus,
-            .blocked(.clockChanged, detail: nil)
-        )
+        guard case .blocked(.clockChanged, let detail) =
+            store.resetCreditProtectionStatus else {
+            return XCTFail("Expected enabling to fail closed")
+        }
+        XCTAssertTrue(detail?.contains("6.000") == true)
         XCTAssertEqual(context.authorizationStore.load(), .absent)
         let snapshot = await suspended.snapshot()
         XCTAssertEqual(snapshot.rateLimitReadCount, 0)
         XCTAssertEqual(snapshot.consumeCallCount, 0)
+    }
+
+    func testBenignClockNotificationWhileEnablingDoesNotCancelAuthorization()
+        async throws
+    {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "benign-enabling-clock-credit"
+        let account = accountResponse(email: "account-a@example.com")
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: Date().addingTimeInterval(2 * 60 * 60)
+        )
+        let longLived = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let suspended = SuspendedEnableAppServer(
+            account: account,
+            response: response
+        )
+        let factory = ResetCreditProtectionAppServerSessionFactory {
+            ResetCreditProtectionAppServerSession(
+                service: suspended,
+                shutdown: {
+                    await suspended.recordShutdown()
+                }
+            )
+        }
+        let clockAnchor = ResetCreditProtectionClockSample.now()
+        var currentClock = clockAnchor
+        let store = context.makeStore(
+            appServer: longLived,
+            sessionFactory: factory,
+            clock: { currentClock }
+        )
+
+        store.enableResetCreditExpiryProtection()
+        try await waitUntil {
+            await suspended.snapshot().accountReadCount == 1
+        }
+        currentClock = ResetCreditProtectionClockSample(
+            wallTime: clockAnchor.wallTime.addingTimeInterval(120.070),
+            continuousTimeSeconds:
+                clockAnchor.continuousTimeSeconds + 120
+        )
+        store.handleSystemClockChange()
+        XCTAssertEqual(store.resetCreditProtectionStatus, .enabling)
+
+        await suspended.releaseAccountRead()
+        try await waitUntil {
+            await suspended.snapshot().shutdownCount == 1
+        }
+
+        XCTAssertTrue(
+            store.resetCreditProtectionEnabled,
+            "Unexpected status: \(store.resetCreditProtectionStatus)"
+        )
+        XCTAssertTrue(
+            context.defaults.bool(forKey: "resetCreditProtectionEnabled")
+        )
+        guard case .loaded(let savedConsent) =
+            context.authorizationStore.load() else {
+            return XCTFail("Expected enabling to persist authorization")
+        }
+        XCTAssertEqual(savedConsent.clockAnchor, clockAnchor)
+        let snapshot = await suspended.snapshot()
+        XCTAssertEqual(snapshot.consumeCallCount, 0)
+        store.stop()
+    }
+
+    func testUnnotifiedClockJumpWhileEnablingFailsBeforeAuthorizationSave()
+        async throws
+    {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "unnotified-enabling-clock-credit"
+        let account = accountResponse(email: "account-a@example.com")
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: Date().addingTimeInterval(2 * 60 * 60)
+        )
+        let longLived = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let suspended = SuspendedEnableAppServer(
+            account: account,
+            response: response
+        )
+        let factory = ResetCreditProtectionAppServerSessionFactory {
+            ResetCreditProtectionAppServerSession(
+                service: suspended,
+                shutdown: {
+                    await suspended.recordShutdown()
+                }
+            )
+        }
+        let clockAnchor = ResetCreditProtectionClockSample.now()
+        var currentClock = clockAnchor
+        let store = context.makeStore(
+            appServer: longLived,
+            sessionFactory: factory,
+            clock: { currentClock }
+        )
+
+        store.enableResetCreditExpiryProtection()
+        try await waitUntil {
+            await suspended.snapshot().accountReadCount == 1
+        }
+        currentClock = ResetCreditProtectionClockSample(
+            wallTime: clockAnchor.wallTime.addingTimeInterval(126),
+            continuousTimeSeconds:
+                clockAnchor.continuousTimeSeconds + 120
+        )
+        await suspended.releaseAccountRead()
+        try await waitUntil {
+            await suspended.snapshot().shutdownCount == 1
+        }
+
+        XCTAssertFalse(store.resetCreditProtectionEnabled)
+        XCTAssertFalse(
+            context.defaults.bool(forKey: "resetCreditProtectionEnabled")
+        )
+        XCTAssertEqual(context.authorizationStore.load(), .absent)
+        guard case .blocked(.clockChanged, let detail) =
+            store.resetCreditProtectionStatus else {
+            return XCTFail("Expected the unnotified jump to fail closed")
+        }
+        XCTAssertTrue(detail?.contains("6.000") == true)
+        let snapshot = await suspended.snapshot()
+        XCTAssertEqual(snapshot.consumeCallCount, 0)
+        store.stop()
     }
 
     func testPersistedClockDiscontinuityClosesProtectionAtStartup()
@@ -812,12 +1094,466 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
         XCTAssertFalse(
             context.defaults.bool(forKey: "resetCreditProtectionEnabled")
         )
-        XCTAssertEqual(
-            store.resetCreditProtectionStatus,
-            .blocked(.clockChanged, detail: nil)
-        )
+        guard case .blocked(.clockChanged, let detail) =
+            store.resetCreditProtectionStatus else {
+            return XCTFail("Expected a persisted clock discontinuity")
+        }
+        XCTAssertTrue(detail?.contains("连续计时器") == true)
         XCTAssertEqual(context.authorizationStore.load(), .absent)
         XCTAssertEqual(sessions.count, 0)
+    }
+
+    func testBenignNTPClockNotificationsKeepProtectionEnabled()
+        async throws
+    {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "benign-clock-credit"
+        let account = accountResponse(email: "account-a@example.com")
+        let anchor = ResetCreditProtectionClockSample(
+            wallTime: Date(timeIntervalSince1970: 2_000_000_000),
+            continuousTimeSeconds: 1_000
+        )
+        let storedConsent = try consent(
+            account: account,
+            creditIDs: [creditID],
+            clockAnchor: anchor
+        )
+        try context.authorizationStore.save(storedConsent) {
+            context.defaults.set(
+                true,
+                forKey: "resetCreditProtectionEnabled"
+            )
+        }
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: Date().addingTimeInterval(2 * 60 * 60)
+        )
+        let appServer = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let sessions = OfflineSessionFactoryRecorder {
+            OfflineAppServer(account: account, response: response)
+        }
+        let store = context.makeStore(
+            appServer: appServer,
+            sessionFactory: sessions.factory,
+            clock: {
+                ResetCreditProtectionClockSample(
+                    wallTime: anchor.wallTime.addingTimeInterval(120.070),
+                    continuousTimeSeconds: 1_120
+                )
+            }
+        )
+
+        XCTAssertTrue(store.resetCreditProtectionEnabled)
+        for _ in 0..<3 {
+            store.handleSystemClockChange()
+        }
+
+        XCTAssertTrue(store.resetCreditProtectionEnabled)
+        XCTAssertTrue(
+            context.defaults.bool(forKey: "resetCreditProtectionEnabled")
+        )
+        XCTAssertEqual(
+            context.authorizationStore.load(),
+            .loaded(storedConsent)
+        )
+        let snapshot = await appServer.snapshot()
+        XCTAssertEqual(snapshot.consumeCallCount, 0)
+        store.stop()
+        try await Task.sleep(nanoseconds: 20_000_000)
+    }
+
+    func testClockDiscontinuityRevokesAuthorizationButPreservesActiveJournal()
+        async throws
+    {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "clock-journal-credit"
+        let expiresAt = Date().addingTimeInterval(10 * 60)
+        let account = accountResponse(email: "account-a@example.com")
+        let accountFingerprint = try accountFingerprint(account)
+        let anchor = ResetCreditProtectionClockSample(
+            wallTime: Date(timeIntervalSince1970: 2_000_000_000),
+            continuousTimeSeconds: 1_000
+        )
+        let storedConsent = try consent(
+            account: account,
+            creditIDs: [creditID],
+            clockAnchor: anchor
+        )
+        let journal = ResetCreditProtectionAttemptJournal(
+            accountFingerprint: accountFingerprint,
+            creditFingerprint: ResetCreditPrivacy.fingerprint(creditID),
+            idempotencyKey: UUID().uuidString,
+            expiresAt: expiresAt,
+            availableCountBefore: 1,
+            phase: .sending,
+            updatedAt: Date()
+        )
+        try context.authorizationStore.save(storedConsent) {
+            context.defaults.set(
+                true,
+                forKey: "resetCreditProtectionEnabled"
+            )
+        }
+        try context.ledgerStore.save(
+            ResetCreditProtectionLedger(activeAttempt: journal)
+        )
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: expiresAt
+        )
+        let appServer = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let sessions = OfflineSessionFactoryRecorder {
+            OfflineAppServer(account: account, response: response)
+        }
+        var currentClock = ResetCreditProtectionClockSample(
+            wallTime: anchor.wallTime.addingTimeInterval(120),
+            continuousTimeSeconds: 1_120
+        )
+        let store = context.makeStore(
+            appServer: appServer,
+            sessionFactory: sessions.factory,
+            clock: { currentClock }
+        )
+        XCTAssertTrue(store.resetCreditProtectionEnabled)
+
+        currentClock = ResetCreditProtectionClockSample(
+            wallTime: anchor.wallTime.addingTimeInterval(126),
+            continuousTimeSeconds: 1_120
+        )
+        store.handleSystemClockChange()
+
+        XCTAssertFalse(store.resetCreditProtectionEnabled)
+        XCTAssertEqual(context.authorizationStore.load(), .absent)
+        guard case .loaded(let preservedLedger) =
+            context.ledgerStore.load() else {
+            return XCTFail("Expected the unresolved journal to remain durable")
+        }
+        XCTAssertEqual(preservedLedger.activeAttempt, journal)
+        store.refreshNow()
+        try await waitUntil {
+            guard let service = sessions.services.first else {
+                return false
+            }
+            return await service.snapshot().shutdownCount == 1
+        }
+        let service = try XCTUnwrap(sessions.services.first)
+        let snapshot = await service.snapshot()
+        XCTAssertEqual(snapshot.consumeCallCount, 0)
+        guard case .loaded(let reconciledLedger) =
+            context.ledgerStore.load() else {
+            return XCTFail("Expected reconciliation to preserve the journal")
+        }
+        XCTAssertEqual(reconciledLedger.activeAttempt, journal)
+        store.stop()
+    }
+
+    func testClockHandlerUsesNewestAuthorizationGeneration()
+        async throws
+    {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "new-clock-generation-credit"
+        let account = accountResponse(email: "account-a@example.com")
+        let oldAnchor = ResetCreditProtectionClockSample(
+            wallTime: Date(timeIntervalSince1970: 1_000),
+            continuousTimeSeconds: 100
+        )
+        let newAnchor = ResetCreditProtectionClockSample(
+            wallTime: Date(timeIntervalSince1970: 2_000),
+            continuousTimeSeconds: 1_500
+        )
+        let oldConsent = try consent(
+            account: account,
+            creditIDs: [creditID],
+            clockAnchor: oldAnchor
+        )
+        let newConsent = try consent(
+            account: account,
+            creditIDs: [creditID],
+            clockAnchor: newAnchor
+        )
+        try context.authorizationStore.save(oldConsent) {
+            context.defaults.set(
+                true,
+                forKey: "resetCreditProtectionEnabled"
+            )
+        }
+        var currentClock = ResetCreditProtectionClockSample(
+            wallTime: oldAnchor.wallTime.addingTimeInterval(120),
+            continuousTimeSeconds: 220
+        )
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: Date().addingTimeInterval(2 * 60 * 60)
+        )
+        let appServer = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let sessions = OfflineSessionFactoryRecorder {
+            OfflineAppServer(account: account, response: response)
+        }
+        let store = context.makeStore(
+            appServer: appServer,
+            sessionFactory: sessions.factory,
+            clock: { currentClock }
+        )
+        XCTAssertTrue(store.resetCreditProtectionEnabled)
+
+        try context.authorizationStore.save(newConsent) {
+            context.defaults.set(
+                true,
+                forKey: "resetCreditProtectionEnabled"
+            )
+        }
+        currentClock = ResetCreditProtectionClockSample(
+            wallTime: newAnchor.wallTime.addingTimeInterval(120.070),
+            continuousTimeSeconds: 1_620
+        )
+        store.handleSystemClockChange()
+
+        XCTAssertTrue(store.resetCreditProtectionEnabled)
+        XCTAssertTrue(
+            context.defaults.bool(forKey: "resetCreditProtectionEnabled")
+        )
+        XCTAssertEqual(
+            context.authorizationStore.load(),
+            .loaded(newConsent)
+        )
+        store.stop()
+        try await Task.sleep(nanoseconds: 20_000_000)
+    }
+
+    func testBenignClockContinuitySurvivesStartup() throws {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "startup-benign-clock-credit"
+        let account = accountResponse(email: "account-a@example.com")
+        let anchor = ResetCreditProtectionClockSample(
+            wallTime: Date(timeIntervalSince1970: 2_000_000_000),
+            continuousTimeSeconds: 1_000
+        )
+        let storedConsent = try consent(
+            account: account,
+            creditIDs: [creditID],
+            clockAnchor: anchor
+        )
+        try context.authorizationStore.save(storedConsent) {
+            context.defaults.set(
+                true,
+                forKey: "resetCreditProtectionEnabled"
+            )
+        }
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: Date().addingTimeInterval(2 * 60 * 60)
+        )
+        let appServer = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let sessions = OfflineSessionFactoryRecorder {
+            OfflineAppServer(account: account, response: response)
+        }
+
+        let store = context.makeStore(
+            appServer: appServer,
+            sessionFactory: sessions.factory,
+            clock: {
+                ResetCreditProtectionClockSample(
+                    wallTime: anchor.wallTime.addingTimeInterval(120.070),
+                    continuousTimeSeconds: 1_120
+                )
+            }
+        )
+
+        XCTAssertTrue(store.resetCreditProtectionEnabled)
+        XCTAssertTrue(
+            context.defaults.bool(forKey: "resetCreditProtectionEnabled")
+        )
+        XCTAssertEqual(
+            context.authorizationStore.load(),
+            .loaded(storedConsent)
+        )
+    }
+
+    func testClockNotificationClearsAValidConsentWhenDesiredStateIsFalse()
+        async throws
+    {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "clock-disabled-credit"
+        let account = accountResponse(email: "account-a@example.com")
+        let anchor = ResetCreditProtectionClockSample.now()
+        let storedConsent = try consent(
+            account: account,
+            creditIDs: [creditID],
+            clockAnchor: anchor
+        )
+        try context.authorizationStore.save(storedConsent) {
+            context.defaults.set(
+                true,
+                forKey: "resetCreditProtectionEnabled"
+            )
+        }
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: Date().addingTimeInterval(2 * 60 * 60)
+        )
+        let appServer = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let sessions = OfflineSessionFactoryRecorder {
+            OfflineAppServer(account: account, response: response)
+        }
+        let store = context.makeStore(
+            appServer: appServer,
+            sessionFactory: sessions.factory
+        )
+        XCTAssertTrue(store.resetCreditProtectionEnabled)
+
+        context.defaults.set(
+            false,
+            forKey: "resetCreditProtectionEnabled"
+        )
+        store.handleSystemClockChange()
+
+        XCTAssertFalse(store.resetCreditProtectionEnabled)
+        XCTAssertEqual(store.resetCreditProtectionStatus, .disabled)
+        XCTAssertEqual(context.authorizationStore.load(), .absent)
+        var dispatchCount = 0
+        XCTAssertThrowsError(
+            try context.authorizationStore.withAuthorizedDispatch(
+                expected: storedConsent,
+                creditFingerprint: ResetCreditPrivacy.fingerprint(creditID)
+            ) {
+                dispatchCount += 1
+            }
+        )
+        XCTAssertEqual(dispatchCount, 0)
+        store.stop()
+        try await Task.sleep(nanoseconds: 20_000_000)
+    }
+
+    func testMissingAuthorizationDoesNotReportAClockDiscontinuity()
+        async throws
+    {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "missing-clock-authorization-credit"
+        let account = accountResponse(email: "account-a@example.com")
+        let storedConsent = try consent(
+            account: account,
+            creditIDs: [creditID]
+        )
+        try context.authorizationStore.save(storedConsent) {
+            context.defaults.set(
+                true,
+                forKey: "resetCreditProtectionEnabled"
+            )
+        }
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: Date().addingTimeInterval(2 * 60 * 60)
+        )
+        let appServer = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let sessions = OfflineSessionFactoryRecorder {
+            OfflineAppServer(account: account, response: response)
+        }
+        let store = context.makeStore(
+            appServer: appServer,
+            sessionFactory: sessions.factory
+        )
+        XCTAssertTrue(store.resetCreditProtectionEnabled)
+        try context.authorizationStore.clear()
+        context.defaults.set(
+            true,
+            forKey: "resetCreditProtectionEnabled"
+        )
+
+        store.handleSystemClockChange()
+
+        XCTAssertFalse(store.resetCreditProtectionEnabled)
+        guard case .blocked(.creditNotAuthorized, let detail) =
+            store.resetCreditProtectionStatus else {
+            return XCTFail("Missing authorization must not be a clock alert")
+        }
+        XCTAssertNotNil(detail)
+        XCTAssertFalse(
+            context.defaults.bool(forKey: "resetCreditProtectionEnabled")
+        )
+        XCTAssertEqual(context.authorizationStore.load(), .absent)
+        let snapshot = await appServer.snapshot()
+        XCTAssertEqual(snapshot.consumeCallCount, 0)
+        store.stop()
+        try await Task.sleep(nanoseconds: 20_000_000)
+    }
+
+    func testClockNotificationCannotArmANonDestructiveRuntime()
+        async throws
+    {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "non-destructive-clock-credit"
+        let account = accountResponse(email: "account-a@example.com")
+        let anchor = ResetCreditProtectionClockSample.now()
+        let storedConsent = try consent(
+            account: account,
+            creditIDs: [creditID],
+            clockAnchor: anchor
+        )
+        try context.authorizationStore.save(storedConsent) {
+            context.defaults.set(
+                true,
+                forKey: "resetCreditProtectionEnabled"
+            )
+        }
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: Date().addingTimeInterval(2 * 60 * 60)
+        )
+        let appServer = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let sessions = OfflineSessionFactoryRecorder {
+            OfflineAppServer(account: account, response: response)
+        }
+        let store = context.makeStore(
+            appServer: appServer,
+            sessionFactory: sessions.factory,
+            clock: { anchor },
+            destructiveActionsAllowed: false
+        )
+        XCTAssertFalse(store.resetCreditProtectionEnabled)
+
+        store.handleSystemClockChange()
+
+        XCTAssertFalse(store.resetCreditProtectionEnabled)
+        XCTAssertEqual(store.resetCreditProtectionStatus, .disabled)
+        XCTAssertTrue(
+            context.defaults.bool(forKey: "resetCreditProtectionEnabled")
+        )
+        XCTAssertEqual(
+            context.authorizationStore.load(),
+            .loaded(storedConsent)
+        )
+        let snapshot = await appServer.snapshot()
+        XCTAssertEqual(snapshot.consumeCallCount, 0)
+        store.stop()
+        try await Task.sleep(nanoseconds: 20_000_000)
     }
 
     func testSignedOutAccountClosesAuthorization() async throws {
@@ -1222,7 +1958,11 @@ private final class OfflineStoreContext {
     @MainActor
     func makeStore(
         appServer: any ResetCreditProtectionAppServerServing,
-        sessionFactory: ResetCreditProtectionAppServerSessionFactory
+        sessionFactory: ResetCreditProtectionAppServerSessionFactory,
+        clock: @escaping () -> ResetCreditProtectionClockSample = {
+            .now()
+        },
+        destructiveActionsAllowed: Bool? = nil
     ) -> SentinelStore {
         SentinelStore(
             defaults: defaults,
@@ -1234,7 +1974,10 @@ private final class OfflineStoreContext {
             resetCreditProtectionSessionFactory: sessionFactory,
             resetCreditProtectionLedgerStore: ledgerStore,
             resetCreditProtectionAuthorizationStore: authorizationStore,
-            resetCreditProtectionProcessLockURL: processLockURL
+            resetCreditProtectionProcessLockURL: processLockURL,
+            resetCreditProtectionClock: clock,
+            resetCreditProtectionDestructiveActionsAllowed:
+                destructiveActionsAllowed
         )
     }
 
@@ -1618,6 +2361,55 @@ private actor SignedOutAppServer: ResetCreditProtectionAppServerServing {
         Snapshot(
             accountReadCount: accountReadCount,
             consumeCallCount: consumeCallCount
+        )
+    }
+}
+
+private actor NetworkFailingAppServer:
+    ResetCreditProtectionAppServerServing
+{
+    struct Snapshot {
+        let rateLimitReadCount: Int
+        let consumeCallCount: Int
+        let shutdownCount: Int
+    }
+
+    private let account: CodexAccountResponse
+    private var rateLimitReadCount = 0
+    private var consumeCallCount = 0
+    private var shutdownCount = 0
+
+    init(account: CodexAccountResponse) {
+        self.account = account
+    }
+
+    func readRateLimits() async throws -> RateLimitResponse {
+        rateLimitReadCount += 1
+        throw URLError(.notConnectedToInternet)
+    }
+
+    func readAccount() async throws -> CodexAccountResponse {
+        account
+    }
+
+    func consumeResetCredit(
+        creditID: String,
+        idempotencyKey: String,
+        authorization: ResetCreditProtectionDispatchAuthorization
+    ) async throws -> ResetCreditConsumeResponse {
+        consumeCallCount += 1
+        throw URLError(.notConnectedToInternet)
+    }
+
+    func recordShutdown() {
+        shutdownCount += 1
+    }
+
+    func snapshot() -> Snapshot {
+        Snapshot(
+            rateLimitReadCount: rateLimitReadCount,
+            consumeCallCount: consumeCallCount,
+            shutdownCount: shutdownCount
         )
     }
 }

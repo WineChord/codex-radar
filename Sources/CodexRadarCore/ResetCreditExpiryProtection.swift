@@ -195,6 +195,12 @@ public struct ResetCreditProtectionConsent: Codable, Equatable {
 public enum ResetCreditProtectionAuthorization {
     public static let clockToleranceSeconds: TimeInterval = 5
 
+    public enum ClockDiscontinuityReason: Equatable {
+        case wallClockOffset(seconds: TimeInterval)
+        case continuousClockReset
+        case invalidSample
+    }
+
     static func isStructurallyValid(
         consent: ResetCreditProtectionConsent?
     ) -> Bool {
@@ -215,21 +221,46 @@ public enum ResetCreditProtectionAuthorization {
         consent: ResetCreditProtectionConsent?,
         current: ResetCreditProtectionClockSample = .now()
     ) -> Bool {
+        clockDiscontinuityReason(consent: consent, current: current) == nil
+    }
+
+    public static func clockDiscontinuityReason(
+        consent: ResetCreditProtectionConsent?,
+        current: ResetCreditProtectionClockSample = .now()
+    ) -> ClockDiscontinuityReason? {
         guard isStructurallyValid(consent: consent),
+              let anchor = consent?.clockAnchor else {
+            return .invalidSample
+        }
+        return clockDiscontinuityReason(
+            anchor: anchor,
+            current: current
+        )
+    }
+
+    public static func clockDiscontinuityReason(
+        anchor: ResetCreditProtectionClockSample,
+        current: ResetCreditProtectionClockSample = .now()
+    ) -> ClockDiscontinuityReason? {
+        guard anchor.wallTime.timeIntervalSinceReferenceDate.isFinite,
+              anchor.continuousTimeSeconds.isFinite,
+              anchor.continuousTimeSeconds >= 0,
               current.wallTime.timeIntervalSinceReferenceDate.isFinite,
               current.continuousTimeSeconds.isFinite,
-              current.continuousTimeSeconds >= 0,
-              let anchor = consent?.clockAnchor else {
-            return false
+              current.continuousTimeSeconds >= 0 else {
+            return .invalidSample
         }
         let continuousElapsed = current.continuousTimeSeconds
             - anchor.continuousTimeSeconds
         guard continuousElapsed >= 0 else {
-            return false
+            return .continuousClockReset
         }
         let wallElapsed = current.wallTime.timeIntervalSince(anchor.wallTime)
-        return abs(wallElapsed - continuousElapsed)
-            <= clockToleranceSeconds
+        let offset = wallElapsed - continuousElapsed
+        guard abs(offset) <= clockToleranceSeconds else {
+            return .wallClockOffset(seconds: offset)
+        }
+        return nil
     }
 
     public static func isEnabled(
@@ -609,6 +640,16 @@ public struct ResetCreditProtectionAuthorizationStore {
         case corrupt
     }
 
+    public enum ClockValidationResult: Equatable {
+        case continuous(ResetCreditProtectionConsent)
+        case absent
+        case revoked(
+            ResetCreditProtectionConsent,
+            ResetCreditProtectionAuthorization.ClockDiscontinuityReason
+        )
+        case corrupt
+    }
+
     public enum ConditionalClearResult: Equatable {
         case cleared
         case alreadyRevoked
@@ -653,7 +694,10 @@ public struct ResetCreditProtectionAuthorizationStore {
         return .loaded(consent)
     }
 
-    public func save(_ consent: ResetCreditProtectionConsent) throws {
+    public func save(
+        _ consent: ResetCreditProtectionConsent,
+        onSaved: () -> Void = {}
+    ) throws {
         guard ResetCreditProtectionAuthorization.isStructurallyValid(
             consent: consent
         ), let data = try? JSONEncoder().encode(consent) else {
@@ -667,9 +711,10 @@ public struct ResetCreditProtectionAuthorizationStore {
             lock.release()
         }
         try ResetCreditProtectionAtomicFile.write(data, to: url)
+        onSaved()
     }
 
-    public func clear() throws {
+    public func clear(onCleared: () -> Void = {}) throws {
         let lock = try ResetCreditProtectionProcessLock(
             url: dispatchLockURL,
             nonBlocking: false
@@ -678,10 +723,12 @@ public struct ResetCreditProtectionAuthorizationStore {
             lock.release()
         }
         try writeRevocationMarker()
+        onCleared()
     }
 
     public func clear(
-        ifCurrent expectedConsent: ResetCreditProtectionConsent
+        ifCurrent expectedConsent: ResetCreditProtectionConsent,
+        onCleared: () -> Void = {}
     ) throws -> ConditionalClearResult {
         let lock = try ResetCreditProtectionProcessLock(
             url: dispatchLockURL,
@@ -693,13 +740,48 @@ public struct ResetCreditProtectionAuthorizationStore {
         switch load() {
         case .loaded(let current) where current == expectedConsent:
             try writeRevocationMarker()
+            onCleared()
             return .cleared
         case .absent:
+            onCleared()
             return .alreadyRevoked
         case .loaded:
             return .superseded
         case .corrupt:
             throw ResetCreditProtectionStorageError.authorizationUnavailable
+        }
+    }
+
+    public func validateCurrentClockOrRevoke(
+        currentClock: ResetCreditProtectionClockSample = .now(),
+        onInvalidAuthorization: () -> Void = {}
+    ) throws -> ClockValidationResult {
+        let lock = try ResetCreditProtectionProcessLock(
+            url: dispatchLockURL,
+            nonBlocking: false
+        )
+        defer {
+            lock.release()
+        }
+        switch load() {
+        case .loaded(let consent):
+            guard let reason = ResetCreditProtectionAuthorization
+                .clockDiscontinuityReason(
+                consent: consent,
+                current: currentClock
+            ) else {
+                return .continuous(consent)
+            }
+            try writeRevocationMarker()
+            onInvalidAuthorization()
+            return .revoked(consent, reason)
+        case .absent:
+            onInvalidAuthorization()
+            return .absent
+        case .corrupt:
+            try writeRevocationMarker()
+            onInvalidAuthorization()
+            return .corrupt
         }
     }
 
