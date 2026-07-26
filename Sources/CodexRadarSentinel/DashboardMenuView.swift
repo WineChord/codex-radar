@@ -7,6 +7,7 @@ struct DashboardMenuView: View {
     @State private var copiedCommunityPrompt = false
     @State private var expandedTextKeys: Set<String> = []
     @State private var modelIQModelsExpanded = false
+    @State private var radarInsightsExpanded = false
     @State private var showsResetCreditProtectionConfirmation = false
     var scrolling: Bool = true
 
@@ -79,6 +80,7 @@ struct DashboardMenuView: View {
             Divider()
             quotaSection
             quotaPacingSection
+            codexRadarInsightsSection
             resetJudgementSection
             communityKnowledgeSection
             codexRadarQuotaSection
@@ -1014,6 +1016,368 @@ struct DashboardMenuView: View {
             : text("立即刷新", "Refresh now")
     }
 
+    private var radarRecommendationGroups: [RadarRecommendationGroup] {
+        (state.radarInsights?.recommendations ?? []).filter {
+            !$0.validItems.isEmpty
+        }
+    }
+
+    private var radarDegradationItems: [RadarDegradationAlert] {
+        state.radarInsights?.degradationAlerts.validItems ?? []
+    }
+
+    @ViewBuilder
+    private var codexRadarInsightsSection: some View {
+        let groups = radarRecommendationGroups
+        let alerts = radarDegradationItems
+        if !groups.isEmpty || !alerts.isEmpty {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    sectionTitle(
+                        text("CodexRadar 智能洞察", "CodexRadar Insights"),
+                        systemImage: "sparkles"
+                    )
+                    Spacer(minLength: 8)
+                    if let updated = radarInsightsUpdatedLabel {
+                        Text(updated)
+                            .font(.system(size: metrics.caption, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                }
+
+                HStack(spacing: Layout.tileSpacing) {
+                    radarInsightPickTile(groups)
+                    radarInsightAlertTile(alerts)
+                }
+
+                collapsibleSection(
+                    isExpanded: $radarInsightsExpanded,
+                    systemImage: "list.bullet.rectangle",
+                    title: text("场景推荐与降智预警", "Recommendations and alerts"),
+                    trailing: radarInsightsCountLabel(groups: groups, alerts: alerts)
+                ) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if !alerts.isEmpty {
+                            Text(text("降智预警", "Degradation alerts"))
+                                .font(.system(size: metrics.caption, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 5) {
+                                ForEach(
+                                    Array(alerts.enumerated()),
+                                    id: \.offset
+                                ) { _, alert in
+                                    radarDegradationRow(alert)
+                                }
+                            }
+                            .padding(8)
+                            .background(
+                                Color.orange.opacity(0.08),
+                                in: RoundedRectangle(cornerRadius: 8)
+                            )
+                        }
+
+                        if !groups.isEmpty {
+                            Text(text("场景推荐", "Scenario recommendations"))
+                                .font(.system(size: metrics.caption, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            ForEach(
+                                Array(groups.enumerated()),
+                                id: \.offset
+                            ) { index, group in
+                                radarRecommendationCard(group, index: index)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func radarInsightPickTile(
+        _ groups: [RadarRecommendationGroup]
+    ) -> some View {
+        let dailyItem = preferredDailyRecommendation(in: groups)
+        let item = dailyItem ?? groups.first?.validItems.first
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(
+                dailyItem == nil
+                    ? text("推荐首选", "Top pick")
+                    : text("日常开发首选", "Daily pick")
+            )
+                .font(.system(size: metrics.caption, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Text(item.map(radarModelEffortLabel) ?? text("暂无", "None"))
+                .font(.system(size: metrics.body, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Text(
+                item.map {
+                    "IQ \(DisplayFormatters.iqScore($0.iq)) · \(DisplayFormatters.costUSD($0.averageCostUSD))"
+                } ?? text("等待推荐数据", "Waiting for data")
+            )
+            .font(.system(size: metrics.caption, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.68)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.accentColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func radarInsightAlertTile(
+        _ alerts: [RadarDegradationAlert]
+    ) -> some View {
+        let top = alerts.max {
+            $0.largestDrop < $1.largestDrop
+        }
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(text("降智预警", "IQ alerts"))
+                .font(.system(size: metrics.caption, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Text(
+                alerts.isEmpty
+                    ? text("当前无", "None")
+                    : text(
+                        "\(alerts.count) 个档位",
+                        "\(alerts.count) \(alerts.count == 1 ? "config" : "configs")"
+                    )
+            )
+            .font(.system(size: metrics.body, weight: .semibold))
+            .foregroundStyle(alerts.isEmpty ? Color.green : Color.orange)
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+            Text(
+                top.map {
+                    "\(radarModelEffortLabel($0)) · ↓\(radarDropText($0.largestDrop))"
+                } ?? text("近 48 小时", "Last 48 hours")
+            )
+            .font(.system(size: metrics.caption, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.65)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            (alerts.isEmpty ? Color.green : Color.orange).opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 8)
+        )
+    }
+
+    private func radarDegradationRow(
+        _ alert: RadarDegradationAlert
+    ) -> some View {
+        HStack(spacing: 6) {
+            Text(radarModelEffortLabel(alert))
+                .font(.system(size: metrics.label, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("IQ \(DisplayFormatters.iqScore(alert.iq))")
+                .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                .frame(width: 58, alignment: .trailing)
+            Text("24h ↓\(radarDropText(alert.from24HourHighIQ))")
+                .font(.system(size: metrics.caption, weight: .medium, design: .monospaced))
+                .foregroundStyle(.orange)
+                .frame(width: 74, alignment: .trailing)
+            Text("48h ↓\(radarDropText(alert.from48HourHighIQ))")
+                .font(.system(size: metrics.caption, weight: .medium, design: .monospaced))
+                .foregroundStyle(.orange)
+                .frame(width: 74, alignment: .trailing)
+        }
+    }
+
+    private func radarRecommendationCard(
+        _ group: RadarRecommendationGroup,
+        index: Int
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(radarRecommendationTitle(group, index: index))
+                .font(.system(size: metrics.label, weight: .semibold))
+            ForEach(
+                Array(group.validItems.enumerated()),
+                id: \.offset
+            ) { _, item in
+                HStack(spacing: 6) {
+                    Text(radarModelEffortLabel(item))
+                        .font(.system(size: metrics.label, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("IQ \(DisplayFormatters.iqScore(item.iq))")
+                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                        .frame(width: 60, alignment: .trailing)
+                    Text(DisplayFormatters.costUSD(item.averageCostUSD))
+                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                        .frame(width: 64, alignment: .trailing)
+                    Text(radarMinutesText(item.averageDurationMinutes))
+                        .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                        .frame(width: 54, alignment: .trailing)
+                }
+            }
+            expandableCaptionText(
+                radarRecommendationExplanation(group),
+                key: "radar-recommendation-\(group.key ?? "unknown")-\(index)",
+                collapsedLines: 2
+            )
+        }
+        .padding(8)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func preferredDailyRecommendation(
+        in groups: [RadarRecommendationGroup]
+    ) -> RadarRecommendationItem? {
+        let daily = groups.first {
+            normalizedRecommendationKey($0.key) == "daily-development"
+        }
+        return daily?.validItems.first
+    }
+
+    private var radarInsightsUpdatedLabel: String? {
+        guard let value = state.radarInsights?.sourceUpdatedAt
+                ?? state.radarInsights?.generatedAt,
+              let date = RadarDateParser.date(from: value) else {
+            return nil
+        }
+        let formatted = DisplayFormatters.compactDateTime(date)
+        return text("\(formatted) 更新", "Updated \(formatted)")
+    }
+
+    private func radarInsightsCountLabel(
+        groups: [RadarRecommendationGroup],
+        alerts: [RadarDegradationAlert]
+    ) -> String {
+        text(
+            "\(groups.count) 类 · \(alerts.count) 警报",
+            "\(groups.count) \(groups.count == 1 ? "group" : "groups") · "
+                + "\(alerts.count) \(alerts.count == 1 ? "alert" : "alerts")"
+        )
+    }
+
+    private func radarRecommendationTitle(
+        _ group: RadarRecommendationGroup,
+        index: Int
+    ) -> String {
+        switch normalizedRecommendationKey(group.key) {
+        case "daily-development":
+            return text("日常开发", "Daily development")
+        case "hard-problems":
+            return text("难题攻坚", "Hard problems")
+        case "background-automation":
+            return text("后台自动化", "Background automation")
+        case "lobster-tasks", "long-running-agents":
+            return text("轻量长任务", "Lightweight long tasks")
+        default:
+            if language == .zhHans, let title = nonEmpty(group.title) {
+                return title
+            }
+            return text("推荐 \(index + 1)", "Recommendation \(index + 1)")
+        }
+    }
+
+    private func radarRecommendationExplanation(
+        _ group: RadarRecommendationGroup
+    ) -> String {
+        if language == .zhHans,
+           let rule = group.rule?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !rule.isEmpty {
+            return rule
+        }
+        switch normalizedRecommendationKey(group.key) {
+        case "daily-development":
+            return "Balances intelligence, speed, and cost for everyday work."
+        case "hard-problems":
+            return "Prioritizes the highest measured intelligence for difficult work."
+        case "background-automation":
+            return "Keeps intelligence sufficient, then favors lower cost."
+        case "lobster-tasks", "long-running-agents":
+            return "Prioritizes value for long-running tasks with modest intelligence needs."
+        default:
+            return text(
+                "由 CodexRadar 根据最新分布式众测生成。",
+                "Generated by CodexRadar from the latest distributed runs."
+            )
+        }
+    }
+
+    private func normalizedRecommendationKey(_ key: String?) -> String {
+        key?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+            ?? ""
+    }
+
+    private func radarModelEffortLabel(
+        _ item: RadarRecommendationItem
+    ) -> String {
+        radarModelEffortLabel(model: item.model, effort: item.effort)
+    }
+
+    private func radarModelEffortLabel(
+        _ item: RadarDegradationAlert
+    ) -> String {
+        radarModelEffortLabel(model: item.model, effort: item.effort)
+    }
+
+    private func radarModelEffortLabel(
+        model: String?,
+        effort: String?
+    ) -> String {
+        let normalizedModel = model?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let modelLabel: String
+        switch normalizedModel {
+        case "gpt-5.6-sol":
+            modelLabel = "Sol"
+        case "gpt-5.6-terra":
+            modelLabel = "Terra"
+        case "gpt-5.6-luna":
+            modelLabel = "Luna"
+        case "gpt-5.5":
+            modelLabel = "GPT-5.5"
+        default:
+            modelLabel = nonEmpty(model)
+                ?? text("未知模型", "Unknown model")
+        }
+        let effortLabel = nonEmpty(effort)?.lowercased()
+        return [modelLabel, effortLabel].compactMap { $0 }.joined(separator: " ")
+    }
+
+    private func nonEmpty(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+    }
+
+    private func radarDropText(_ value: Double?) -> String {
+        guard let value, value.isFinite, value >= 0 else {
+            return DisplayFormatters.percentPlaceholder
+        }
+        return String(
+            format: "%.1f",
+            locale: Locale(identifier: "en_US_POSIX"),
+            value
+        )
+    }
+
+    private func radarMinutesText(_ value: Double?) -> String {
+        guard let value, value.isFinite, value >= 0 else {
+            return DisplayFormatters.percentPlaceholder
+        }
+        return text(
+            "\(Int(value.rounded()))分",
+            "\(Int(value.rounded()))m"
+        )
+    }
+
     @ViewBuilder
     private var codexRadarQuotaSection: some View {
         if let quotaRadar = state.modelIQ?.quotaRadar,
@@ -1076,14 +1440,20 @@ struct DashboardMenuView: View {
 
     private var radarTitle: String {
         if codexRadarSignalRetired {
-            return text("重置、额度、Fast 与模型雷达", "Reset, quota, Fast and model radar")
+            return text(
+                "重置、额度、智能洞察、Fast 与模型雷达",
+                "Reset, quota, insights, Fast and model radar"
+            )
         }
         return state.current?.lastWindow?.title ?? text("还没有加载 CodexRadar 状态", "No CodexRadar status loaded")
     }
 
     private var radarFocus: String {
         if codexRadarSignalRetired {
-            return text("重置 + 额度 + Fast + Model IQ", "Reset + Quota + Fast + Model IQ")
+            return text(
+                "重置 + 额度 + 推荐/预警 + Model IQ",
+                "Reset + Quota + Insights + Model IQ"
+            )
         }
         return state.current?.lastWindow?.windowHuman ?? text("未知", "unknown")
     }
@@ -1098,8 +1468,8 @@ struct DashboardMenuView: View {
     private var radarSummary: String {
         if codexRadarSignalRetired {
             return text(
-                "CodexRadar 当前公开重置雷达、额度雷达、Fast 性能对比与模型质量：reset 研判、公开额度估算、Model IQ、速度、费用、cache 命中率和社区体感分。",
-                "CodexRadar currently publishes reset judgement, quota radar, Fast performance comparisons, and model quality: reset calls, public quota estimates, Model IQ, speed, cost, cache hit rate, and community ratings."
+                "CodexRadar 当前公开重置雷达、额度雷达、场景推荐、降智预警、Fast 性能对比与模型质量：reset 研判、公开额度估算、Model IQ、速度、费用、cache 命中率和社区体感分。",
+                "CodexRadar currently publishes reset judgement, quota radar, scenario recommendations, degradation alerts, Fast performance comparisons, and model quality: reset calls, public quota estimates, Model IQ, speed, cost, cache hit rate, and community ratings."
             )
         }
         return state.current?.lastWindow?.summary ?? text(
@@ -2488,7 +2858,10 @@ struct DashboardMenuView: View {
             return text("本机限额中", "Local limit reached")
         }
         if codexRadarSignalRetired {
-            return text("重置、额度与模型雷达", "Reset, quota and model radar")
+            return text(
+                "重置、额度、智能洞察与模型雷达",
+                "Reset, quota, insights and model radar"
+            )
         }
         if state.recentResetClosed {
             return text(
@@ -2513,7 +2886,10 @@ struct DashboardMenuView: View {
             return text("本机 Codex 返回限额状态", "Local Codex reports a limit")
         }
         if codexRadarSignalRetired {
-            return text("CodexRadar 当前公开重置雷达 + 额度雷达 + Model IQ", "CodexRadar publishes reset radar + quota radar + Model IQ")
+            return text(
+                "CodexRadar 当前公开重置雷达 + 额度雷达 + 智能洞察 + Model IQ",
+                "CodexRadar publishes reset radar + quota radar + insights + Model IQ"
+            )
         }
         if state.recentResetClosed {
             return text("本机额度见下方 · 来源 CodexRadar", "Local quota below · source CodexRadar")

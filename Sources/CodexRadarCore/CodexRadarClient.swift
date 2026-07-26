@@ -16,14 +16,17 @@ public struct CodexRadarClient {
     }
 
     private let baseURL: URL
+    private let radarInsightsURL: URL
     private let session: URLSession
     private let decoder: JSONDecoder
 
     public init(
         baseURL: URL = AppConstants.codexRadarBaseURL,
+        radarInsightsURL: URL = AppConstants.radarInsightsURL,
         session: URLSession = .shared
     ) {
         self.baseURL = baseURL
+        self.radarInsightsURL = radarInsightsURL
         self.session = session
         self.decoder = JSONDecoder()
     }
@@ -56,6 +59,25 @@ public struct CodexRadarClient {
 
     public func fetchModelRatings() async throws -> ModelRatingsEnvelope {
         try await fetchJSON(AppConstants.modelRatingsPath, as: ModelRatingsEnvelope.self)
+    }
+
+    public func fetchRadarInsights() async throws -> RadarInsightsEnvelope {
+        var request = URLRequest(url: radarInsightsURL)
+        request.cachePolicy = .useProtocolCachePolicy
+        request.httpShouldHandleCookies = false
+        request.timeoutInterval = TimeInterval(
+            AppConstants.requestTimeoutSeconds
+        )
+        let (data, response) = try await withTimeout(
+            seconds: AppConstants.requestTimeoutSeconds
+        ) {
+            try await session.data(for: request)
+        }
+        if let httpResponse = response as? HTTPURLResponse,
+           !(200..<300).contains(httpResponse.statusCode) {
+            throw ClientError.invalidStatus(httpResponse.statusCode)
+        }
+        return try decoder.decode(RadarInsightsEnvelope.self, from: data)
     }
 
     private func fetchJSON<T: Decodable>(_ path: String, as type: T.Type) async throws -> T {

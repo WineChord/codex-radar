@@ -52,6 +52,50 @@ if (( efficiency_points < 19 )); then
 fi
 echo "  data/intelligence-efficiency.json: ${efficiency_points} points"
 
+fetch_url \
+  "https://api.codexradar.com/api/v1/radar-insights" \
+  "${tmp_dir}/radar-insights.json"
+read -r insight_groups insight_recommendations insight_alerts < <(
+  python3 - <<'PY' "${tmp_dir}/radar-insights.json"
+import json
+import sys
+
+with open(sys.argv[1]) as file:
+    data = json.load(file)
+if data.get("schema") != 1:
+    raise SystemExit(
+        f"api/v1/radar-insights: expected schema 1, got {data.get('schema')!r}"
+    )
+recommendations = data.get("recommendations")
+if not isinstance(recommendations, list) or not recommendations:
+    raise SystemExit(
+        "api/v1/radar-insights: expected at least one recommendation group"
+    )
+items = []
+for group in recommendations:
+    if not isinstance(group, dict) or not isinstance(group.get("items"), list):
+        raise SystemExit(
+            "api/v1/radar-insights: invalid recommendation group"
+        )
+    items.extend(group["items"])
+if not items:
+    raise SystemExit(
+        "api/v1/radar-insights: expected at least one recommendation item"
+    )
+alerts = data.get("degradation_alerts", {})
+if isinstance(alerts, list):
+    alert_items = alerts
+elif isinstance(alerts, dict) and isinstance(alerts.get("items", []), list):
+    alert_items = alerts.get("items", [])
+else:
+    raise SystemExit(
+        "api/v1/radar-insights: invalid degradation_alerts shape"
+    )
+print(len(recommendations), len(items), len(alert_items))
+PY
+)
+echo "  api/v1/radar-insights: ${insight_groups} groups, ${insight_recommendations} recommendations, ${insight_alerts} alerts"
+
 echo "Running Swift tests with live CodexRadar contract checks..."
 CODEX_RADAR_LIVE_CONTRACT_TESTS=1 swift test
 

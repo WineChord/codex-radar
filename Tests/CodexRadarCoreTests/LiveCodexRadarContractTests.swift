@@ -10,6 +10,7 @@ final class LiveCodexRadarContractTests: XCTestCase {
 
         let current = try await CodexRadarClient().fetchCurrent()
         let ratings = try await CodexRadarClient().fetchModelRatings()
+        let insights = try await CodexRadarClient().fetchRadarInsights()
 
         XCTAssertNotNil(current.checkedAt)
         XCTAssertNotNil(current.predictionDetail?.level)
@@ -48,6 +49,19 @@ final class LiveCodexRadarContractTests: XCTestCase {
         }
         XCTAssertFalse(ratings.models.isEmpty)
         XCTAssertNotNil(ratings.rating(for: current.modelIQ?.latest)?.average)
+        XCTAssertNotNil(insights.generatedAt)
+        XCTAssertNotNil(insights.sourceUpdatedAt)
+        XCTAssertFalse(insights.recommendations.isEmpty)
+        XCTAssertTrue(
+            insights.recommendations.allSatisfy {
+                !$0.validItems.isEmpty
+            }
+        )
+        XCTAssertTrue(
+            insights.degradationAlerts.validItems.allSatisfy {
+                $0.largestDrop > 0
+            }
+        )
 
         var homepageRequest = URLRequest(url: AppConstants.codexRadarBaseURL)
         homepageRequest.timeoutInterval = TimeInterval(AppConstants.requestTimeoutSeconds)

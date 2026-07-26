@@ -2,13 +2,23 @@
 
 [中文](README.md) | English
 
-Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, Fast radar, and a distributed community intelligence-efficiency radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, community knowledge, quota estimates, Fast performance comparisons, Model IQ, local Codex quota state, reset-credit expiry checks, and optional expiry protection together, while keeping compatibility if the old reset/speed endpoints return.
+Full credit to [CodexRadar](https://codexradar.com/): this project is built on CodexRadar's public signals. CodexRadar previously published Codex speed windows, resets, reset prediction, RSS events, and model IQ; it now provides notices, reset radar, community knowledge, quota radar, Fast radar, scenario recommendations, degradation alerts, and a distributed community intelligence-efficiency radar. Codex Radar Sentinel is a local macOS menu bar app that brings the currently public CodexRadar notices, reset judgement, community knowledge, quota estimates, Fast performance comparisons, scenario recommendations, degradation alerts, Model IQ, local Codex quota state, reset-credit expiry checks, and optional expiry protection together, while keeping compatibility if the old reset/speed endpoints return.
 
 ![Codex Radar Sentinel English menu bar status](docs/assets/en/status-normal.png)
 
 ## News
 
 <details open>
+<summary><strong>v0.1.55: Recommendations and degradation alerts</strong> - CodexRadar's new live insights show the conclusion first and expand into detail only when needed.</summary>
+
+- A new `CodexRadar Insights` section immediately shows the daily-development pick with IQ and cost, plus the current number of degradation alerts, without requiring users to scan the full model matrix first.
+- Expanding it reveals recommendations for daily development, hard problems, background automation, and lightweight long-running tasks, together with each alerted configuration's current IQ and 24h / 48h drop from its recent high. The server supplies these conclusions; Sentinel does not recompute the recommendation rules.
+- The new public insights data is actively refreshed at most once every 10 minutes. Network, decoding, unknown-schema, or timestamp-regression results retain the last valid data, while the independent request cannot delay local quota, Model IQ, or other core refreshes. The feature adds neither a menu-bar segment nor notification noise.
+- Decoding accepts empty recommendations, empty alerts, optional fields, and unknown categories. Only readable valid entries are shown, so placeholders or fabricated data never mask an upstream failure.
+
+</details>
+
+<details>
 <summary><strong>v0.1.54: More reliable expiry protection</strong> - Normal clock synchronization no longer turns protection off, and unresolved requests have a clear, safe recovery path.</summary>
 
 - On a system clock-change notification, Sentinel first revalidates the persisted wall-time and continuous-time anchors while holding the authorization lock. Consent remains active when the delta stays within the safe tolerance. Protection is turned off and requires confirmation only when the delta exceeds tolerance, continuous time resets (usually because the Mac restarted), or continuity cannot be proven. A normal app relaunch within the same boot does not trigger this state.
@@ -438,6 +448,7 @@ This image is captured by the app itself from the real SwiftUI menu window on a 
 - Local reset-credit expiry checks: low-frequency auto refresh is on by default, and `Refresh now` still runs an immediate manual refresh. The app reads the Codex access token from `~/.codex/auth.json`, requests the ChatGPT reset credits endpoint, and caches only sanitized card status, issue time, and expiry time. It never stores the token.
 - Optional reset-credit expiry protection: it is off by default and, once explicitly enabled, attempts to use the earliest expiring credit through the Codex app-server inside its protection window. `Check plan (read only)` never consumes a credit.
 - CodexRadar's 19 public Intelligence Efficiency configurations: Model IQ, passed tasks, per-task cost, and per-task time, plus cache hit rate when a richer source provides it.
+- CodexRadar Insights: recommended configurations for daily development, hard problems, background automation, and lightweight long-running tasks, plus current 24h / 48h degradation alerts. The compact conclusion is visible by default and the complete list expands on demand.
 - The Quota Radar visible on CodexRadar: currently 20x Pro / 5x Pro / Plus 7d USD-equivalent estimates, with the 5h column returning automatically if 5h calibration resumes. These are public estimates, not local remaining quota.
 - The model-quality direction visible on CodexRadar: speed, cost, cache hit rate, and community ratings.
 - Compatibility state for CodexRadar's legacy speed/prediction endpoints. Those are no longer treated as live primary information unless the compatibility path explicitly returns.
@@ -507,6 +518,7 @@ Codex Radar Sentinel reads these public endpoints:
 - [current.json](https://codexradar.com/current.json): may currently return JSON with Quota Radar, Model IQ, official entitlement events, and legacy prediction fields. When reset judgement is not yet in JSON, the app backfills it from the homepage.
 - [data/intelligence-efficiency.json](https://codexradar.com/data/intelligence-efficiency.json): lightweight same-origin data for the homepage matrix. It completes 19 model/effort IQ, cost, and time points and supplies Model IQ fallback now that raw homepage HTML no longer embeds the generated chart.
 - [api/model-ratings](https://codexradar.com/api/model-ratings): community ratings. The menu's `Rating` value comes from this endpoint.
+- [api/v1/radar-insights](https://api.codexradar.com/api/v1/radar-insights): public aggregated scenario recommendations and degradation alerts. Sentinel displays the server's conclusions instead of recalculating recommendation rules locally.
 - [feed.xml](https://codexradar.com/feed.xml): reserved for official entitlement alerts; when unavailable or returning the homepage, the app keeps using Model IQ from the homepage/JSON.
 
 For local quota, it reads the Codex app-server:
@@ -561,7 +573,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.54
+./scripts/check_release_readiness.sh 0.1.55
 ```
 
 Build release packages:
@@ -569,7 +581,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.54
+./scripts/package_release.sh 0.1.55
 ```
 
 Update README menu bar and menu screenshots:
@@ -588,6 +600,6 @@ Regenerate the macOS icon:
 
 ## Credits
 
-Codex Radar Sentinel exists because [CodexRadar](https://codexradar.com/) publishes clear public Codex signals. CodexRadar previously published speed windows, resets, reset prediction, RSS events, and model IQ; it now provides reset radar, community knowledge, quota radar, and model quality radar. This app wraps those public signals together with the user's local Codex quota state in a macOS menu bar tool.
+Codex Radar Sentinel exists because [CodexRadar](https://codexradar.com/) publishes clear public Codex signals. CodexRadar previously published speed windows, resets, reset prediction, RSS events, and model IQ; it now provides reset radar, community knowledge, quota radar, scenario recommendations, degradation alerts, and model quality radar. This app wraps those public signals together with the user's local Codex quota state in a macOS menu bar tool.
 
 Codex Radar Sentinel is not affiliated with CodexRadar or OpenAI.

@@ -2,6 +2,317 @@ import XCTest
 @testable import CodexRadarCore
 
 final class RadarModelTests: XCTestCase {
+    func testDecodesRadarInsightsWrapperAliasesAndValidItems() throws {
+        let insights = try JSONDecoder().decode(
+            RadarInsightsEnvelope.self,
+            from: Data(
+                """
+                {
+                  "schema": 1,
+                  "generated_at": "2026-07-26T02:11:28+00:00",
+                  "source_updated_at": {
+                    "quality": "2026-07-26T01:58:00+00:00",
+                    "cost": "2026-07-26T02:04:17.123Z"
+                  },
+                  "data": {
+                    "station_recs": [
+                      {
+                        "id": "daily_development",
+                        "title": "日常开发",
+                        "description": "按综合成本推荐",
+                        "models": [
+                          {
+                            "model": "gpt-5.6-sol",
+                            "effort": "medium",
+                            "current_iq": "93.75",
+                            "average_price_usd": "3.810228",
+                            "average_minutes": "15.95",
+                            "trend_48h": [{"unexpected": {"shape": true}}]
+                          },
+                          {
+                            "model": " ",
+                            "effort": "high",
+                            "iq": 99
+                          },
+                          {
+                            "model": "gpt-5.6-terra",
+                            "effort": "low",
+                            "iq": 45,
+                            "price": -1
+                          }
+                        ]
+                      }
+                    ],
+                    "alerts": {
+                      "rule": "只显示自身历史下降",
+                      "alerts": [
+                        {
+                          "model": "gpt-5.6-sol",
+                          "effort": "low",
+                          "current_iq": 71,
+                          "drop_24h": 5.3,
+                          "drop48h": 8.2,
+                          "trend": "ignored"
+                        },
+                        {
+                          "model": "gpt-5.6-sol",
+                          "effort": "high",
+                          "iq": 91
+                        },
+                        {
+                          "model": "gpt-5.6-terra",
+                          "effort": "medium",
+                          "iq": 72,
+                          "drop_24h": -3,
+                          "drop_48h": 5
+                        }
+                      ]
+                    }
+                  }
+                }
+                """.utf8
+            )
+        )
+
+        XCTAssertEqual(insights.generatedAt, "2026-07-26T02:11:28+00:00")
+        XCTAssertEqual(
+            insights.sourceUpdatedAt,
+            "2026-07-26T02:04:17.123Z"
+        )
+        XCTAssertEqual(insights.recommendations.count, 1)
+        let group = try XCTUnwrap(insights.recommendations.first)
+        XCTAssertEqual(group.key, "daily_development")
+        XCTAssertEqual(group.title, "日常开发")
+        XCTAssertEqual(group.rule, "按综合成本推荐")
+        XCTAssertEqual(group.validItems.count, 1)
+        let recommendation = try XCTUnwrap(group.validItems.first)
+        XCTAssertEqual(recommendation.model, "gpt-5.6-sol")
+        XCTAssertEqual(recommendation.effort, "medium")
+        XCTAssertEqual(recommendation.iq, 93.75)
+        XCTAssertEqual(recommendation.averageCostUSD, 3.810228)
+        XCTAssertEqual(recommendation.averageDurationMinutes, 15.95)
+
+        XCTAssertEqual(
+            insights.degradationAlerts.rule,
+            "只显示自身历史下降"
+        )
+        XCTAssertEqual(insights.degradationAlerts.validItems.count, 1)
+        let alert = try XCTUnwrap(
+            insights.degradationAlerts.validItems.first
+        )
+        XCTAssertEqual(alert.model, "gpt-5.6-sol")
+        XCTAssertEqual(alert.effort, "low")
+        XCTAssertEqual(alert.iq, 71)
+        XCTAssertEqual(alert.from24HourHighIQ, 5.3)
+        XCTAssertEqual(alert.from48HourHighIQ, 8.2)
+        XCTAssertEqual(alert.largestDrop, 8.2)
+    }
+
+    func testDecodesRadarInsightsArrayDegradationAndSecondaryAliases() throws {
+        let insights = try JSONDecoder().decode(
+            RadarInsightsEnvelope.self,
+            from: Data(
+                """
+                {
+                  "schema": "1",
+                  "generated_at": "2026-07-26T02:11:28Z",
+                  "source_updated_at": "2026-07-26T02:04:17Z",
+                  "station_recommendations": [
+                    {
+                      "key": "background_automation",
+                      "rule": "最低费用",
+                      "recommendations": [
+                        {
+                          "model": "gpt-5.6-terra",
+                          "effort": "xhigh",
+                          "iq": 88.4,
+                          "price_usd": 2.5,
+                          "minutes": 19
+                        }
+                      ]
+                    }
+                  ],
+                  "degradation": [
+                    {
+                      "model": "gpt-5.6-sol",
+                      "effort": "ultra",
+                      "iq": 92,
+                      "degradation_24h_iq": 5.8,
+                      "degradation_48h_iq": 9.8,
+                      "trend_48h": [1, 2, 3]
+                    }
+                  ]
+                }
+                """.utf8
+            )
+        )
+
+        XCTAssertEqual(insights.sourceUpdatedAt, "2026-07-26T02:04:17Z")
+        XCTAssertEqual(
+            insights.recommendations.first?.validItems.first?.averageCostUSD,
+            2.5
+        )
+        XCTAssertEqual(
+            insights.recommendations.first?.validItems.first?
+                .averageDurationMinutes,
+            19
+        )
+        XCTAssertEqual(
+            insights.degradationAlerts.validItems.first?.largestDrop,
+            9.8
+        )
+    }
+
+    func testRadarInsightsAllowsEmptyCollectionsAndRejectsOtherSchemas()
+        throws
+    {
+        let empty = try JSONDecoder().decode(
+            RadarInsightsEnvelope.self,
+            from: Data(
+                """
+                {
+                  "schema": 1,
+                  "recommendations": [],
+                  "degradation_alerts": []
+                }
+                """.utf8
+            )
+        )
+
+        XCTAssertTrue(empty.recommendations.isEmpty)
+        XCTAssertTrue(empty.degradationAlerts.validItems.isEmpty)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                RadarInsightsEnvelope.self,
+                from: Data(
+                    """
+                    {
+                      "schema": 2,
+                      "recommendations": [],
+                      "degradation_alerts": []
+                    }
+                    """.utf8
+                )
+            )
+        )
+        for malformedSchema in ["null", #""bad""#, "1.5"] {
+            XCTAssertThrowsError(
+                try JSONDecoder().decode(
+                    RadarInsightsEnvelope.self,
+                    from: Data(
+                        """
+                        {
+                          "schema": \(malformedSchema),
+                          "data": {
+                            "schema": 1,
+                            "recommendations": [],
+                            "degradation_alerts": []
+                          }
+                        }
+                        """.utf8
+                    )
+                )
+            )
+        }
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                RadarInsightsEnvelope.self,
+                from: Data(
+                    """
+                    {
+                      "schema": 2,
+                      "data": {
+                        "schema": 1,
+                        "recommendations": [],
+                        "degradation_alerts": []
+                      }
+                    }
+                    """.utf8
+                )
+            )
+        )
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                RadarInsightsEnvelope.self,
+                from: Data(
+                    """
+                    {
+                      "schema": 1,
+                      "data": "malformed"
+                    }
+                    """.utf8
+                )
+            )
+        )
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                RadarInsightsEnvelope.self,
+                from: Data(
+                    """
+                    {
+                      "schema": 1,
+                      "recommendations": {},
+                      "degradation_alerts": []
+                    }
+                    """.utf8
+                )
+            )
+        )
+    }
+
+    func testFetchRadarInsightsUsesInjectedURLAndFifteenSecondTimeout()
+        async throws
+    {
+        let expectedURL = URL(string: "https://example.test/radar-insights")!
+        RadarInsightsURLProtocol.handler = { request in
+            XCTAssertEqual(request.url, expectedURL)
+            XCTAssertEqual(
+                request.timeoutInterval,
+                TimeInterval(AppConstants.requestTimeoutSeconds)
+            )
+            XCTAssertEqual(request.cachePolicy, .useProtocolCachePolicy)
+            XCTAssertFalse(request.httpShouldHandleCookies)
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            XCTAssertNil(request.value(forHTTPHeaderField: "Cookie"))
+            let response = HTTPURLResponse(
+                url: expectedURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (
+                response,
+                Data(
+                    """
+                    {
+                      "schema": 1,
+                      "recommendations": [],
+                      "degradation_alerts": []
+                    }
+                    """.utf8
+                )
+            )
+        }
+        defer {
+            RadarInsightsURLProtocol.handler = nil
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RadarInsightsURLProtocol.self]
+        let client = CodexRadarClient(
+            radarInsightsURL: expectedURL,
+            session: URLSession(configuration: configuration)
+        )
+
+        let insights = try await client.fetchRadarInsights()
+
+        XCTAssertEqual(AppConstants.requestTimeoutSeconds, 15)
+        XCTAssertEqual(
+            AppConstants.radarInsightsRefreshIntervalSeconds,
+            600
+        )
+        XCTAssertTrue(insights.recommendations.isEmpty)
+    }
+
     func testDecodesCurrentPredictionAndIQPayloads() throws {
         let decoder = JSONDecoder()
 
@@ -736,3 +1047,41 @@ private let currentWithoutIQJSON = """
   }
 }
 """
+
+private final class RadarInsightsURLProtocol: URLProtocol {
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(
+        for request: URLRequest
+    ) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.handler else {
+            client?.urlProtocol(
+                self,
+                didFailWithError: URLError(.resourceUnavailable)
+            )
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(
+                self,
+                didReceive: response,
+                cacheStoragePolicy: .notAllowed
+            )
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}

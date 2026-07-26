@@ -1968,6 +1968,9 @@ private final class OfflineStoreContext {
             defaults: defaults,
             radarClient: CodexRadarClient(
                 baseURL: URL(string: "https://offline.invalid/")!,
+                radarInsightsURL: URL(
+                    string: "https://offline.invalid/api/v1/radar-insights"
+                )!,
                 session: radarSession
             ),
             appServerClient: appServer,

@@ -2,13 +2,23 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达、Fast 雷达与分布式社区智力效率雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Fast 性能对比、Model IQ、本机 Codex 额度状态、重置卡过期查询与可选的到期保护整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
+首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达、Fast 雷达、场景推荐、降智预警与分布式社区智力效率雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Fast 性能对比、场景推荐、降智预警、Model IQ、本机 Codex 额度状态、重置卡过期查询与可选的到期保护整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
 ## News / 最新功能
 
 <details open>
+<summary><strong>v0.1.55：场景推荐与降智预警</strong> - 官网新的实时智能洞察进入菜单，先给结论，需要时再展开细节。</summary>
+
+- 菜单新增 `CodexRadar 智能洞察`：默认直接显示日常开发首选档位、IQ、费用和当前降智预警数量，不需要先读完整模型矩阵。
+- 展开后可查看日常开发、难题攻坚、后台自动化和轻量长任务的场景推荐，以及每个预警档位的当前 IQ、24h / 48h 距高点降幅；推荐规则由 CodexRadar 服务端生成，App 不自行重算。
+- 新的公开 insights 数据每 10 分钟最多主动更新一次；网络、解码、未知 schema 或时间戳倒退时保留上一次有效结果，且独立请求不会拖慢本机额度、Model IQ 和其他核心刷新，也不会新增状态栏占位或通知噪声。
+- 解码兼容空推荐、空预警、可选字段和未知分类；只有可读的有效项才会显示，避免用占位或虚假数据掩盖上游失败。
+
+</details>
+
+<details>
 <summary><strong>v0.1.54：更可靠的到期保护</strong> - 正常系统校时不再误关保护，未决请求也有清楚、安全的恢复入口。</summary>
 
 - 收到系统时钟变更通知时，Sentinel 会先在授权锁内复核持久化的墙钟与连续计时锚点；偏差仍在安全容差内就保持原授权。只有两者偏差超出容差、连续计时已重置（通常由 Mac 重启造成）或连续性无法证明时，才会自动关闭保护并要求重新确认；同一次开机内普通 App 退出重开不会触发。
@@ -438,6 +448,7 @@
 - 本机重置卡过期查询：默认低频自动刷新，也可以手动点 `立即刷新`；app 会读取 `~/.codex/auth.json` 中的 Codex access token，请求 ChatGPT reset credits 接口，并只缓存脱敏后的卡片状态、发放时间和过期时间，不保存 token。
 - 可选的重置卡到期保护：默认关闭，显式开启后在最早到期卡的保护窗口内通过 Codex app-server 尝试使用；`只读检查保护计划` 不会消耗卡。
 - CodexRadar 当前公开的 19 组智力效率数据：Model IQ、通过数、单题费用和单题耗时；有更丰富来源时也显示 cache 命中率。
+- CodexRadar 智能洞察：日常开发、难题攻坚、后台自动化和轻量长任务的推荐档位，以及当前模型档位的 24h / 48h 降智预警；默认只显示紧凑结论，完整列表按需展开。
 - CodexRadar 首页可见的额度雷达：当前展示 20x Pro / 5x Pro / Plus 的 7d 美元等价值估算；5h 恢复校准时会自动增加 5h 列。它不是本机剩余额度，只是公开估算。
 - CodexRadar 首页可见的模型质量方向：速度、费用、cache 命中率和社区体感分。
 - CodexRadar 旧速蹬/预测接口的兼容状态；这些功能不再作为 live 主信息展示，只有明确恢复时才触发旧提醒路径。
@@ -507,6 +518,7 @@ Codex Radar Sentinel 读取这些公开入口：
 - [current.json](https://codexradar.com/current.json)：当前可能返回 JSON，包含额度雷达、Model IQ、官方权益事件和 legacy prediction 字段；当 reset 研判暂未进入 JSON 时，app 会从首页补齐。
 - [data/intelligence-efficiency.json](https://codexradar.com/data/intelligence-efficiency.json)：首页智力效率矩阵的轻量同源数据，补齐 19 个模型/推理强度组合的 IQ、费用和耗时，也在静态首页不再内嵌图表时承担 Model IQ 兜底。
 - [api/model-ratings](https://codexradar.com/api/model-ratings)：社区体感分，菜单里的 `体感` 来自这里。
+- [api/v1/radar-insights](https://api.codexradar.com/api/v1/radar-insights)：官网场景推荐与降智预警的公开聚合结果；App 直接展示服务端结论，不在本机复算推荐规则。
 - [feed.xml](https://codexradar.com/feed.xml)：后续用于官方权益提醒；不可用或返回首页时，app 会继续以首页/JSON 里的 Model IQ 为准。
 
 本机额度读取 Codex app-server：
@@ -561,7 +573,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.54
+./scripts/check_release_readiness.sh 0.1.55
 ```
 
 构建 release 包：
@@ -569,7 +581,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.54
+./scripts/package_release.sh 0.1.55
 ```
 
 更新 README 状态栏和菜单截图：
@@ -588,6 +600,6 @@ swift build -c release
 
 ## 鸣谢
 
-Codex Radar Sentinel 之所以能成立，是因为 [CodexRadar](https://codexradar.com/) 持续提供清晰的公开 Codex 信号。CodexRadar 早期提供速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达与模型质量雷达。本应用只是把这些公开信号和用户本机 Codex 额度状态整合成一个 macOS 菜单栏工具。
+Codex Radar Sentinel 之所以能成立，是因为 [CodexRadar](https://codexradar.com/) 持续提供清晰的公开 Codex 信号。CodexRadar 早期提供速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达、场景推荐、降智预警与模型质量雷达。本应用只是把这些公开信号和用户本机 Codex 额度状态整合成一个 macOS 菜单栏工具。
 
 Codex Radar Sentinel 与 CodexRadar 或 OpenAI 没有关联。

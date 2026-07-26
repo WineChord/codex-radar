@@ -11,10 +11,11 @@ Keep the macOS menu bar app mapped to the latest public CodexRadar site and endp
 - `https://codexradar.com/feed.xml` (legacy; may redirect to homepage)
 - `https://codexradar.com/api/model-ratings` (community model ratings)
 - `https://codexradar.com/data/intelligence-efficiency.json` (distributed IQ, cost, and runtime points)
+- `https://api.codexradar.com/api/v1/radar-insights` (scenario recommendations and degradation alerts)
 
 ## Workflow
 
-1. Fetch the homepage, `current.json`, `feed.xml`, `api/model-ratings`, and `data/intelligence-efficiency.json`. Note the retrieval date, root keys or redirect target, changed field types, new visible site sections, and any new public links or APIs.
+1. Fetch the homepage, `current.json`, `feed.xml`, `api/model-ratings`, `data/intelligence-efficiency.json`, and `api.codexradar.com/api/v1/radar-insights`. Note the retrieval date, root keys or redirect target, changed field types, new visible site sections, and any new public links or APIs.
 2. Compare the live payloads with `Sources/CodexRadarCore/RadarModels.swift`, `Sources/CodexRadarCore/NotificationPolicy.swift`, `Sources/CodexRadarSentinel/DashboardMenuView.swift`, and `Sources/CodexRadarSentinel/StatusMetric.swift`.
 3. Fix decoding before changing UI. JSON fields that may evolve from integer to decimal should use compatible numeric types and a display formatter.
 4. Map only useful new CodexRadar capabilities into the macOS app. Prefer clear menu-bar value, compact menu detail, or low-noise notification behavior over exposing raw endpoint complexity.
@@ -57,3 +58,4 @@ If any menu-bar segment shows `--` while CodexRadar has a visible value on the w
 - The distributed homepage chart publishes fallback values in IQ-view circle `aria-label` attributes rather than the old SVG `<title>` format. Keep both parsers, restrict the new parser to `data-model-iq-chart-view="iq"`, and ignore duplicate value/cost/time chart circles.
 - `model_iq.data_source.url` points to the public distributed radar. Surface it as an optional menu link, while keeping the default status title compact.
 - As of 2026-07-22, the homepage renders its 19-point Intelligence Efficiency matrix from `data/intelligence-efficiency.json`; raw homepage HTML no longer contains the generated model cards. Merge this lightweight same-origin payload into `current.json`, preserve richer matching fields such as cache hit rate, and use it as the Model IQ fallback when the static homepage chart is absent.
+- As of 2026-07-26, the homepage loads scenario recommendations and degradation alerts from `https://api.codexradar.com/api/v1/radar-insights`. Treat every declared `schema` as a strict `1` compatibility gate, accept empty recommendation/alert lists, ignore unknown optional fields, and keep the last valid result on endpoint, decoding, or timestamp-regression failure. Fetch independently at most once per 10-minute monotonic cache window, never attach local Codex credentials, and keep these insights out of the default status title and notification stream.

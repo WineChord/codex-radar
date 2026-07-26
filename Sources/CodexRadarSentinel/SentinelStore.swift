@@ -320,6 +320,7 @@ final class SentinelStore: NSObject, ObservableObject {
     private var automaticUpdateTask: Task<Void, Never>?
     private var resetCreditTask: Task<Void, Never>?
     private var resetCreditAutoRefreshTask: Task<Void, Never>?
+    private var radarInsightsTask: Task<Void, Never>?
     private var resetCreditProtectionTask: Task<Void, Never>?
     private var resetCreditProtectionConsent: ResetCreditProtectionConsent?
     private var resetCreditProtectionLedger: ResetCreditProtectionLedger
@@ -334,10 +335,12 @@ final class SentinelStore: NSObject, ObservableObject {
     private let resetCreditProtectionProcessLockURL: URL
     private let resetCreditProtectionClock:
         () -> ResetCreditProtectionClockSample
+    private let radarInsightsUptime: () -> TimeInterval
     private var lifecycleObservers: [(NotificationCenter, NSObjectProtocol)] = []
     private var suppressResetCreditAutoRefreshSideEffects = false
     private var emphasizedSpeedAlertKey: String?
     private var speedAlertFirstSeenAt: Date?
+    private var lastRadarInsightsFetchUptime: TimeInterval?
 
     init(
         defaults: UserDefaults = .standard,
@@ -355,6 +358,9 @@ final class SentinelStore: NSObject, ObservableObject {
             @escaping () -> ResetCreditProtectionClockSample = {
                 .now()
             },
+        radarInsightsUptime: @escaping () -> TimeInterval = {
+            ProcessInfo.processInfo.systemUptime
+        },
         resetCreditProtectionDestructiveActionsAllowed: Bool? = nil
     ) {
         let rawPreview = ProcessInfo.processInfo.environment[
@@ -411,6 +417,7 @@ final class SentinelStore: NSObject, ObservableObject {
             resetCreditProtectionProcessLockURL
             ?? Self.resetCreditProtectionLockURL
         self.resetCreditProtectionClock = resetCreditProtectionClock
+        self.radarInsightsUptime = radarInsightsUptime
         let rawLanguage = defaults.string(forKey: DefaultsKey.appLanguage)
         let resolvedAppLanguage = rawLanguage
             .flatMap(AppLanguage.init(rawValue:)) ?? .zhHans
@@ -719,6 +726,8 @@ final class SentinelStore: NSObject, ObservableObject {
         automaticUpdateTask?.cancel()
         resetCreditTask?.cancel()
         resetCreditAutoRefreshTask?.cancel()
+        radarInsightsTask?.cancel()
+        radarInsightsTask = nil
         resetCreditProtectionTask?.cancel()
         resetCreditProtectionEnablingClockAnchor = nil
         stopLifecycleObservation()
@@ -1154,6 +1163,7 @@ final class SentinelStore: NSObject, ObservableObject {
         documentationState.prediction = Self.documentationPrediction(language: language)
         documentationState.modelIQ = Self.documentationModelIQ()
         documentationState.modelRatings = Self.documentationModelRatings()
+        documentationState.radarInsights = Self.documentationRadarInsights()
         documentationState.lastUpdatedAt = Self.documentationUpdatedAt
         state = documentationState
         resetCreditSnapshot = Self.documentationResetCreditSnapshot()
@@ -1184,6 +1194,94 @@ final class SentinelStore: NSObject, ObservableObject {
             return nil
         }
         return RateLimitDashboard(response: response)
+    }
+
+    private static func documentationRadarInsights() -> RadarInsightsEnvelope? {
+        decodeDocumentationJSON("""
+        {
+          "schema": 1,
+          "mode": "latest_valid_per_task",
+          "generated_at": "2026-07-26T02:01:27+00:00",
+          "source_updated_at": "2026-07-26T01:58:07+00:00",
+          "recommendations": [
+            {
+              "key": "daily_development",
+              "title": "日常开发",
+              "rule": "性价比位优先兼顾智力、费用和耗时。",
+              "items": [
+                {
+                  "model": "gpt-5.6-sol",
+                  "effort": "medium",
+                  "iq": 92.4,
+                  "average_cost_usd": 3.82,
+                  "average_duration_minutes": 15.98
+                }
+              ]
+            },
+            {
+              "key": "hard_problems",
+              "title": "难题攻坚",
+              "rule": "优先选择当前实测 IQ 最高的档位。",
+              "items": [
+                {
+                  "model": "gpt-5.6-sol",
+                  "effort": "xhigh",
+                  "iq": 95.1,
+                  "average_cost_usd": 6.89,
+                  "average_duration_minutes": 25.18
+                }
+              ]
+            },
+            {
+              "key": "background_automation",
+              "title": "后台自动化",
+              "rule": "满足智力要求后优先选择费用更低的档位。",
+              "items": [
+                {
+                  "model": "gpt-5.6-terra",
+                  "effort": "xhigh",
+                  "iq": 88.4,
+                  "average_cost_usd": 2.48,
+                  "average_duration_minutes": 19.27
+                }
+              ]
+            },
+            {
+              "key": "lobster_tasks",
+              "title": "跑龙虾类任务",
+              "rule": "轻量长任务优先考虑综合性价比。",
+              "items": [
+                {
+                  "model": "gpt-5.6-terra",
+                  "effort": "high",
+                  "iq": 73.7,
+                  "average_cost_usd": 1.34,
+                  "average_duration_minutes": 12.45
+                }
+              ]
+            }
+          ],
+          "degradation_alerts": {
+            "rule": "每个模型档位只与自身历史比较。",
+            "items": [
+              {
+                "model": "gpt-5.6-sol",
+                "effort": "low",
+                "iq": 71.0,
+                "from_24h_high_iq": 5.3,
+                "from_48h_high_iq": 8.0
+              },
+              {
+                "model": "gpt-5.6-terra",
+                "effort": "medium",
+                "iq": 50.0,
+                "from_24h_high_iq": 4.9,
+                "from_48h_high_iq": 7.6
+              }
+            ]
+          }
+        }
+        """)
     }
 
     private static func documentationResetCreditSnapshot() -> ResetCreditSnapshot {
@@ -1532,6 +1630,7 @@ final class SentinelStore: NSObject, ObservableObject {
     }
 
     private func refresh() async {
+        startRadarInsightsRefreshIfNeeded()
         async let currentResult = fetchCurrentResult()
         async let modelRatingsResult = fetchModelRatingsResult()
         async let rateLimitResult = fetchRateLimitResult()
@@ -1571,6 +1670,25 @@ final class SentinelStore: NSObject, ObservableObject {
         deliver(events)
     }
 
+    private func startRadarInsightsRefreshIfNeeded() {
+        guard radarInsightsTask == nil else {
+            return
+        }
+        radarInsightsTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+            defer {
+                self.radarInsightsTask = nil
+            }
+            if case .success(let insights?) =
+                await self.fetchRadarInsightsResult(),
+               self.shouldAcceptRadarInsights(insights) {
+                self.state.radarInsights = insights
+            }
+        }
+    }
+
     private func fetchCurrentResult() async -> Result<RadarCurrent, Error> {
         await capture {
             try await radarClient.fetchCurrent()
@@ -1580,6 +1698,51 @@ final class SentinelStore: NSObject, ObservableObject {
     private func fetchModelRatingsResult() async -> Result<ModelRatingsEnvelope, Error> {
         await capture {
             try await radarClient.fetchModelRatings()
+        }
+    }
+
+    private func fetchRadarInsightsResult()
+        async -> Result<RadarInsightsEnvelope?, Error>
+    {
+        let uptime = radarInsightsUptime()
+        if let lastRadarInsightsFetchUptime {
+            let elapsed = uptime - lastRadarInsightsFetchUptime
+            if elapsed >= 0,
+               elapsed < AppConstants.radarInsightsRefreshIntervalSeconds {
+                return .success(nil)
+            }
+        }
+        lastRadarInsightsFetchUptime = uptime
+        let result: Result<RadarInsightsEnvelope, Error> = await capture {
+            try await radarClient.fetchRadarInsights()
+        }
+        switch result {
+        case .success(let insights):
+            return .success(insights)
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+
+    private func shouldAcceptRadarInsights(
+        _ candidate: RadarInsightsEnvelope
+    ) -> Bool {
+        guard let previous = state.radarInsights else {
+            return true
+        }
+        let candidateDate = RadarDateParser.date(
+            from: candidate.sourceUpdatedAt ?? candidate.generatedAt
+        )
+        let previousDate = RadarDateParser.date(
+            from: previous.sourceUpdatedAt ?? previous.generatedAt
+        )
+        switch (candidateDate, previousDate) {
+        case let (candidateDate?, previousDate?):
+            return candidateDate >= previousDate
+        case (nil, _?):
+            return false
+        default:
+            return true
         }
     }
 
