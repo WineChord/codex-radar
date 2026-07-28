@@ -2,556 +2,184 @@
 
 中文 | [English](README.en.md)
 
-首先鸣谢 [CodexRadar](https://codexradar.com/)：本项目建立在 CodexRadar 的公开信号之上。CodexRadar 早期提供 Codex 速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供公告、重置雷达、社区知识分享、额度雷达、Fast 雷达、场景推荐、降智预警与分布式社区智力效率雷达。Codex Radar Sentinel 是一个本地 macOS 菜单栏工具，会把 CodexRadar 当前公开的公告、reset 研判、社区知识分享、额度估算、Fast 性能对比、场景推荐、降智预警、Model IQ、本机 Codex 额度状态、重置卡过期查询与可选的到期保护整合到状态栏里，并保留旧 reset/速蹬接口恢复时的兼容能力。
+一个面向 macOS 13 及以上版本的菜单栏工具：把本机 Codex 额度、用量节奏、重置卡状态，以及 [CodexRadar](https://codexradar.com/) 的公开模型质量与雷达信号集中到一个紧凑、可配置的下拉面板中。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
-## News / 最新功能
-
-<details open>
-<summary><strong>v0.1.56：可选公告不再阻塞发布检查</strong> - 官网没有临时公告时，live contract 会按正常空状态处理。</summary>
-
-- CodexRadar 顶部公告是临时信号，可能在事件结束后完整撤下；Sentinel 本来就会在公告缺席时自然隐藏对应区块。
-- live contract 现在只在公告存在时要求非空正文，同时继续严格检查 Model IQ、重置雷达、社区知识、Fast 雷达与智能洞察，避免正常空公告造成误报和发布阻塞。
-
-</details>
-
-<details>
-<summary><strong>v0.1.55：场景推荐与降智预警</strong> - 官网新的实时智能洞察进入菜单，先给结论，需要时再展开细节。</summary>
-
-- 菜单新增 `CodexRadar 智能洞察`：默认直接显示日常开发首选档位、IQ、费用和当前降智预警数量，不需要先读完整模型矩阵。
-- 展开后可查看日常开发、难题攻坚、后台自动化和轻量长任务的场景推荐，以及每个预警档位的当前 IQ、24h / 48h 距高点降幅；推荐规则由 CodexRadar 服务端生成，App 不自行重算。
-- 新的公开 insights 数据每 10 分钟最多主动更新一次；网络、解码、未知 schema 或时间戳倒退时保留上一次有效结果，且独立请求不会拖慢本机额度、Model IQ 和其他核心刷新，也不会新增状态栏占位或通知噪声。
-- 解码兼容空推荐、空预警、可选字段和未知分类；只有可读的有效项才会显示，避免用占位或虚假数据掩盖上游失败。
-
-</details>
-
-<details>
-<summary><strong>v0.1.54：更可靠的到期保护</strong> - 正常系统校时不再误关保护，未决请求也有清楚、安全的恢复入口。</summary>
-
-- 收到系统时钟变更通知时，Sentinel 会先在授权锁内复核持久化的墙钟与连续计时锚点；偏差仍在安全容差内就保持原授权。只有两者偏差超出容差、连续计时已重置（通常由 Mac 重启造成）或连续性无法证明时，才会自动关闭保护并要求重新确认；同一次开机内普通 App 退出重开不会触发。
-- 未决请求的文案与操作现在严格区分开关状态：保护仍开启时，确需重试才会用原幂等键重试同一卡；保护已关闭时只会只读对账，绝不重试或换卡，并在确认上次结果前锁定重新开启。
-- 保护关闭但仍有未决请求时，菜单会持续提供 `立即只读对账`；它只主动复核服务端结果，不会发送消费请求。时钟连续性失效也不再显示成含糊的“暂时受阻”，而会明确说明保护已自动关闭且需要重新确认。
-
-</details>
-
-<details>
-<summary><strong>v0.1.53：智力效率矩阵与重置卡到期保护</strong> - 补齐官网 19 个模型配置，并加入默认关闭的安全保护。</summary>
-
-- CodexRadar 首页现在从独立的智力效率数据源动态渲染 19 个模型/推理强度组合；Sentinel 会合并这份同源小型 JSON，不再只显示 `current.json` 里的 12 行。
-- 新增 Sol / Terra `ultra`、Terra `low` / `medium`、Luna `low` / `medium` / `xhigh` 等公开配置；每行同步 IQ、通过数、单题费用和单题耗时，并保留 `current.json` 已提供的 Cache 等更丰富字段。
-- 19 行明细默认折叠为带配置数量的 `智力效率` 区块；主模型 IQ、费用和耗时仍直接可见，菜单保持紧凑，需要时再展开全矩阵。
-- 原始首页 HTML 已不再内嵌生成后的模型图表；当 `current.json` 临时返回 HTML 时，App 会改用智力效率 JSON 合成 Model IQ，避免兜底静默失效。
-- 用量节奏不再用 `-33%` 表示超出建议：卡片现在直接显示 `超用 33%`，并用“用量超出建议”解释方向；可多用和接近节奏也统一使用无符号数值，扫一眼即可理解。
-- 新增 `重置卡到期保护`，严格默认关闭。开启前会展示不可撤销提示并要求显式确认；开启时用新的 Codex 会话核对登录邮箱和完整明细，只授权当时可见的受支持到期卡集合。在最早一张进入到期前约 30 分钟窗口时，通过 Codex 官方 app-server 精确尝试该卡；是否存在可重置额度由服务端权威判断。
-- 每次真实尝试都会再启动新的 Codex 会话，复核登录邮箱、完整卡片明细、状态、类型、到期时间和卡级授权；检测到退出、不同邮箱、未授权新卡或已验证的 app-server 子进程退出时，会在请求写出前关闭或重新走完整核验。结果不明确的同一次尝试始终复用原幂等键并保留终态；只有服务端明确返回未使用、且只读确认同一卡仍可用后，后续有用量时才会开始新的逻辑尝试。超时或重启后先只读对账，不会换卡盲试。墙钟与跨休眠单调时钟不连续、系统重启后无法证明连续性时也会关闭保护，避免本机时间前跳导致提前使用。
-- 菜单提供 `只读检查保护计划`，可以验证当前账号、卡片覆盖和预计执行时间而不消耗卡。保护属于尽力执行：App 必须保持运行、联网并登录；休眠、关机或服务端判断当前没有可重置额度时，卡可能仍会过期。
-
-</details>
-
-<details>
-<summary><strong>v0.1.52：分布式 Model IQ 对齐</strong> - 正确显示单题平均费用/耗时，并接入分布式雷达。</summary>
-
-- CodexRadar 的降智雷达已升级为分布式社区众测，每个模型配置当前汇总约 80-110 个有效任务；菜单会把旧“探针”改成更准确的“通过”。
-- 修复新 payload 的统计口径：网页展示的是单题平均值，例如 `$9.61 / 37分钟`；App 不再误显示全部 109 个任务合计的 `$1047 / 67小时`。
-- `Codex IQ · 分布式众测` 标题右侧提供分布式雷达入口，多模型行补充单题费用、时间和 Cache；状态栏仍保持原来的紧凑宽度。
-- 首页兜底已兼容新的 `aria-label` 图表结构；即使 `current.json` 暂时不可用，也能继续读取分布式 IQ，而不是退回 `--`。
-- 体感评分现在只显示同一模型和推理强度的精确匹配；没有评分时显示 `--`，不再错误借用其他模型的分数。
-
-</details>
-
-<details>
-<summary><strong>v0.1.51：5h 动态兼容</strong> - 5h 暂停时自动隐藏，恢复后自动出现。</summary>
-
-- CodexRadar 当前确认 5h 限制仍是“暂时不生效”，额度雷达也暂时只展示仍在生效的 7d 额度。
-- 本机 Codex 没有返回约 300 分钟的窗口时，菜单会隐藏短窗卡片、5h 状态栏选项和对应片段，不再把周额度误当成 5h。
-- 兼容代码仍然保留；以后本机接口重新返回 5h 时，短窗卡片和选项会自动恢复，不需要再次升级 app。
-- CodexRadar 额度雷达会跟随校准窗口：当前只展示 7d；网站以后恢复 5h 校准时，5h 列会自动回来。
-
-</details>
-
-<details>
-<summary><strong>v0.1.50：Fast 雷达同步</strong> - 下拉菜单展示 Standard vs Fast 的公开性能对比。</summary>
-
-- CodexRadar 新增 `Fast 雷达`：比较 Standard 和 Fast 在 E2E、TTFT、TPS 上的变化。
-- Sentinel 会从首页解析三项摘要和 Sol / Terra / Luna 逐模型结果，展示在 `CodexRadar Fast 雷达` 区块。
-- 测试方法默认折叠为长文说明，状态栏不新增占位，避免为了性能参考信号挤占额度和质量指标。
-
-</details>
-
-<details>
-<summary><strong>v0.1.49：社区知识卡兼容</strong> - CodexRadar 新的指南卡会单独显示。</summary>
-
-- CodexRadar 首页的社区知识从单个 `code prompt` 变成了可展开的指南卡，例如“如何开启 Max 推理强度”。
-- 菜单新增独立的 `CodexRadar 社区知识` 区，长内容沿用动态 `全文` 展开；`重置卡过期` 区不再冒用非重置卡知识标题。
-- live contract 继续要求社区知识和公告都能从首页兜底补齐，避免 `current.json` 暂时为空时菜单静默缺内容。
-
-</details>
-
-<details>
-<summary><strong>v0.1.48：官方窗口不漏报</strong> - `use_remaining_tokens` 会进入速蹬状态。</summary>
-
-- CodexRadar 2026-07-11 的官方重置窗口把机器信号写成 `use_remaining_tokens`，标题不一定含“速蹬”。
-- 状态栏现在会把这类 open window 判为 `速蹬`，并继续排除 `reset_completed` 这类已完成权益事件。
-- 新增 fixture 测试覆盖“ChatGPT Work / Codex 两次额度硬重置”payload，避免未来再次漏报。
-
-</details>
-
-<details>
-<summary><strong>v0.1.47：本机额度恢复显示</strong> - Codex.app 内置二进制路径变化时不再显示 `--`。</summary>
-
-- Codex 二进制定位现在会优先查找 standalone/current、`~/.local/bin/codex` 和 PATH，再回退到 App bundle。
-- 修复 `/Applications/Codex.app/Contents/Resources/codex` 不存在时，状态栏周额度和 5h 短窗显示 `--` 的问题。
-- 增加 locator 单测，覆盖环境变量覆盖、standalone fallback 和 PATH fallback。
-
-</details>
-
-<details>
-<summary><strong>v0.1.46：周额度恢复提醒更稳</strong> - 避免瞬时额度回滚造成误报。</summary>
-
-- `周额度已恢复` 通知现在需要连续两次看到同一个 reset key 且周额度仍高于恢复阈值才会发送。
-- 待确认的恢复信号会随 app 状态持久化；如果下一轮额度或 reset 时间回滚，会自动清掉候选信号。
-- 这能降低 Codex app-server 短暂返回高额度后又恢复旧窗口时的误通知。
-
-</details>
-
-<details>
-<summary><strong>v0.1.45：CodexRadar 公告同步</strong> - 首页公告会出现在菜单里。</summary>
-
-- 同步 CodexRadar 首页顶部的 `公告`，例如 GPT-5.6 发布概率这类临时公开信号。
-- 公告区靠近菜单顶部，默认保持紧凑；内容过长时沿用动态 `全文` 入口。
-- 有来源链接时会显示可点击来源按钮，但不进入状态栏、不发通知，避免打扰核心额度和质量判断。
-
-</details>
-
-<details>
-<summary><strong>v0.1.44：全文入口按实际截断显示</strong> - 已经完整显示的文本不再多一个“全文”。</summary>
-
-- `全文 / 收起` 不再只按字符数粗略判断，而是比较折叠态和全文的实际渲染高度。
-- 如果当前文本已经完整显示，就只展示正文；只有真实被截断时才出现 `全文` 入口。
-- 这套逻辑仍然复用在 Prediction、Reset Radar、额度雷达、错误提示和后续新增的摘要说明里。
-
-</details>
-
-<details>
-<summary><strong>v0.1.43：长文本统一可展开</strong> - Prediction、雷达摘要和错误提示都能点开全文。</summary>
-
-- `Prediction 预测` 的长 reasoning 摘要现在会显示 `全文`，点击即可展开完整内容。
-- 系统自查了类似截断点：CodexRadar 总结、额度雷达总结、用量节奏说明、重置卡提示、失败原因、连接错误、更新状态等摘要类文本都接入同一套展开逻辑。
-- 后续新增菜单摘要/说明时，应优先使用统一展开组件，避免只显示省略号却没有查看全文入口。
-
-</details>
-
-<details>
-<summary><strong>v0.1.42：重置卡自动查询</strong> - 默认低频刷新每张 reset credit 的过期时间。</summary>
-
-- `重置卡过期` 现在默认开启自动查询：启动后和缓存超过 6 小时时刷新一次，不接入 60 秒主轮询。
-- 仍可一键关闭自动查询，也可以点 `立即刷新` 主动更新；缓存只保存脱敏卡片状态、发放时间、过期时间和 ID 后缀，不保存 token。
-- 失败提示改成可操作文案：未登录、登录态过期、网络失败、接口格式变化会给出不同下一步，并且失败时保留旧缓存、不弹系统通知、不影响状态栏额度。
-
-</details>
-
-<details>
-<summary><strong>v0.1.41：长摘要可展开</strong> - 重置雷达里的截断消息可以点击查看全文。</summary>
-
-- `CodexRadar 重置雷达` 的路径卡片摘要和原因摘要默认仍保持紧凑，避免菜单变长。
-- 当文本较长时，下方会出现 `全文`；点击后在原位置展开完整内容，再点 `收起` 恢复。
-- 适合查看 Tibo 回复、社区反证、硬重置说明这类容易被截断的长消息。
-
-</details>
-
-<details>
-<summary><strong>v0.1.40：重置卡过期时间</strong> - 下拉菜单可手动查询并缓存每张 reset credit 的过期时间。</summary>
-
-- `重置卡过期` 区块新增 `查询重置卡`：点击后才读取本机 Codex 登录态并请求 reset credits，不接入 60 秒轮询。
-- 查询结果会缓存到本机设置里，后续打开菜单直接展示；只保存标题、状态、发放时间、过期时间和脱敏 ID 后缀，不保存 token、cookie 或完整唯一 ID。
-- 查询中会显示进度，失败只在该区块显示错误，不影响状态栏额度、CodexRadar 轮询或自动更新。
-
-</details>
-
-<details>
-<summary><strong>v0.1.39：重置卡自查</strong> - 下拉菜单同步 CodexRadar 的“重置卡过期时间自查”社区知识。</summary>
-
-- 新增 `重置卡自查` 小节，可一键复制 CodexRadar 提供的 reset credit 过期时间自查 prompt。
-- 文案明确 Sentinel 只复制文本，不读取 `~/.codex/auth.json`、token 或 cookie；用户需要主动在 Codex 里运行。
-- live contract 现在会检查 `community_knowledge`，避免 CodexRadar 社区知识卡结构变化后菜单静默缺失。
-
-</details>
-
-<details>
-<summary><strong>v0.1.38：重置雷达对齐</strong> - 下拉菜单同步 CodexRadar 首页恢复的 reset 研判。</summary>
-
-- 新增 `CodexRadar 重置雷达` 区块，展示“发重置卡”和“硬重置”两条路径的等级与摘要。
-- `current.json` 暂未带 reset 研判时，会从 CodexRadar 首页解析公开研判；状态栏仍保持紧凑，不额外占位。
-- live contract 现在会检查 `reset_judgement`，避免 CodexRadar 首页结构变化后菜单静默缺失。
-
-</details>
-
-<details>
-<summary><strong>v0.1.37：额度雷达对齐</strong> - 下拉菜单同步 CodexRadar 首页新增的公开额度估算。</summary>
-
-- 新增 `CodexRadar 额度雷达` 区块，展示 20x Pro / 5x Pro / Plus 的 5h 和 7d 美元等价值。
-- 文案明确这是 CodexRadar 的公开估算，不是本机剩余额度；本机剩余仍在 `Codex 额度` 区块。
-- live contract 现在会检查 `quota_radar`，避免 CodexRadar 字段变化后菜单静默缺失。
-
-</details>
-
-<details>
-<summary><strong>v0.1.36：reset payload 兼容</strong> - current.json 临时不带 Model IQ 时，自动从 CodexRadar 首页补齐 IQ。</summary>
-
-- 保留 `reset_completed / community_confirmed` 的权益状态，同时补回首页公开的 Model IQ 和多模型表格。
-- `reset_completed` 现在也会进入“CodexRadar 记录到 reset”提醒路径，不再只依赖旧的 `closed_at`。
-- 兼容 CodexRadar 首页新的 `6.29_pm` 这类 Model IQ 日期格式。
-
-</details>
-
-<details>
-<summary><strong>v0.1.35：多模型 IQ 对齐</strong> - 下拉菜单同步 CodexRadar 新增的 GPT-5.4 high 和多模型对比。</summary>
-
-- 状态栏仍保持紧凑，只显示主模型 IQ，不会因为多模型监控变宽。
-- `Codex IQ` 区块新增多模型表格，展示 5.5 xhigh / high / medium、5.4 xhigh / high 的 IQ、探针和体感分。
-- 跟随 CodexRadar 首页新增的 “5.4 high 模型监控”能力，live contract 会继续校验新结构。
-
-</details>
-
-<details>
-<summary><strong>v0.1.34：Prediction 等级兼容</strong> - 兼容 CodexRadar 新增的 `medium_low` / `medium_high` 等复合预测等级。</summary>
-
-- `medium_low` 显示为 `中低`，英文显示为 `medium-low`。
-- `medium_high` 显示为 `中高`，英文显示为 `medium-high`。
-- 避免 Prediction 区在 CodexRadar 新等级下显示“未知”。
-
-</details>
-
-<details>
-<summary><strong>历史版本</strong> - 展开查看更早的功能记录。</summary>
-
-<details>
-<summary><strong>v0.1.33：中国节假日/调休</strong> - 工作日策略默认启用 2026 中国法定节假日和调休补班。</summary>
-
-- `使用中国节假日/调休` 默认开启，只影响 `工作日` 应剩策略。
-- 法定假日按周末权重 `0.35` 计算，调休补班按工作日权重 `1` 计算。
-- 已内置 2026 国务院办公厅节假日安排，例如端午 `06-19` 至 `06-21` 会按假日节奏处理。
-
-</details>
-
-<details>
-<summary><strong>v0.1.32：工作日节奏修正</strong> - 工作日策略改为按本机日历的天级预算计算，避免 reset 当天中途开始时建议剩余过高。</summary>
-
-- 工作日权重为 `1`，周末权重为 `0.35`。
-- 进入当天后就把当天预算计入建议用量；reset 当天按截止时刻折算。
-- 例如下次 reset 是 `06-25 10:00` 时，`06-18` 当天会作为一个工作日预算参与计算，不会只按从 10 点开始的几个小时算出 `应剩 95%`。
-
-</details>
-
-<details>
-<summary><strong>v0.1.31：周额度提醒降噪</strong> - 低额度通知增加冷却，避免同一低额度状态反复弹窗。</summary>
-
-- `周额度偏低` 默认最多 12 小时触发一次。
-- `周额度很低` 默认最多 4 小时触发一次，仍保留更强提醒。
-- 如果上游 reset 时间戳在滑动或抖动，app 不会因为 key 变化在每轮 60 秒刷新里重复打扰。
-
-</details>
-
-<details>
-<summary><strong>v0.1.30：防止轮询卡住</strong> - CodexRadar 请求增加 15 秒超时，避免一次网络卡住导致状态栏不再刷新。</summary>
-
-- 今天 CodexRadar 官方速蹬窗口已开启，重启 app 后状态栏正确显示 `速蹬`。
-- 修复长期运行时某次公开端点请求卡住后，后续 60 秒轮询可能不再继续的问题。
-- 状态栏仍保持紧凑；真正开窗时会恢复红色速蹬强调和通知。
-
-</details>
-
-<details>
-<summary><strong>v0.1.29：质量指标对齐 CodexRadar</strong> - 下拉菜单新增耗时、费用、cache 命中率和社区体感分。</summary>
-
-<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 质量指标截图">
-
-- CodexRadar 当前网页展示“智商、速度、费用与 cache 命中率”和“社区体感分”，菜单已同步这些公开指标。
-- `Codex IQ` 区块现在会显示耗时、费用、Cache 和体感分，例如 `49分钟 / $39.94 / 95.0% / 9.4/10`。
-- 状态栏默认仍保持 `周额度 / IQ / 质量`，不会因为新增指标变宽。
-
-</details>
-
-<details>
-<summary><strong>v0.1.28：转向模型质量雷达</strong> - 速蹬窗口已下架，状态栏第三段改成 Model IQ 质量状态。</summary>
-
-<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 模型质量雷达截图">
-
-- CodexRadar 当前聚焦 Model IQ、速度、费用、cache 命中率和社区体感分。
-- 状态栏默认变成 `周额度 / IQ / 质量`，例如 `96%/112/正常`；IQ 偏低时会显示 `低`。
-- 下拉菜单隐藏 live Prediction 区块，不再把 `0% / 0%` 这类旧 reset 预测当成主信息展示。
-
-</details>
-
-<details>
-<summary><strong>v0.1.27：兼容 CodexRadar 新首页</strong> - 旧 JSON/RSS 端点下架后，自动从首页读取 Model IQ。</summary>
-
-<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel CodexRadar 首页兼容截图">
-
-- CodexRadar 已将 reset 预测、速蹬窗口提醒和历史窗口下架；旧端点不可用或回到首页时，app 会自动降级。
-- app 会识别首页 HTML，从公开页面提取最新 Model IQ，并合成“无速蹬窗口”的兼容状态。
-- 本机 Codex 额度、IQ 和菜单主体继续可用；不会再把 HTML 当 JSON 解码错误展示给用户。
-
-</details>
-
-<details>
-<summary><strong>v0.1.23：折叠区整行可点</strong> - 点标题文字、图标或右侧状态都能展开，不用再精确点左侧小箭头。</summary>
-
-<img src="docs/assets/zh/news-pacing.png" width="390" alt="Codex Radar Sentinel 应剩策略截图">
-
-- `应剩计算策略` 和 `状态栏高级` 的标题行都变成整行按钮。
-- 左侧箭头只是视觉提示，实际可以点标题文字、图标、右侧状态。
-- 这类小交互降低了菜单栏工具的操作精度要求，尤其适合高频点开查看。
-
-</details>
-
-<details>
-<summary><strong>v0.1.22：策略卡片可直接切换</strong> - 不再依赖菜单栏弹窗里不稳定的下拉选择器。</summary>
-
-- `应剩` 会把建议剩余和实际剩余放在一起看，直接告诉你还能多用还是该放慢。
-- 展开 `应剩计算策略` 后，点击任一策略说明卡片即可切换。
-- 当前策略会有蓝色高亮和 `当前` 标记，不需要猜当前选中了什么。
-
-</details>
-
-<details>
-<summary><strong>v0.1.21：多种应剩策略</strong> - 按不同工作习惯规划周额度节奏。</summary>
-
-<img src="docs/assets/zh/news-pacing.png" width="390" alt="Codex Radar Sentinel 用量节奏截图">
-
-- 新增 `按时间`、`每日`、`留余`、`工作日`、`先用` 五种策略。
-- 每种策略都解释公式、刷新粒度和适用场景。
-- 可选把 `应剩` 放进状态栏，例如用 `应80%` 提醒现在理想剩余。
-
-</details>
-
-<details>
-<summary><strong>v0.1.19：应剩改成建议剩余</strong> - 看“现在应该还剩多少”，比看“应该用掉多少”更直观。</summary>
-
-- 用 `建议剩余 / 实际剩余 / 可多用` 三个卡片解释当前节奏。
-- 例如建议应剩 80%、实际还剩 90%，就直接提示可以多用一点。
-- 这个表达更适合控制周额度节奏，不需要用户自己反向换算。
-
-</details>
-
-<details>
-<summary><strong>v0.1.17：状态栏高级压缩</strong> - 在不牺牲可读性的前提下减少菜单栏占位。</summary>
-
-<p>
-  <img src="docs/assets/zh/status-normal.png" height="30" alt="正常状态">
-  <img src="docs/assets/zh/status-custom.png" height="30" alt="自定义状态">
-</p>
-
-- 可调分隔符、左右留白、字体比例。
-- IQ 可以选择原值、`/10` 整数或 `/10` 小数。
-- 可以隐藏 `%`，也可以只保留自己关心的状态栏段。
-
-</details>
-
-<details>
-<summary><strong>v0.1.11：5h 短窗可选显示</strong> - 除了周额度，也能把短窗额度放进状态栏。</summary>
-
-- `5h` 默认关闭，需要时可以手动打开。
-- 打开后状态栏可以类似 `96%/99%/62/低`，第二个百分比就是短窗。
-- 适合排查“周额度还很多，但短窗先触顶”的情况。
-
-</details>
-
-<details>
-<summary><strong>v0.1.7：Prompt Log 开源</strong> - 把产品从想法、吐槽、截图反馈到发布验证的 prompt 一起放进仓库。</summary>
-
-- 新增 [Prompt Log](PROMPTS.md)，记录用户直接给 Codex 的产品需求、设计反馈和验证要求。
-- 去掉时间戳、本地路径、截图缓存路径和安全敏感信息，只保留可公开的产品上下文。
-- 后续每条 prompt 都维护到实际 commit 的映射，commit 链接可点击。
-
-</details>
-
-<details>
-<summary><strong>v0.1.4：自动更新</strong> - 新版本可以静默下载、校验、替换并重开。</summary>
-
-- 默认开启自动更新，启动后会检查 GitHub Release，之后每 6 小时检查一次。
-- 下载后校验 SHA256，再替换 app bundle。
-- 如果更新失败，会保留当前版本并短期暂停同版本自动重试，避免循环重启。
-
-</details>
-
-<details>
-<summary><strong>v0.1.0：第一版菜单栏仪表盘</strong> - 把 CodexRadar 公开信号和本机 Codex 额度合到一个 macOS 状态栏工具。</summary>
-
-<p>
-  <img src="docs/assets/zh/status-normal.png" height="30" alt="正常状态">
-  <img src="docs/assets/zh/status-speed.png" height="30" alt="速蹬状态">
-  <img src="docs/assets/zh/status-limit.png" height="30" alt="限额状态">
-</p>
-
-- 常驻显示周额度、Codex IQ 和 CodexRadar 信号。
-- 速蹬窗口开启时状态栏变红，并发送 macOS 通知。
-- reset 事件、预测、IQ、额度状态都在同一个下拉菜单里看。
-
-</details>
-
-</details>
+[最新版本](https://github.com/WineChord/codex-radar/releases/latest) · [功能概览](#核心功能) · [隐私与安全](#隐私与安全) · [从源码运行](#从源码运行)
 
 ## 让 Codex 帮你安装
 
-如果你正在用 Codex 桌面版，可以直接复制下面这段 prompt 给 Codex。需要允许 Codex 访问网络、执行 shell 命令、写入 `/Applications`；如果 macOS 弹出通知权限，点允许即可。
+> **推荐方式：** 把下面这段文字交给 Codex 桌面版，即可完成下载、校验、安装、启动和版本确认。
 
 ```text
-直接安装 Codex Radar Sentinel：下载 https://github.com/WineChord/codex-radar/releases/latest 的最新 macOS 包，装进 /Applications，启动并确认菜单栏；需权限问我。
+请安装 Codex Radar Sentinel 的最新稳定版。
+Release 页面：
+https://github.com/WineChord/codex-radar/releases/latest
+下载 macOS 安装包和 SHA256 校验文件，校验通过后将应用安装到 /Applications，启动应用，并确认菜单栏中显示的版本与最新 Release 一致。遇到需要我处理的 macOS 权限提示时，请说明用途后让我确认。
 ```
+
+安装需要网络访问和 `/Applications` 写入权限。首次启动时，macOS 可能询问通知权限；允许后才能收到额度、Model IQ 和到期保护提醒。
+
+不使用 Codex 也可以直接前往 [GitHub Releases](https://github.com/WineChord/codex-radar/releases/latest) 手动安装。
+
+## News / 最新功能
+
+### v0.1.56：更稳的在线数据兼容
+
+- CodexRadar 没有临时公告时，菜单会正常隐藏公告区，而不是把有效的空状态当作故障。
+- 公告变化不会影响本机额度、Model IQ、重置雷达、Fast 雷达或智能洞察的更新。
+
+### v0.1.55：场景推荐与降智预警
+
+- `CodexRadar 智能洞察` 会先显示适合日常开发的模型档位、IQ、费用和当前预警数量。
+- 展开后可查看难题攻坚、后台任务等场景建议，以及各档位 24h / 48h 的质量变化。
+- 网络或数据格式异常时保留上一次有效结果，不会用占位数据掩盖失败，也不会拖慢核心额度刷新。
+
+### v0.1.54：更可靠的重置卡到期保护
+
+- 正常系统校时不再误关保护；只有时间连续性确实无法证明时，才会关闭保护并要求重新确认。
+- 未决请求会优先只读对账。保护关闭后不会重试、换卡或发送新的使用请求。
+
+<details>
+<summary><strong>历史版本</strong> — 展开查看更早的产品里程碑</summary>
+
+- **v0.1.53**：补齐 19 组智力效率数据，改善“超用”表达，并加入默认关闭、需要明确确认的重置卡到期保护。
+- **v0.1.52**：接入分布式 Model IQ，统一单题费用、耗时、通过数和社区体感口径。
+- **v0.1.51**：5h 短窗暂停时自动隐藏，恢复后自动出现。
+- **v0.1.50**：加入 Standard 与 Fast 的 E2E、TTFT、TPS 对比。
+- **v0.1.49–v0.1.45**：完善社区知识卡、官方窗口识别、本机额度定位、恢复提醒和网站公告。
+- **v0.1.44–v0.1.40**：统一长文本展开体验，并加入重置卡过期时间的手动与低频自动查询。
+- **v0.1.39–v0.1.35**：完善重置卡查询入口、重置雷达、额度雷达和多模型 IQ 展示。
+- **v0.1.34–v0.1.30**：增强数据兼容、工作日节奏、通知降噪和网络超时保护。
+- **v0.1.29–v0.1.23**：增加费用、耗时、Cache、体感分，并改善折叠区交互。
+- **v0.1.22–v0.1.17**：加入多种用量节奏策略和更紧凑的状态栏自定义。
+- **v0.1.11–v0.1.0**：建立短窗显示、自动更新和首版菜单栏仪表盘等基础能力。
+
+完整版本记录见 [GitHub Releases](https://github.com/WineChord/codex-radar/releases)。
+
+</details>
+
+## 核心功能
+
+| 能力 | 作用 |
+| --- | --- |
+| 本机额度 | 显示 Codex 周额度；接口明确返回 5h 短窗时也可显示短窗额度。 |
+| 用量节奏 | 对比当前实际剩余与建议剩余，直观提示“可多用”“接近节奏”或“超用”。 |
+| Model IQ | 展示当前 IQ、质量状态，以及公开的多模型费用、耗时、通过数和体感分。 |
+| 雷达信号 | 汇总重置雷达、额度雷达、Fast 雷达、场景推荐和降智预警。 |
+| 重置卡状态 | 低频查询每张重置卡的状态与到期时间，只缓存脱敏结果。 |
+| 到期保护 | 严格默认关闭；明确开启后，才会在卡片临近到期时尝试使用目标卡。 |
+| 通知与更新 | 提醒低额度、额度恢复、低 IQ 和保护结果；自动更新包会先校验 SHA256。 |
+| 个性化 | 支持中英文、字体大小、状态栏片段、分隔符、留白和 IQ 显示方式。 |
 
 ## 状态栏含义
 
-状态栏标题刻意保持很短：
+默认标题刻意保持简短：
 
 ```text
 96%/112/正常
 ```
 
-三个值分别是：
+| 片段 | 含义 |
+| --- | --- |
+| `96%` | 本机 Codex 周额度剩余。 |
+| `112` | Codex IQ；默认显示整数，下拉菜单保留精确值。 |
+| `正常` | CodexRadar 的模型质量状态；IQ 偏低时显示 `低`。 |
 
-- `96%`：Codex 周额度剩余百分比。
-- `112`：Codex IQ 分数。状态栏默认截断为整数以节省空间；下拉菜单里的 Codex IQ 区块会显示精确值，例如 `112.5`。
-- `正常`：CodexRadar 模型质量状态，来自 Model IQ。IQ 偏低时会显示 `低`。
+还可以按需打开：
 
-下拉菜单的 `状态栏显示` 里还可以手动打开：
-
-- `5h`：本机 Codex 返回 5 小时短窗时，这个选项会自动出现；默认关闭，打开后会类似 `96%/99%/112/正常`。短窗暂停时会自动隐藏。
-- `应剩`：把“按节奏现在应该还剩多少周额度”放进状态栏；默认关闭，中文显示类似 `应80%`，英文显示类似 `R80%`。
-
-`应剩计算策略` 默认收起。点击这一整行标题即可展开或收起；展开后点击任一策略卡片即可切换，并会直接说明每个策略的公式、刷新粒度和适用场景。
-
-`状态栏高级` 默认收起；点击这一整行标题即可展开或收起。展开后可以调分隔符、左右留白、字体比例、IQ 是否按 `/10` 显示，以及状态栏里是否保留 `%`。这些设置只影响状态栏标题，下拉菜单里的完整数值不变。
-
-当前 [CodexRadar](https://codexradar.com/) 已说明速蹬窗口提醒下架，所以 live 模式不再把速蹬/Prediction 当作主信号。如果未来旧兼容接口恢复并报告窗口开启，红色速蹬强调仍会生效。
+- `5h`：本机 Codex 返回 5 小时短窗时可用；短窗暂停时自动隐藏。
+- `应剩`：显示当前时间点建议保留的周额度，例如 `应80%`。
+- `状态栏 IQ 小数`：在菜单栏里保留精确 IQ。
+- `状态栏高级`：调整分隔符、左右留白、字体比例、`/10` 样式和百分号。
 
 ## 状态展示
 
-这些截图由真实 app 在隔离预览中直接渲染目标状态栏按钮，再放到固定的中性背景上；文字、颜色、告警底色和宽度都来自实际实现，不会误截正在运行的正式实例或其他状态栏图标。
+以下图片由应用在隔离预览环境中直接渲染，不包含真实账户数据或其他菜单栏内容。
 
 | 正常 | IQ 偏低 | 本机限额 | 自定义 |
 | --- | --- | --- | --- |
 | ![正常状态](docs/assets/zh/status-normal.png) | ![IQ 偏低状态](docs/assets/zh/status-quality-low.png) | ![限额状态](docs/assets/zh/status-limit.png) | ![自定义状态](docs/assets/zh/status-custom.png) |
 
-可以在下拉菜单里选择状态栏显示哪些值。例如不关心 IQ 数字时，可以只显示 `96%/正常`。
-本机 Codex 返回 5 小时短窗时，可以手动打开 `5h`，它会作为额外百分比插入到周额度和 IQ 之间；短窗暂停时不会显示空值或重复周额度。
-如果想按 reset 窗口节奏均匀使用周额度，可以手动打开 `应剩`。
-如果想让状态栏也显示精确 IQ 小数，可以打开 `状态栏 IQ 小数`。
+## 完整菜单
 
-## 完整菜单界面
+<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 中文完整菜单">
 
-这张图由 app 自己在高清屏上截取真实 SwiftUI 菜单窗口生成，和状态栏截图、News 小图一起由 `./scripts/update_readme_screenshots.sh` 维护。README 里按 390px 宽度展示，避免尺寸过大；点开原图可以看到高清细节。
+面板按“本机状态优先、公开雷达补充”的顺序组织。常用的刷新、Radar、Codex、GitHub 和退出入口固定在底部，不需要滚动寻找。
 
-<img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 中文完整菜单界面">
+## 使用说明
 
-## 它会显示什么
+### 用量节奏
 
-- Codex 周额度剩余，来自本机 Codex app-server。
-- Codex 短窗额度剩余，也来自本机 Codex app-server；只有接口明确返回约 5 小时的窗口时才显示。
-- 用量节奏：按所选策略计算当前建议剩余百分比，并和实际周额度剩余对比；例如建议应剩 80%、实际还剩 90%，就会提示可以多用一点。
-  策略包括：`按时间` 平滑均匀用完；`每日` 按天级预算推进；`留余` 前期保留 20% 缓冲；`工作日` 工作日多用、周末少用；`先用` 前半程更积极，避免 reset 前剩太多。
-- [CodexRadar](https://codexradar.com/) 首页可见的重置雷达研判：发重置卡、硬重置两条路径的等级、摘要和原因。
-- CodexRadar 首页可见的社区知识：`重置卡过期时间自查` prompt。菜单保留复制 prompt 作为兜底路径。
-- 本机重置卡过期查询：默认低频自动刷新，也可以手动点 `立即刷新`；app 会读取 `~/.codex/auth.json` 中的 Codex access token，请求 ChatGPT reset credits 接口，并只缓存脱敏后的卡片状态、发放时间和过期时间，不保存 token。
-- 可选的重置卡到期保护：默认关闭，显式开启后在最早到期卡的保护窗口内通过 Codex app-server 尝试使用；`只读检查保护计划` 不会消耗卡。
-- CodexRadar 当前公开的 19 组智力效率数据：Model IQ、通过数、单题费用和单题耗时；有更丰富来源时也显示 cache 命中率。
-- CodexRadar 智能洞察：日常开发、难题攻坚、后台自动化和轻量长任务的推荐档位，以及当前模型档位的 24h / 48h 降智预警；默认只显示紧凑结论，完整列表按需展开。
-- CodexRadar 首页可见的额度雷达：当前展示 20x Pro / 5x Pro / Plus 的 7d 美元等价值估算；5h 恢复校准时会自动增加 5h 列。它不是本机剩余额度，只是公开估算。
-- CodexRadar 首页可见的模型质量方向：速度、费用、cache 命中率和社区体感分。
-- CodexRadar 旧速蹬/预测接口的兼容状态；这些功能不再作为 live 主信息展示，只有明确恢复时才触发旧提醒路径。
+`应剩计算策略` 默认折叠，点击整行即可展开并切换：
 
-应用默认中文；下拉菜单里可以切换 English。Codex、IQ、Reset、Prediction、Radar 这类英文术语会保留，因为它们在产品里更清楚。
+- `按时间`：在整个 reset 窗口内平滑使用。
+- `每日`：按本机日历的天级预算推进。
+- `留余`：前期保留 20% 缓冲。
+- `工作日`：工作日多用、周末和法定节假日少用。
+- `先用`：前半程更积极，降低 reset 前剩余过多的概率。
 
-## 通知
+节奏卡片使用无符号百分比表达方向。例如实际用量比建议多 33% 时显示 `超用 33%`，不会显示容易误读的负数。
 
-应用会在这些情况发送 macOS 通知：
+### 重置卡与到期保护
 
-- 周额度低于 30%。
-- 周额度低于 15%。
+重置卡到期时间会在应用启动后或缓存超过 6 小时时低频刷新，也可以在菜单中关闭自动查询或手动刷新。查询失败时会保留旧缓存，并给出未登录、登录过期、网络或数据格式等可操作提示。
+
+`重置卡到期保护` 是独立开关，并且严格默认关闭。开启前会展示不可撤销说明并要求明确确认；启用后只覆盖确认时可见、受支持且有明确到期时间的卡片。计划检查是只读操作，不会消耗卡。
+
+目标卡进入到期前约 30 分钟的保护窗口后，应用才会尝试使用。账号、卡片集合或时间连续性发生无法安全确认的变化时，保护会自动关闭。断网、关机、休眠、退出应用或服务端没有可重置用量都可能导致未执行，因此这是一项尽力保护，而不是绝对保证；建议同时开启 `登录时启动`。
+
+### 通知
+
+应用可在以下情况发送 macOS 通知：
+
+- 周额度低于 30% 或 15%。
 - 周额度从低位恢复。
 - Codex IQ 进入 red 或低于 80。
-- 已开启的重置卡到期保护确认卡已使用，或因卡已过期、登录身份/授权卡集合变化、系统时间变化而需要检查。
-- legacy 兼容接口如果未来重新报告速蹬窗口、reset 或 high prediction，仍会触发对应提醒。
+- 到期保护确认使用成功，或需要检查账号、授权卡片、时间连续性和未决结果。
+- 兼容接口未来重新报告明确的旧版窗口或 reset 事件。
 
-通知声音默认关闭，可以在下拉菜单里打开。首次启动会把历史 reset 窗口记为已见过，避免补发旧通知；如果 legacy 兼容接口未来恢复且首次启动时正好处在明确的速蹬窗口中，仍然会提醒。
+通知声音默认关闭，可在菜单中单独开启。
 
-## 更新
+### 更新
 
-自动更新默认开启。应用启动 5 秒后会先检查一次，之后每 6 小时检查一次最新 GitHub Release，下载 ZIP，校验 release 里的 SHA256，然后替换已安装的 app bundle 并自动重开。
+自动更新默认开启。应用启动后会检查一次，之后每 6 小时检查最新 GitHub Release。下载完成后先校验发布资产中的 SHA256，再替换应用并重新启动。
 
-如果下载、校验或安装失败，应用会保留当前版本并在菜单里显示失败原因。安装脚本也会先备份旧版；如果替换失败，会恢复并重新打开旧版。对同一个刚刚安装失败的版本，自动更新会暂停短期重试，手动 `检查更新` 仍可立即重试。
+更新失败时保留当前版本并显示原因；同一版本的自动重试会短暂冷却，`检查更新` 仍可立即手动重试。
 
-底部工具栏固定提供 `刷新`、`Radar`、`Codex`、`GitHub` 和 `退出`，方便常用跳转不用滚动菜单。
+## 隐私与安全
 
-版本更新区还提供：
-
-- `检查更新`：立刻检查并安装新版本。
-- `Changelog`：打开最新 release notes。
-- `Prompts`：打开开源的 prompt log。
-- `GitHub`：打开仓库页面。
-
-如果只想手动更新，可以在下拉菜单关闭 `自动更新`。
-
-## Codex Skill
-
-仓库里带了一个 repo 内 skill：[CodexRadar Sync](skills/codex-radar-sync/SKILL.md)。当 CodexRadar 页面或 JSON 数据格式变化时，可以让 Codex 执行这个 skill：它会检查 CodexRadar 最新主页和公开端点，比较字段变化，更新 Swift 解码和 macOS 菜单映射，并在发版前跑完整 UI/数据检查。
-
-## 调试预览
-
-下拉菜单里有 `预览` 分段控件，可以本地查看不同状态：
-
-- `Live`：真实数据。
-- `正常`：无速蹬窗口的正常质量 UI。
-- `低 IQ`：模型质量偏低 UI。
-- `速蹬`：速蹬窗口 UI，包括红色状态栏和红色提示。
-- `Reset`：CodexRadar 记录到 reset 的 UI。
-- `限额`：本机限额 UI。
-
-预览只影响 UI 展示；真实通知和去重仍使用 live 数据。
-
-也可以用环境变量启动：
-
-```bash
-CODEX_RADAR_PREVIEW=qualityLow swift run CodexRadarSentinel
-```
-
-可选值是 `live`、`qualityNormal`、`qualityLow`、`speedWindow`、`resetConfirmed`、`blocked`。
+- 本机额度通过本地 Codex app-server 读取，不会上传到 CodexRadar。
+- 重置卡到期查询需要使用本机 Codex 登录态访问 ChatGPT 对应接口；凭证只用于该请求，不会写入缓存、日志或发送给 CodexRadar、GitHub。
+- 本地缓存只保存卡片状态、发放时间、到期时间和脱敏标识，不保存访问令牌、Cookie、邮箱或完整卡片 ID。
+- 到期保护只在明确开启后工作，并将授权绑定到当时的账号与卡片集合。每次写入前会再次核对目标、授权和时间连续性。
+- 不确定的执行结果会优先只读对账；同一次未决操作使用同一个幂等键，避免重复使用。
+- 关闭保护后，不会继续重试或切换到其他卡片。重新开启前必须先确认上一笔未决结果。
 
 ## 数据来源
 
-Codex Radar Sentinel 读取这些公开入口：
+- [CodexRadar 首页](https://codexradar.com/)：公告、重置雷达、社区知识、额度雷达和模型质量摘要。
+- [CodexRadar current.json](https://codexradar.com/current.json)：公开权益事件、Model IQ、额度雷达和兼容字段。
+- [CodexRadar 智力效率数据](https://codexradar.com/data/intelligence-efficiency.json)：多模型 IQ、费用、耗时和通过数。
+- [CodexRadar 社区体感数据](https://codexradar.com/api/model-ratings)：模型社区评分。
+- [CodexRadar 智能洞察](https://api.codexradar.com/api/v1/radar-insights)：场景推荐和降智预警。
+- [CodexRadar RSS](https://codexradar.com/feed.xml)：公开权益事件的兼容来源。
+- 本机 Codex app-server：周额度、短窗额度、登录身份和重置卡保护所需的权威明细。
 
-- [CodexRadar homepage](https://codexradar.com/)：当前公开重置雷达研判、重置卡自查社区知识、额度雷达、Model IQ 和模型质量细节。
-- [current.json](https://codexradar.com/current.json)：当前可能返回 JSON，包含额度雷达、Model IQ、官方权益事件和 legacy prediction 字段；当 reset 研判暂未进入 JSON 时，app 会从首页补齐。
-- [data/intelligence-efficiency.json](https://codexradar.com/data/intelligence-efficiency.json)：首页智力效率矩阵的轻量同源数据，补齐 19 个模型/推理强度组合的 IQ、费用和耗时，也在静态首页不再内嵌图表时承担 Model IQ 兜底。
-- [api/model-ratings](https://codexradar.com/api/model-ratings)：社区体感分，菜单里的 `体感` 来自这里。
-- [api/v1/radar-insights](https://api.codexradar.com/api/v1/radar-insights)：官网场景推荐与降智预警的公开聚合结果；App 直接展示服务端结论，不在本机复算推荐规则。
-- [feed.xml](https://codexradar.com/feed.xml)：后续用于官方权益提醒；不可用或返回首页时，app 会继续以首页/JSON 里的 Model IQ 为准。
-
-本机额度读取 Codex app-server：
-
-```json
-{"method":"account/rateLimits/read"}
-```
-
-当响应里存在 `rateLimitsByLimitId.codex` 时，优先使用这个 bucket。5 小时窗口显示为 `短窗`，10,080 分钟窗口显示为 `周额度`。
-
-本机重置卡过期时间默认低频自动刷新：app 启动后、或缓存超过 6 小时时，会从 `~/.codex/auth.json` 取 Codex access token，把它作为 Authorization header 发给 ChatGPT reset credits 接口，然后只把脱敏后的卡片元数据缓存到本机偏好设置里。你可以在下拉菜单里关闭自动查询；失败时只显示友好提示并保留旧缓存。
-
-`重置卡到期保护` 与上述自动查询是两个独立开关，保护严格默认关闭。显式开启时，App 启动一次新的 Codex app-server 会话；当前 `account/read` 协议只提供登录类型、邮箱和套餐，因此授权同时绑定登录邮箱指纹，以及这次完整明细中实际可见、受支持且明确到期的卡片指纹集合。后续新增卡片或同邮箱下切换到显示不同卡集合的 workspace，都需要关闭后重新显式开启。计划与执行使用 `account/rateLimits/read` 返回的权威明细，进入到期前约 30 分钟的保护窗口后才调用官方 `account/rateLimitResetCredit/consume`，并始终传入目标卡 ID 和幂等键。完整卡 ID 只存在于内存中，从不持久化；本地原子 ledger 只保存账号/卡片指纹、幂等键、到期时间、操作阶段和终态，不保存 token、邮箱或完整卡 ID。已确认使用或到期仍无法确认的卡会留下脱敏终态；同一次未决或结果不明确的逻辑尝试始终复用原幂等键，且卡片指纹会在这些未决与终态记录中全局去重。只有 Codex 明确返回 `nothingToReset` / `noCredit`，并且只读刷新确认同一卡仍可用时，才结束这次未发生消费的尝试；以后出现可重置用量时，后续逻辑尝试会使用新的幂等键，避免复用可能已缓存“未使用”结果的旧请求。
-
-每次真实尝试和未决对账都会创建一次性 Codex 会话，并在同一 app-server 子进程与身份快照中完成账号核对、完整明细复核、精确选卡、请求和结果后刷新；已验证的子进程若在写入前退出，消费调用不会静默启动替代进程，而会停止并重新走完整核验。常驻会话只提供无副作用的仪表盘提示。开启时会生成独立授权代际；最终传输写入还会在授权锁内按真实卡 ID 再核对卡片指纹与时钟连续性。关闭与真正写出消费请求共用短时进程锁，因此关闭先完成时旧任务无法继续发送，发送先越过边界时关闭会等写出完成后再生效，已写出的请求无法召回。服务端返回 `nothingToReset` 时卡不会被消耗，App 只会在只读刷新仍确认同一卡可用后继续等待；超时、断线或进程重启造成结果不确定时会先只读对账。保护仍开启时，确需重试才会复用原幂等键重试同一卡；保护已关闭时，只会保留未决记录并只读对账，不重试、不换卡，且在确认结果或卡片到期前不能重新开启。菜单的 `立即只读对账` 可以主动发起这项无消费复核。授权会持久化墙钟与包含休眠时间的单调时钟锚点；普通系统时钟变更通知会复核锚点，容差内不会撤销授权；正常休眠和同一次开机内的 App 重启也可以继续。只有墙钟相对连续计时超出安全容差、连续计时已重置（通常由 Mac 重启造成）或其他无法证明连续的情况，才会自动关闭保护并要求重新确认。因为 App 退出、断网和服务端状态都可能影响执行，这是一项尽力保护而不是绝对保证；建议同时开启 `登录时启动`。
+公开端点暂时不可用或返回未知格式时，应用会保留最后一次有效数据，并让本机额度继续独立刷新。
 
 ## 手动安装
 
-从最新 GitHub Release 下载 `.dmg`，打开后把 `Codex Radar Sentinel.app` 拖到 `Applications`。
+1. 从 [最新 GitHub Release](https://github.com/WineChord/codex-radar/releases/latest) 下载 `.dmg`。
+2. 打开镜像，把 `Codex Radar Sentinel.app` 拖到 `Applications`。
+3. 启动应用，在菜单的版本更新区确认版本号。
 
-`.zip` 里包含同一个 app bundle，适合喜欢手动复制的用户。
+`.zip` 包含同一个应用，适合需要自行复制或自动化安装的场景。
 
-## 本地运行
+## 从源码运行
 
-构建普通 macOS `.app`：
+构建普通 macOS 应用：
 
 ```bash
 ./scripts/build_app.sh
@@ -564,50 +192,37 @@ open ".build/Codex Radar Sentinel.app"
 swift run CodexRadarSentinel
 ```
 
-如果 Codex 不在默认路径，可以设置：
+如果 Codex 不在默认位置：
 
 ```bash
-CODEX_RADAR_CODEX_PATH=/path/to/codex
+CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```
 
-## 开发
-
-运行测试：
+## 开发与验证
 
 ```bash
 swift test
-```
-
-发版前做 live 数据和 UI 检查：
-
-```bash
+swift build -c release
 ./scripts/check_release_readiness.sh 0.1.56
 ```
 
-构建 release 包：
+构建发布包：
 
 ```bash
-swift build -c release
 ./scripts/build_app.sh
 ./scripts/package_release.sh 0.1.56
 ```
 
-更新 README 状态栏和菜单截图：
+更新中英文状态栏与菜单截图：
 
 ```bash
 ./scripts/update_readme_screenshots.sh
 ```
 
-这个脚本会让隔离的非 live 预览进程直接渲染自己的状态栏按钮，再调用 app 的文档截图模式生成完整菜单与 News 小图。脚本会校验不同状态、语言和自定义指标确实产生不同标题与图片；它不会停止或重启正在运行的 Sentinel，不会读取 live 数据、请求通知权限或启用重置卡到期保护。每个预览进程使用独立的临时偏好和保护存储，也不需要辅助功能或屏幕录制权限。脚本需要 Pillow；本机 Python 已安装时会直接使用，否则可通过 `uv` 临时提供固定版本。
-
-重新生成 macOS 图标：
-
-```bash
-./scripts/generate_app_icon.sh
-```
+截图脚本使用隔离的非实时预览，不读取真实账户数据，也不会改变正在运行的正式应用设置。
 
 ## 鸣谢
 
-Codex Radar Sentinel 之所以能成立，是因为 [CodexRadar](https://codexradar.com/) 持续提供清晰的公开 Codex 信号。CodexRadar 早期提供速蹬窗口、reset、reset 预测、RSS 事件和 model IQ；当前提供重置雷达、社区知识分享、额度雷达、场景推荐、降智预警与模型质量雷达。本应用只是把这些公开信号和用户本机 Codex 额度状态整合成一个 macOS 菜单栏工具。
+感谢 [CodexRadar](https://codexradar.com/) 持续提供公开的 Codex 雷达、模型质量和社区信号。本应用将这些公开信息与本机 Codex 状态整合为一个 macOS 菜单栏界面。
 
 Codex Radar Sentinel 与 CodexRadar 或 OpenAI 没有关联。
