@@ -9,6 +9,14 @@
 ## News / 最新功能
 
 <details open>
+<summary><strong>v0.1.56：可选公告不再阻塞发布检查</strong> - 官网没有临时公告时，live contract 会按正常空状态处理。</summary>
+
+- CodexRadar 顶部公告是临时信号，可能在事件结束后完整撤下；Sentinel 本来就会在公告缺席时自然隐藏对应区块。
+- live contract 现在只在公告存在时要求非空正文，同时继续严格检查 Model IQ、重置雷达、社区知识、Fast 雷达与智能洞察，避免正常空公告造成误报和发布阻塞。
+
+</details>
+
+<details>
 <summary><strong>v0.1.55：场景推荐与降智预警</strong> - 官网新的实时智能洞察进入菜单，先给结论，需要时再展开细节。</summary>
 
 - 菜单新增 `CodexRadar 智能洞察`：默认直接显示日常开发首选档位、IQ、费用和当前降智预警数量，不需要先读完整模型矩阵。
@@ -573,7 +581,7 @@ swift test
 发版前做 live 数据和 UI 检查：
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.55
+./scripts/check_release_readiness.sh 0.1.56
 ```
 
 构建 release 包：
@@ -581,7 +589,7 @@ swift test
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.55
+./scripts/package_release.sh 0.1.56
 ```
 
 更新 README 状态栏和菜单截图：

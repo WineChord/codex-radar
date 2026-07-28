@@ -9,6 +9,14 @@ Full credit to [CodexRadar](https://codexradar.com/): this project is built on C
 ## News
 
 <details open>
+<summary><strong>v0.1.56: Optional notices no longer block release checks</strong> - A period without a temporary site notice is treated as a valid empty state.</summary>
+
+- CodexRadar's top notice is an ephemeral signal that can disappear completely after its event ends; Sentinel already hides the corresponding section naturally when no notice is active.
+- The live contract now requires a non-empty message only when a notice exists, while still strictly checking Model IQ, Reset Radar, community knowledge, Fast Radar, and live insights. A normal empty notice state no longer creates a false release blocker.
+
+</details>
+
+<details>
 <summary><strong>v0.1.55: Recommendations and degradation alerts</strong> - CodexRadar's new live insights show the conclusion first and expand into detail only when needed.</summary>
 
 - A new `CodexRadar Insights` section immediately shows the daily-development pick with IQ and cost, plus the current number of degradation alerts, without requiring users to scan the full model matrix first.
@@ -573,7 +581,7 @@ swift test
 Run live data and UI checks before a release:
 
 ```bash
-./scripts/check_release_readiness.sh 0.1.55
+./scripts/check_release_readiness.sh 0.1.56
 ```
 
 Build release packages:
@@ -581,7 +589,7 @@ Build release packages:
 ```bash
 swift build -c release
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.55
+./scripts/package_release.sh 0.1.56
 ```
 
 Update README menu bar and menu screenshots:

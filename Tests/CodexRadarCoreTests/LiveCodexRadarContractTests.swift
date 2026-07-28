@@ -24,7 +24,7 @@ final class LiveCodexRadarContractTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(current.resetJudgement?.cards.count ?? 0, 1)
         XCTAssertNotNil(current.communityKnowledge?.prompt)
         XCTAssertGreaterThanOrEqual(current.communityKnowledges.count, 1)
-        XCTAssertNotNil(current.siteAnnouncement?.message)
+        try assertValidSiteAnnouncementIfPresent(current.siteAnnouncement)
         XCTAssertGreaterThanOrEqual(current.fastRadar?.summary.count ?? 0, 1)
         XCTAssertGreaterThanOrEqual(current.fastRadar?.rows.count ?? 0, 1)
         if current.modelIQ?.latest?.costUSDBasis == "total_selected_tasks" {
@@ -101,7 +101,18 @@ final class LiveCodexRadarContractTests: XCTestCase {
         )
         XCTAssertGreaterThanOrEqual(homepageCurrent.resetJudgement?.cards.count ?? 0, 1)
         XCTAssertGreaterThanOrEqual(homepageCurrent.communityKnowledges.count, 1)
-        XCTAssertNotNil(homepageCurrent.siteAnnouncement?.message)
+        try assertValidSiteAnnouncementIfPresent(homepageCurrent.siteAnnouncement)
         XCTAssertGreaterThanOrEqual(homepageCurrent.fastRadar?.rows.count ?? 0, 1)
+    }
+
+    private func assertValidSiteAnnouncementIfPresent(
+        _ announcement: SiteAnnouncement?
+    ) throws {
+        guard let announcement else {
+            return
+        }
+        let message = try XCTUnwrap(announcement.message)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertFalse(message.isEmpty)
     }
 }
