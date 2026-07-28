@@ -199,14 +199,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !interactionTestMode else {
 #if DEBUG
             showInteractionTestWindow()
-#endif
+#else
             if interactionTestAutoOpenMenu {
                 DispatchQueue.main.asyncAfter(
                     deadline: .now() + 0.4
                 ) { [weak self] in
-                    self?.statusItem.button?.performClick(nil)
+                    self?.openInteractionTestMenu()
                 }
             }
+#endif
             return
         }
         guard screenshotMode else {
@@ -248,12 +249,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 #if DEBUG
     private func showInteractionTestWindow() {
         NSApp.setActivationPolicy(.regular)
+        let metrics = store.menuTextSize.metrics
         let window = NSWindow(
             contentRect: NSRect(
                 x: 0,
                 y: 0,
-                width: 480,
-                height: 220
+                width: metrics.width,
+                height: metrics.height
             ),
             styleMask: [
                 .titled,
@@ -265,9 +267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         window.title = "Codex Radar Layout Test"
         window.contentView = NSHostingView(
-            rootView: InteractionTestWindowView { [weak self] in
-                self?.statusItem.button?.performClick(nil)
-            }
+            rootView: DashboardMenuView(store: store)
         )
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -293,8 +293,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                   self.interactionTestShouldReopenMenu else {
                 return
             }
-            self.statusItem.button?.performClick(nil)
+            self.openInteractionTestMenu()
         }
+    }
+
+    private func openInteractionTestMenu() {
+        guard interactionTestMode,
+              let menu = statusItem.menu,
+              let button = statusItem.button else {
+            return
+        }
+        rebuildMenu(menu)
+        menu.popUp(
+            positioning: menu.items.first,
+            at: NSPoint(x: button.bounds.minX, y: button.bounds.minY),
+            in: button
+        )
     }
 
     private func rebuildMenu(_ menu: NSMenu) {
@@ -399,28 +413,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 }
-
-#if DEBUG
-private struct InteractionTestWindowView: View {
-    let openMenu: () -> Void
-
-    var body: some View {
-        VStack(spacing: 14) {
-            Text("Isolated layout interaction test")
-                .font(.headline)
-            Text(
-                "Uses temporary preferences and storage. Destructive reset-credit actions are disabled."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            Button("Open test menu", action: openMenu)
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-#endif
 
 private enum StatusScreenshotError: LocalizedError {
     case statusItemUnavailable
