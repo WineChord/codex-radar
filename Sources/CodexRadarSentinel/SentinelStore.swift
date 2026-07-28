@@ -703,8 +703,8 @@ final class SentinelStore: NSObject, ObservableObject {
             deliverResetCreditProtectionFailure(
                 identifier: "reset-credit-protection-journal-unavailable",
                 body: appLanguage.text(
-                    "本地保护记录无法可靠读取。为避免重复使用，到期保护已关闭且不会发送请求。",
-                    "The local protection journal cannot be read reliably. Protection is off and no request will be sent to avoid duplicate use."
+                    "本地自动使用记录无法可靠读取。为避免重复使用，自动使用已关闭且不会发送请求。",
+                    "The local auto-use record cannot be read reliably. Auto-use is off and no request will be sent to avoid duplicate use."
                 )
             )
         }
@@ -990,16 +990,16 @@ final class SentinelStore: NSObject, ObservableObject {
                 resetCreditProtectionStatus = .blocked(
                     .creditNotAuthorized,
                     detail: appLanguage.text(
-                        "本地授权记录不存在，保护已安全关闭；请重新显式开启。",
-                        "The local authorization record is missing. Protection was safely turned off; enable it again explicitly."
+                        "本地授权记录不存在，自动使用已安全关闭；请重新显式开启。",
+                        "The local authorization record is missing. Auto-use was safely turned off; enable it again explicitly."
                     )
                 )
                 deliverResetCreditProtectionFailure(
                     identifier:
                         "reset-credit-protection-authorization-missing",
                     body: appLanguage.text(
-                        "重置卡到期保护的本地授权记录不存在。未发送用卡请求；请重新显式开启。",
-                        "The local authorization for reset-credit expiry protection is missing. No consume request was sent; enable protection again explicitly."
+                        "重置卡自动使用的本地授权记录不存在。未发送用卡请求；请重新显式开启。",
+                        "The local authorization for reset-credit auto-use is missing. No consume request was sent; enable auto-use again explicitly."
                     )
                 )
             } else {
@@ -1042,8 +1042,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 )
             } else {
                 detail = appLanguage.text(
-                    "时钟变化发生在保护启用完成前，未建立稳定授权。",
-                    "The clock changed before protection finished enabling, so no stable authorization was established."
+                    "时钟变化发生在自动使用启用完成前，未建立稳定授权。",
+                    "The clock changed before auto-use finished enabling, so no stable authorization was established."
                 )
             }
             resetCreditProtectionStatus = .blocked(
@@ -1054,8 +1054,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 deliverResetCreditProtectionFailure(
                     identifier: "reset-credit-protection-clock-changed",
                     body: appLanguage.text(
-                        "检测到系统时间与连续计时偏差超过 5 秒，或连续计时器已重置。为避免提前使用，保护已关闭；核对系统时间与只读计划后再显式开启。",
-                        "The system clock differed from continuous time by more than 5 seconds, or the continuous clock reset. Protection was turned off to avoid an early use; verify the clock and read-only plan before enabling again."
+                        "检测到系统时间与连续计时偏差超过 5 秒，或连续计时器已重置。为避免提前使用，自动使用已关闭；核对系统时间与只读计划后再显式开启。",
+                        "The system clock differed from continuous time by more than 5 seconds, or the continuous clock reset. Auto-use was turned off to avoid an early use; verify the clock and read-only plan before enabling again."
                     )
                 )
             }
@@ -2977,8 +2977,8 @@ final class SentinelStore: NSObject, ObservableObject {
         deliverResetCreditProtectionFailure(
             identifier: "reset-credit-protection-missed-\(Int(journal.expiresAt.timeIntervalSince1970))",
             body: appLanguage.text(
-                "重置卡已过期，未能确认到期保护完成。",
-                "The reset credit expired before expiry protection could be confirmed."
+                "重置卡已过期，未能确认自动使用是否完成。",
+                "The reset credit expired before automatic use could be confirmed."
             )
         )
     }
@@ -2991,8 +2991,8 @@ final class SentinelStore: NSObject, ObservableObject {
             NotificationEvent(
                 identifier: identifier,
                 title: appLanguage.text(
-                    "重置卡到期保护需要检查",
-                    "Reset credit expiry protection needs attention"
+                    "重置卡自动使用需要检查",
+                    "Reset credit auto-use needs attention"
                 ),
                 body: body,
                 severity: .urgent
@@ -3048,8 +3048,8 @@ final class SentinelStore: NSObject, ObservableObject {
         deliverResetCreditProtectionFailure(
             identifier: "reset-credit-protection-clock-changed",
             body: appLanguage.text(
-                "启用期间检测到系统时间与连续计时偏差超过 5 秒，或连续计时器已重置。保护未启用，请核对系统时间与只读计划后重试。",
-                "During enabling, the system clock differed from continuous time by more than 5 seconds, or the continuous clock reset. Protection was not enabled; verify the clock and read-only plan before trying again."
+                "启用期间检测到系统时间与连续计时偏差超过 5 秒，或连续计时器已重置。自动使用未启用，请核对系统时间与只读计划后重试。",
+                "During enabling, the system clock differed from continuous time by more than 5 seconds, or the continuous clock reset. Auto-use was not enabled; verify the clock and read-only plan before trying again."
             )
         )
     }
@@ -3100,11 +3100,11 @@ final class SentinelStore: NSObject, ObservableObject {
             identifier: "reset-credit-protection-account-changed",
             body: appLanguage.text(
                 preservingJournal
-                    ? "Codex 账号已变化。到期保护已关闭；切回原账号后会先对未决尝试进行只读对账。"
-                    : "Codex 账号已变化。为避免误用其他账号的卡，到期保护已关闭，请重新确认开启。",
+                    ? "Codex 账号已变化。自动使用已关闭；切回原账号后会先对未决尝试进行只读对账。"
+                    : "Codex 账号已变化。为避免误用其他账号的卡，自动使用已关闭，请重新确认开启。",
                 preservingJournal
-                    ? "The Codex account changed. Protection is off; switch back to the original account to reconcile the unresolved attempt."
-                    : "The Codex account changed. Expiry protection was turned off; enable it again to confirm the new account."
+                    ? "The Codex account changed. Auto-use is off; switch back to the original account to reconcile the unresolved attempt."
+                    : "The Codex account changed. Auto-use was turned off; enable it again to confirm the new account."
             )
         )
     }

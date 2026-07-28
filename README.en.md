@@ -19,7 +19,7 @@ https://github.com/WineChord/codex-radar/releases/latest
 Download the macOS package and SHA256 file, verify the package, install the app in /Applications, launch it, and confirm that the version shown in the menu matches the latest Release. If macOS needs my approval for a permission, explain why and let me confirm it.
 ```
 
-Installation requires network access and permission to write to `/Applications`. On first launch, macOS may ask for notification permission; allow it to receive quota, Model IQ, and expiry-protection alerts.
+Installation requires network access and permission to write to `/Applications`. On first launch, macOS may ask for notification permission; allow it to receive quota, Model IQ, and reset-credit auto-use alerts.
 
 You can also install manually from [GitHub Releases](https://github.com/WineChord/codex-radar/releases/latest).
 
@@ -36,15 +36,15 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Expand it for difficult-task and background-work recommendations, plus each configuration's 24h and 48h quality change.
 - Network or schema failures retain the last valid result without blocking core quota refreshes or filling the UI with invented placeholders.
 
-### v0.1.54: More reliable reset-credit expiry protection
+### v0.1.54: More reliable auto-use before reset credits expire
 
-- Normal clock synchronization no longer turns protection off. Reconfirmation is required only when time continuity cannot be established safely.
-- Unresolved operations reconcile read only first. Once protection is off, the app does not retry, switch credits, or send a new consume request.
+- Normal clock synchronization no longer turns auto-use off. Reconfirmation is required only when time continuity cannot be established safely.
+- Unresolved operations reconcile read only first. Once auto-use is off, the app does not retry, switch credits, or send a new consume request.
 
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
-- **v0.1.53**: completed 19 Intelligence Efficiency configurations, clarified overuse wording, and added explicitly enabled, default-off reset-credit expiry protection.
+- **v0.1.53**: completed 19 Intelligence Efficiency configurations, clarified overuse wording, and added explicitly enabled, default-off auto-use before reset credits expire.
 - **v0.1.52**: added distributed Model IQ with consistent per-task cost, runtime, pass count, and community-rating semantics.
 - **v0.1.51**: hides the 5h window while paused and restores it automatically when available.
 - **v0.1.50**: added Standard versus Fast comparisons for E2E, TTFT, and TPS.
@@ -69,8 +69,8 @@ See [GitHub Releases](https://github.com/WineChord/codex-radar/releases) for the
 | Model IQ | Shows current IQ and quality, plus public multi-model cost, runtime, pass count, and ratings. |
 | Radar signals | Combines Reset Radar, Quota Radar, Fast Radar, scenario recommendations, and degradation alerts. |
 | Reset-credit status | Checks each reset credit at a low frequency and caches only sanitized results. |
-| Expiry protection | Strictly off by default; only an explicit opt-in allows an attempt near a target credit's expiry. |
-| Alerts and updates | Notifies for quota, recovery, low IQ, and protection results; verifies update assets with SHA256. |
+| Auto-use before expiry | Strictly off by default; only an explicit opt-in allows an attempt near a target credit's expiry. |
+| Alerts and updates | Notifies for quota, recovery, low IQ, and auto-use results; verifies update assets with SHA256. |
 | Personalization | Supports two interface languages, font sizes, menu-bar segments, separators, spacing, and IQ formats. |
 
 ## Menu Bar Meaning
@@ -122,13 +122,13 @@ The panel puts local status first and public radar context second. Refresh, Rada
 
 Pacing cards use unsigned percentages with an explicit direction. When actual usage is 33% above the target, the card says `33% over`, never an ambiguous negative number.
 
-### Reset credits and expiry protection
+### Reset credits and auto-use before expiry
 
 Reset-credit expiry refreshes at launch or when the cache is more than six hours old. Automatic checks can be disabled, and a manual refresh is always available. Failures keep the previous cache and distinguish sign-in, expired-session, network, and data-format issues.
 
-`Reset credit expiry protection` is a separate switch and is strictly off by default. Before enabling, the app explains the irreversible action and requires explicit confirmation. Authorization covers only supported credits that are visible and have a clear expiry at that moment. Plan checks are read only and never consume a credit.
+`Auto-use reset credits before expiry` is a separate switch and is strictly off by default. Before enabling, the app explains the irreversible action and requires explicit confirmation. Authorization covers only supported credits that are visible and have a clear expiry at that moment. Plan checks are read only and never consume a credit.
 
-Only after the target enters its roughly 30-minute protection window can the app attempt to use it. Protection turns itself off when account, credit-set, or clock-continuity changes cannot be verified safely. Network loss, shutdown, sleep, quitting the app, or the absence of resettable usage can still prevent execution, so protection is best effort rather than a guarantee. Enabling `Launch at login` is recommended.
+The app attempts to use the earliest target only when it is about 30 minutes from expiry. Auto-use turns itself off when account, credit-set, or clock-continuity changes cannot be verified safely. Network loss, shutdown, sleep, quitting the app, or the absence of resettable usage can still prevent execution, so this is best effort rather than a guarantee. Enabling `Launch at login` is recommended.
 
 ### Notifications
 
@@ -137,7 +137,7 @@ The app can notify when:
 - weekly quota falls below 30% or 15%;
 - weekly quota recovers from a low state;
 - Codex IQ enters red or falls below 80;
-- expiry protection confirms success or needs account, authorization, clock, or unresolved-result attention;
+- reset-credit auto-use succeeds or needs account, authorization, clock, or unresolved-result attention;
 - a legacy compatibility source reports an explicit historical window or reset event again.
 
 Notification sound is off by default and can be enabled separately.
@@ -153,9 +153,9 @@ If verification or installation fails, the current version stays in place and th
 - Local quota comes from the local Codex app-server and is not uploaded to CodexRadar.
 - Reset-credit expiry checks use the local Codex sign-in state only for the corresponding ChatGPT request. Credentials are not cached, logged, or sent to CodexRadar or GitHub.
 - Local cache stores only credit status, issue time, expiry time, and sanitized identifiers—never access tokens, cookies, email addresses, or full credit IDs.
-- Expiry protection works only after explicit opt-in and binds authorization to the current account and visible credit set. The target, authorization, and clock continuity are rechecked before every write.
+- Auto-use before expiry works only after explicit opt-in and binds authorization to the current account and visible credit set. The target, authorization, and clock continuity are rechecked before every write.
 - Uncertain results reconcile read only first. The same unresolved operation keeps one idempotency key to avoid duplicate use.
-- Turning protection off prevents further retries or switching to another credit. A prior unresolved result must be reconciled before protection can be enabled again.
+- Turning auto-use off prevents further retries or switching to another credit. A prior unresolved result must be reconciled before auto-use can be enabled again.
 
 ## Data Sources
 
@@ -165,7 +165,7 @@ If verification or installation fails, the current version stays in place and th
 - [CodexRadar community ratings](https://codexradar.com/api/model-ratings): public model ratings.
 - [CodexRadar Insights](https://api.codexradar.com/api/v1/radar-insights): scenario recommendations and degradation alerts.
 - [CodexRadar RSS](https://codexradar.com/feed.xml): a compatibility source for public entitlement events.
-- Local Codex app-server: weekly quota, short-window quota, account identity, and authoritative details needed by reset-credit protection.
+- Local Codex app-server: weekly quota, short-window quota, account identity, and authoritative details needed by reset-credit auto-use.
 
 When a public endpoint is unavailable or returns an unknown shape, the app retains the last valid public data while local quota refresh continues independently.
 

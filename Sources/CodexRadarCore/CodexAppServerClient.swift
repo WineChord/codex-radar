@@ -26,7 +26,7 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
             case .resetCreditSessionUnavailableBeforeDispatch:
                 return "The verified Codex app-server session ended before dispatch"
             case .resetCreditDispatchNotAuthorized:
-                return "Reset-credit protection was disabled before dispatch"
+                return "Reset-credit auto-use was disabled before dispatch"
             case .resetCreditDispatchAuthorizationUnavailable:
                 return "Reset-credit dispatch authorization could not be verified"
             case .responseMissingResult:

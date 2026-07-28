@@ -512,23 +512,23 @@ public enum ResetCreditProtectionStorageError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .cannotPrepareDirectory:
-            return "Reset-credit protection storage is unavailable"
+            return "Reset-credit auto-use storage is unavailable"
         case .cannotEncode:
-            return "Reset-credit protection state could not be encoded"
+            return "Reset-credit auto-use state could not be encoded"
         case .cannotCreateTemporaryFile:
-            return "Reset-credit protection state could not be prepared"
+            return "Reset-credit auto-use state could not be prepared"
         case .cannotWrite:
-            return "Reset-credit protection state could not be written"
+            return "Reset-credit auto-use state could not be written"
         case .cannotSync:
-            return "Reset-credit protection state could not be synchronized"
+            return "Reset-credit auto-use state could not be synchronized"
         case .cannotReplace:
-            return "Reset-credit protection state could not be committed"
+            return "Reset-credit auto-use state could not be committed"
         case .cannotRemove:
-            return "Reset-credit protection state could not be cleared"
+            return "Reset-credit auto-use state could not be cleared"
         case .authorizationRevoked:
-            return "Reset-credit protection authorization was revoked"
+            return "Reset-credit auto-use authorization was revoked"
         case .authorizationUnavailable:
-            return "Reset-credit protection authorization cannot be verified"
+            return "Reset-credit auto-use authorization cannot be verified"
         }
     }
 }
@@ -959,7 +959,7 @@ public final class ResetCreditProtectionProcessLock {
         case unavailable
 
         public var errorDescription: String? {
-            "Another Codex Radar process is already handling reset-credit protection"
+            "Another Codex Radar process is already handling reset-credit auto-use"
         }
     }
 

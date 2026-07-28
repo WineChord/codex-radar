@@ -23,7 +23,7 @@ public enum ResetCreditProtectionAccountBindingError: LocalizedError, Equatable 
     public var errorDescription: String? {
         switch self {
         case .accountChanged:
-            return "The Codex account changed during reset-credit protection"
+            return "The Codex account changed during reset-credit auto-use"
         case .accountUnavailable:
             return "The current Codex account could not be verified"
         case .destructiveActionsDisabled:

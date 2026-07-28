@@ -408,7 +408,7 @@ struct DashboardMenuView: View {
     private var communityKnowledgeSection: some View {
         VStack(alignment: .leading, spacing: 7) {
             sectionTitle(
-                text("重置卡过期与保护", "Reset Credit Expiry & Protection"),
+                text("重置卡过期与自动使用", "Reset Credit Expiry & Auto-Use"),
                 systemImage: "creditcard"
             )
             Text(resetCreditCommunityKnowledge?.title ?? text("重置卡过期时间自查", "Reset credit expiry check"))
@@ -465,7 +465,7 @@ struct DashboardMenuView: View {
     private var resetCreditProtectionControls: some View {
         VStack(alignment: .leading, spacing: 6) {
             Toggle(
-                text("重置卡到期保护", "Reset credit expiry protection"),
+                text("重置卡到期前自动使用", "Auto-use reset credits before expiry"),
                 isOn: Binding(
                     get: { store.resetCreditProtectionEnabled },
                     set: { enabled in
@@ -490,8 +490,8 @@ struct DashboardMenuView: View {
 
             expandableCaptionText(
                 text(
-                    "默认关闭。显式开启时会用新的 Codex 会话核对登录邮箱与完整明细，只授权当时可见的受支持到期卡；约在最早一张到期前 30 分钟通过官方接口尝试，是否可重置由服务端判断。",
-                    "Off by default. Enabling uses a fresh Codex session to verify the login email and complete details, then authorizes only the supported expiring credits visible at that moment. The official attempt occurs roughly 30 minutes before the earliest expiry; the server decides whether a limit can be reset."
+                    "默认关闭。开启后，App 会在最早一张受支持的重置卡到期前约 30 分钟自动尝试使用。开启时会用新的 Codex 会话核对登录邮箱和完整明细，并只授权当时可见的卡；是否有可重置额度仍由服务端判断。",
+                    "Off by default. When enabled, the app automatically attempts to use the earliest supported reset credit about 30 minutes before it expires. A fresh Codex session verifies the login email and complete details, authorizing only the credits visible at that moment; the server still decides whether any usage can be reset."
                 ),
                 key: "reset-credit-protection-description",
                 collapsedLines: 4
@@ -500,20 +500,20 @@ struct DashboardMenuView: View {
             if showsResetCreditProtectionConfirmation,
                !isResetCreditProtectionOffWithUnresolvedAttempt {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(text("确认开启到期保护", "Confirm expiry protection"))
+                    Text(text("确认开启自动使用", "Confirm automatic use"))
                         .font(.system(size: metrics.caption, weight: .semibold))
                         .foregroundStyle(.orange)
                     expandableCaptionText(
                         text(
-                            "条件满足时会真实尝试一张已确认授权的重置卡；成功后不可撤销，关闭也无法召回已经写出的请求。每次尝试前会用新的 Codex 会话复核登录邮箱、完整明细和精确卡片；若检测到退出、不同邮箱、未授权新卡或无法证明系统时间连续，会在写请求前关闭。App 必须保持运行联网；关机或没有可重置额度仍可能失败。",
-                            "When conditions are met, protection makes a real attempt with one explicitly authorized credit. Success is irreversible, and turning protection off cannot recall a request already written. Before every attempt, a fresh Codex session rechecks the login email, complete details, and exact credit; sign-out, a different email, an unapproved new credit, or unprovable clock continuity turns protection off before the write. The app must stay running and online; shutdown or no resettable usage can still prevent redemption."
+                            "条件满足时会真实尝试使用一张已确认授权的重置卡；成功后不可撤销，关闭也无法召回已经写出的请求。每次尝试前会用新的 Codex 会话复核登录邮箱、完整明细和精确卡片；若检测到退出、不同邮箱、未授权新卡或无法证明系统时间连续，会在写请求前关闭。App 必须保持运行联网；关机或没有可重置额度仍可能失败。",
+                            "When conditions are met, the app actually attempts to use one explicitly authorized credit. Success is irreversible, and turning auto-use off cannot recall a request already written. Before every attempt, a fresh Codex session rechecks the login email, complete details, and exact credit; sign-out, a different email, an unapproved new credit, or unprovable clock continuity turns auto-use off before the write. The app must stay running and online; shutdown or no resettable usage can still prevent redemption."
                         ),
                         key: "reset-credit-protection-confirmation",
                         collapsedLines: 6
                     )
                     HStack(spacing: Layout.tileSpacing) {
                         compactActionButton(
-                            title: text("确认开启", "Enable protection"),
+                            title: text("开启自动使用", "Enable auto-use"),
                             systemImage: "checkmark.shield"
                         ) {
                             showsResetCreditProtectionConfirmation = false
@@ -548,7 +548,7 @@ struct DashboardMenuView: View {
                     .disabled(store.resetCreditProtectionStatus.isBusy)
                 } else {
                     compactActionButton(
-                        title: text("只读检查保护计划", "Check plan (read only)"),
+                        title: text("只读检查自动使用计划", "Preview auto-use (read only)"),
                         systemImage: store.resetCreditProtectionStatus.isBusy
                             ? "hourglass"
                             : "checkmark.shield"
@@ -604,7 +604,7 @@ struct DashboardMenuView: View {
             return text("已开启 · 当前没有可用重置卡", "On · no reset credits are currently available")
         case .preview(_, _, _, let readyNow):
             return readyNow
-                ? text("只读检查完成 · 当前已进入保护窗口", "Read-only check complete · protection window is open")
+                ? text("只读检查完成 · 已接近到期", "Read-only check complete · near expiry")
                 : text("只读检查完成 · 可以排期", "Read-only check complete · ready to schedule")
         case .previewNoCredits:
             return text("只读检查完成 · 当前没有可用重置卡", "Read-only check complete · no credits available")
@@ -614,15 +614,15 @@ struct DashboardMenuView: View {
                 "On · attempt scheduled for \(DisplayFormatters.compactDateTime(actionAt))"
             )
         case .waitingForUsage:
-            return text("已进入保护窗口 · 等待出现可重置额度", "Protection window open · waiting for eligible usage")
+            return text("已接近到期 · 等待出现可重置额度", "Near expiry · waiting for eligible usage")
         case .using:
             return text("正在请求 Codex 使用重置卡…", "Asking Codex to use the reset credit…")
         case .reconciling:
             return store.resetCreditProtectionEnabled
                 ? text("正在与 Codex 对账使用结果…", "Reconciling the result with Codex…")
                 : text(
-                    "保护已关闭 · 上次请求仅做只读对账",
-                    "Protection off · prior request stays read only"
+                    "自动使用已关闭 · 上次请求仅做只读对账",
+                    "Auto-use off · prior request stays read only"
                 )
         case .succeeded:
             return text("已验证该卡已使用", "Verified credit is used")
@@ -633,17 +633,17 @@ struct DashboardMenuView: View {
         case .blocked(let reason, _):
             if isResetCreditProtectionOffWithUnresolvedAttempt {
                 return text(
-                    "保护已关闭 · 上次请求结果仍未确认",
-                    "Protection off · prior request remains unresolved"
+                    "自动使用已关闭 · 上次请求结果仍未确认",
+                    "Auto-use off · prior request remains unresolved"
                 )
             }
             if case .clockChanged = reason {
                 return text(
-                    "到期保护已自动关闭 · 需重新确认",
-                    "Expiry protection turned off · confirmation required"
+                    "到期前自动使用已关闭 · 需重新确认",
+                    "Auto-use before expiry turned off · confirmation required"
                 )
             }
-            return text("到期保护暂时受阻", "Expiry protection is blocked")
+            return text("到期前自动使用暂时受阻", "Auto-use before expiry is blocked")
         }
     }
 
@@ -695,8 +695,8 @@ struct DashboardMenuView: View {
                 )
             }
             return text(
-                "上次请求结果仍未确认；卡片到期 \(DisplayFormatters.compactDateTime(expiresAt))。保护已关闭，只会只读对账，不会重试或换卡。为避免重复请求，确认结果前不能重新开启；可点“立即只读对账”主动复核。",
-                "The prior request is still unresolved; the credit expires \(DisplayFormatters.compactDateTime(expiresAt)). Protection is off, so Sentinel only reconciles read only and will not retry or switch credits. To avoid a duplicate request, protection cannot be re-enabled until the result is known. Use “Reconcile now (read only)” to check again."
+                "上次请求结果仍未确认；卡片到期 \(DisplayFormatters.compactDateTime(expiresAt))。自动使用已关闭，只会只读对账，不会重试或换卡。为避免重复请求，确认结果前不能重新开启；可点“立即只读对账”主动复核。",
+                "The prior request is still unresolved; the credit expires \(DisplayFormatters.compactDateTime(expiresAt)). Auto-use is off, so Sentinel only reconciles read only and will not retry or switch credits. To avoid a duplicate request, auto-use cannot be re-enabled until the result is known. Use “Reconcile now (read only)” to check again."
             )
         case .succeeded(let usedAt, _):
             return text(
@@ -722,8 +722,8 @@ struct DashboardMenuView: View {
                 return blockMessage
             }
             return text(
-                "上次请求结果仍未确认。保护已关闭，只会只读对账，绝不重试或换卡；为避免重复请求，确认结果前不能重新开启。可点“立即只读对账”主动复核。",
-                "The prior request remains unresolved. Protection is off, so reconciliation is read only and never retries or switches credits. To avoid a duplicate request, protection cannot be re-enabled until the result is known. Use “Reconcile now (read only)” to check again."
+                "上次请求结果仍未确认。自动使用已关闭，只会只读对账，绝不重试或换卡；为避免重复请求，确认结果前不能重新开启。可点“立即只读对账”主动复核。",
+                "The prior request remains unresolved. Auto-use is off, so reconciliation is read only and never retries or switches credits. To avoid a duplicate request, auto-use cannot be re-enabled until the result is known. Use “Reconcile now (read only)” to check again."
             ) + "\n" + blockMessage
         }
     }
@@ -749,12 +749,12 @@ struct DashboardMenuView: View {
         case .accountIdentityUnavailable:
             return text(
                 "Codex 没有提供可稳定绑定的 ChatGPT 账号身份，因此保持关闭。请确认使用 ChatGPT 账号登录。",
-                "Codex did not provide a stable ChatGPT account identity, so protection remains off. Confirm that Codex is signed in with ChatGPT."
+                "Codex did not provide a stable ChatGPT account identity, so auto-use remains off. Confirm that Codex is signed in with ChatGPT."
             )
         case .accountChanged:
             return text(
-                "Codex 账号已变化，到期保护已自动关闭。若存在未决尝试，切回原账号后会先对账；否则可核对账号后重新显式开启。",
-                "The Codex account changed, so protection was turned off. If an attempt is unresolved, switch back to the original account for reconciliation; otherwise verify the account and explicitly enable protection again."
+                "Codex 账号已变化，到期前自动使用已关闭。若存在未决尝试，切回原账号后会先对账；否则可核对账号后重新显式开启。",
+                "The Codex account changed, so auto-use before expiry was turned off. If an attempt is unresolved, switch back to the original account for reconciliation; otherwise verify the account and explicitly enable auto-use again."
             )
         case .detailsUnavailable(let availableCount):
             return text(
@@ -783,8 +783,8 @@ struct DashboardMenuView: View {
             )
         case .unsupportedCodex:
             return text(
-                "当前 Codex 版本不支持官方重置卡消费 RPC；保护已关闭。更新 Codex 后请重新开启。",
-                "This Codex version does not support the official reset-credit RPC, so protection was turned off. Update Codex and enable it again."
+                "当前 Codex 版本不支持官方重置卡消费 RPC；自动使用已关闭。更新 Codex 后请重新开启。",
+                "This Codex version does not support the official reset-credit RPC, so auto-use was turned off. Update Codex and enable it again."
             )
         case .anotherProcess:
             return text(
@@ -793,18 +793,18 @@ struct DashboardMenuView: View {
             )
         case .journalUnavailable:
             return text(
-                "本地保护记录无法可靠读取或写入。为避免重复使用，保护已关闭且不会发送请求；请更新 App 或联系维护者检查 Application Support 中的保护记录。",
-                "The local protection journal cannot be read or written reliably. Protection is off and no request will be sent to avoid duplicate use; update the app or ask the maintainer to inspect its Application Support journal."
+                "本地自动使用记录无法可靠读取或写入。为避免重复使用，自动使用已关闭且不会发送请求；请更新 App 或联系维护者检查 Application Support 中的安全记录。",
+                "The local auto-use record cannot be read or written reliably. Auto-use is off and no request will be sent to avoid duplicate use; update the app or ask the maintainer to inspect its Application Support safety record."
             )
         case .creditNotAuthorized:
             return text(
-                "当前受支持卡片集合或最早到期目标已不同于本次显式授权，保护已关闭且不会发送请求。先做只读检查，再重新开启以确认当前可见卡片。",
-                "The current supported-credit set or earliest target no longer matches this explicit authorization. Protection is off and no request will be sent. Run the read-only check, then enable again to confirm the currently visible credits."
+                "当前受支持卡片集合或最早到期目标已不同于本次显式授权，自动使用已关闭且不会发送请求。先做只读检查，再重新开启以确认当前可见卡片。",
+                "The current supported-credit set or earliest target no longer matches this explicit authorization. Auto-use is off and no request will be sent. Run the read-only check, then enable again to confirm the currently visible credits."
             )
         case .clockChanged:
             return detail ?? text(
-                "已确认系统计时连续性失效：墙钟相对连续计时的偏差已超出安全容差，或连续计时已重置（通常由 Mac 重启造成）。保护已自动关闭且不会发送新请求；核对 Mac 时间与只读计划后再显式确认。普通 App 退出重开本身不会触发此状态。",
-                "Clock continuity is confirmed lost: wall time diverged from continuous time beyond the safe tolerance, or continuous time reset (usually because the Mac restarted). Protection was turned off automatically and no new request will be sent. Verify the Mac clock and read-only plan, then explicitly confirm again. Relaunching the app within the same boot does not cause this state by itself."
+                "已确认系统计时连续性失效：墙钟相对连续计时的偏差已超出安全容差，或连续计时已重置（通常由 Mac 重启造成）。到期前自动使用已关闭且不会发送新请求；核对 Mac 时间与只读计划后再显式确认。普通 App 退出重开本身不会触发此状态。",
+                "Clock continuity is confirmed lost: wall time diverged from continuous time beyond the safe tolerance, or continuous time reset (usually because the Mac restarted). Auto-use before expiry was turned off and no new request will be sent. Verify the Mac clock and read-only plan, then explicitly confirm again. Relaunching the app within the same boot does not cause this state by itself."
             )
         case .requestFailed:
             return detail ?? text(
