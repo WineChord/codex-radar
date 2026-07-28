@@ -109,7 +109,10 @@ CODEX_RADAR_APP="${repo_root}/.build/Codex Radar Sentinel.app" ./scripts/update_
 if [[ -n "$version" ]]; then
   echo "Packaging and verifying release ${version}..."
   ./scripts/package_release.sh "$version"
-  shasum -a 256 -c "dist/CodexRadarSentinel-${version}-macOS.sha256"
+  (
+    cd dist
+    shasum -a 256 -c "CodexRadarSentinel-${version}-macOS.sha256"
+  )
   hdiutil verify "dist/CodexRadarSentinel-${version}-macOS.dmg"
 fi
 

@@ -66,8 +66,11 @@ hdiutil create \
 
 rm -rf "${dmg_root}"
 
-shasum -a 256 "${dist_dir}/${archive_name}.zip" "${dist_dir}/${archive_name}.dmg" \
-  > "${dist_dir}/${archive_name}.sha256"
+(
+  cd "${dist_dir}"
+  shasum -a 256 "${archive_name}.zip" "${archive_name}.dmg" \
+    > "${archive_name}.sha256"
+)
 
 echo "${dist_dir}/${archive_name}.zip"
 echo "${dist_dir}/${archive_name}.dmg"

@@ -29,6 +29,7 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 - Values such as `78/112` in `All model IQ` no longer split across lines at larger text sizes, making comparisons easier to scan.
 - The IQ, Passed, and Rating columns stay on one line across M, L, and XL while preserving room for model names in both interface languages.
+- The SHA256 manifest uses filenames from the download directory, so manual package verification no longer depends on repository paths.
 
 ### v0.1.57: Core information first
 
