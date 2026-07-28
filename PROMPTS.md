@@ -93,6 +93,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 72 | [`Prompt-Id: 72 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+72%22&type=commits) | 修复正常系统校时误关到期保护，并全面核对时钟、多进程和未决对账状态。 |
 | 73 | [`Prompt-Id: 73 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+73%22&type=commits) | 每日巡检发现 CodexRadar 新增场景推荐与降智预警，将实时智能洞察紧凑映射到菜单。 |
 | 74 | [`Prompt-Id: 74 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+74%22&type=commits) | 每日巡检修正临时公告缺席时的 live contract 误报，恢复可靠发布检查。 |
+| 75 | [443fb42](https://github.com/WineChord/codex-radar/commit/443fb424b57de0b6ecf44584a859b8dd666c3c74), [`Prompt-Id: 75 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+75%22&type=commits) | 把 README 重构为用户优先的产品首页，并固化 README、Prompt History 与自动 Git 收尾的仓库维护边界。 |
 
 ## Prompts
 
@@ -596,4 +597,10 @@ commit 要求是可以点击的链接
 
 ```text
 对 codex-radar 做每日自主产品与工程巡检：先保护工作区并核对仓库和发布约束，再实际操作 CodexRadar 公开站点的主要用户路径并对照实现。只有发现可复现问题或明确、高价值的对齐机会时才做最小完整改进，补充测试、同步受影响文档并严格 review；关键检查通过后按现有流程发布，没有问题时不修改、不提交、不发布。
+```
+
+### 75. README 用户体验与维护边界
+
+```text
+把中英文 README 重构为面向用户的产品首页：安装入口保持醒目，News 只直接展示最新三条，其余历史统一折叠；README 不承载开发过程或需求记录。PROMPTS.md、对应映射维护和应用内 Prompts 入口作为独立的项目历史能力继续保留。将这些边界写入仓库规则，并在验证通过后自动精确暂存、提交和推送本仓库改动。
 ```

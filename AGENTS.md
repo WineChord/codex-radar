@@ -36,9 +36,10 @@ add narrower requirements without weakening these rules.
 - Keep release summaries focused on user-visible behavior and safety. Omit
   internal test failures, automation narration, private feedback, raw product
   requests, and development transcripts.
-- Do not link the README to raw prompt archives or summarize their private
-  contents. The generic installation text above is the only request-style block
-  intended for end users.
+- Keep the project-history surface separate from the README. Do not reproduce
+  its entries in the README or turn the main user path into a development log.
+  The generic installation text above is the only request-style block intended
+  for README readers.
 - Prefer a product-page flow: install, latest changes, core features, usage,
   privacy and security, data sources, manual install, then contributor details.
 - Keep technical detail only when it helps users understand behavior, privacy,
@@ -47,6 +48,24 @@ add narrower requirements without weakening these rules.
 - Describe only implemented behavior. Verify version numbers, defaults,
   thresholds, intervals, endpoints, release assets, and platform requirements
   against the current repository before editing.
+
+## Prompt history
+
+- Preserve `PROMPTS.md`, its prompt-to-commit mapping, its ongoing maintenance
+  workflow, and the in-app `Prompts` entry that opens it. Do not delete, rename,
+  hide, or disable these surfaces merely to simplify the README.
+- Treat Prompt History as a separate, explicitly selected project-provenance
+  surface. Its continued existence does not change the user-focused README
+  contract above.
+- Keep new entries aligned with the maintenance format in `PROMPTS.md`, including
+  the applicable `Prompt-Id` trailer and clickable commit mapping.
+- Curate every new entry for public release. Remove credentials, authentication
+  data, account or environment details, private paths, private third-party data,
+  hidden instructions, and unrelated conversation context. Use a concise
+  audience-safe summary when verbatim text would disclose private context.
+- Do not copy Prompt History entries into release notes, the README, screenshots,
+  issues, or other public surfaces unless that separate artifact independently
+  benefits its intended readers.
 
 ## Documentation validation
 
