@@ -18,6 +18,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         static let temporaryDirectoryPrefix = "codex-radar-status-screenshot"
     }
 
+    private enum InteractionTestEnvironment {
+        static let enabled = "CODEX_RADAR_UI_TEST_MODE"
+        static let language = "CODEX_RADAR_UI_TEST_LANGUAGE"
+        static let textSize = "CODEX_RADAR_UI_TEST_TEXT_SIZE"
+        static let autoOpenMenu = "CODEX_RADAR_UI_TEST_AUTO_OPEN_MENU"
+    }
+
     private struct ScreenshotConfiguration {
         let language: AppLanguage
         let metrics: [StatusMetric]
@@ -109,24 +116,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let store: SentinelStore
     private let screenshotMode: Bool
+    private let interactionTestMode: Bool
+    private let interactionTestAutoOpenMenu: Bool
     private let screenshotIsolation: ScreenshotIsolation?
     private let screenshotOutputURL: URL?
     private var cancellables = Set<AnyCancellable>()
+    private var interactionTestShouldReopenMenu = true
+#if DEBUG
+    private var interactionTestWindow: NSWindow?
+#endif
 
     override init() {
         let environment = ProcessInfo.processInfo.environment
         let screenshotMode = environment[
             AppConstants.screenshotModeEnvironmentKey
         ] == "1"
+        let interactionTestMode = environment[
+            InteractionTestEnvironment.enabled
+        ] == "1"
         self.screenshotMode = screenshotMode
+        self.interactionTestMode = interactionTestMode
+        interactionTestAutoOpenMenu = environment[
+            InteractionTestEnvironment.autoOpenMenu
+        ] != "0"
 
         let screenshotConfiguration: ScreenshotConfiguration?
-        if screenshotMode {
-            let configuration = ScreenshotConfiguration(environment: environment)
-            let isolation = ScreenshotIsolation()
+        if screenshotMode || interactionTestMode {
+            let configuration = screenshotMode
+                ? ScreenshotConfiguration(environment: environment)
+                : nil
             screenshotConfiguration = configuration
+            let isolation = ScreenshotIsolation()
             screenshotIsolation = isolation
-            screenshotOutputURL = configuration.outputURL
+            screenshotOutputURL = configuration?.outputURL
             store = SentinelStore(
                 defaults: isolation.defaults,
                 resetCreditProtectionLedgerStore: ResetCreditProtectionLedgerStore(
@@ -140,9 +162,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         dispatchLockURL: isolation.directory.appendingPathComponent(
                             "authorization.lock"
                         )
-                    ),
+                ),
                 resetCreditProtectionProcessLockURL: isolation.directory
-                    .appendingPathComponent("process.lock")
+                    .appendingPathComponent("process.lock"),
+                resetCreditProtectionDestructiveActionsAllowed: false
             )
         } else {
             screenshotConfiguration = nil
@@ -157,11 +180,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 language: screenshotConfiguration.language,
                 metrics: screenshotConfiguration.metrics
             )
+        } else if interactionTestMode {
+            let language = environment[
+                InteractionTestEnvironment.language
+            ].flatMap(AppLanguage.init(rawValue:)) ?? .zhHans
+            let textSize = environment[
+                InteractionTestEnvironment.textSize
+            ].flatMap(DashboardTextSize.init(rawValue:)) ?? .large
+            store.configureForDocumentation(
+                language: language,
+                textSize: textSize
+            )
         }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureStatusItem()
+        guard !interactionTestMode else {
+#if DEBUG
+            showInteractionTestWindow()
+#endif
+            if interactionTestAutoOpenMenu {
+                DispatchQueue.main.asyncAfter(
+                    deadline: .now() + 0.4
+                ) { [weak self] in
+                    self?.statusItem.button?.performClick(nil)
+                }
+            }
+            return
+        }
         guard screenshotMode else {
             NotificationService.shared.requestAuthorization()
             store.start()
@@ -173,7 +220,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        guard !screenshotMode else {
+        interactionTestShouldReopenMenu = false
+        guard !screenshotMode && !interactionTestMode else {
             screenshotIsolation?.cleanup()
             return
         }
@@ -197,8 +245,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu(menu)
     }
 
+#if DEBUG
+    private func showInteractionTestWindow() {
+        NSApp.setActivationPolicy(.regular)
+        let window = NSWindow(
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: 480,
+                height: 220
+            ),
+            styleMask: [
+                .titled,
+                .closable,
+                .miniaturizable,
+            ],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Codex Radar Layout Test"
+        window.contentView = NSHostingView(
+            rootView: InteractionTestWindowView { [weak self] in
+                self?.statusItem.button?.performClick(nil)
+            }
+        )
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        interactionTestWindow = window
+    }
+#endif
+
     func menuWillOpen(_ menu: NSMenu) {
         rebuildMenu(menu)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        guard interactionTestMode,
+              interactionTestAutoOpenMenu,
+              interactionTestShouldReopenMenu else {
+            return
+        }
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + 0.25
+        ) { [weak self] in
+            guard let self,
+                  self.interactionTestShouldReopenMenu else {
+                return
+            }
+            self.statusItem.button?.performClick(nil)
+        }
     }
 
     private func rebuildMenu(_ menu: NSMenu) {
@@ -303,6 +399,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 }
+
+#if DEBUG
+private struct InteractionTestWindowView: View {
+    let openMenu: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Text("Isolated layout interaction test")
+                .font(.headline)
+            Text(
+                "Uses temporary preferences and storage. Destructive reset-credit actions are disabled."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            Button("Open test menu", action: openMenu)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+#endif
 
 private enum StatusScreenshotError: LocalizedError {
     case statusItemUnavailable

@@ -184,6 +184,30 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published private(set) var dashboardLayout: DashboardLayout {
+        didSet {
+            dashboardLayout.save(to: defaults)
+        }
+    }
+
+    @Published var modelIQDetailsExpanded: Bool {
+        didSet {
+            defaults.set(
+                modelIQDetailsExpanded,
+                forKey: DefaultsKey.modelIQDetailsExpanded
+            )
+        }
+    }
+
+    @Published var radarInsightsDetailsExpanded: Bool {
+        didSet {
+            defaults.set(
+                radarInsightsDetailsExpanded,
+                forKey: DefaultsKey.radarInsightsDetailsExpanded
+            )
+        }
+    }
+
     @Published var debugPreview: DashboardPreview = .live {
         didSet {
             if debugPreview != .live {
@@ -193,12 +217,6 @@ final class SentinelStore: NSObject, ObservableObject {
                 }
             }
             updateTitleForStatusItem()
-        }
-    }
-
-    @Published var debugPreviewSectionExpanded: Bool {
-        didSet {
-            defaults.set(debugPreviewSectionExpanded, forKey: DefaultsKey.debugPreviewSectionExpanded)
         }
     }
 
@@ -291,6 +309,10 @@ final class SentinelStore: NSObject, ObservableObject {
         static let notificationMemory = "notificationMemory"
         static let dismissedSpeedAlertKey = "dismissedSpeedAlertKey"
         static let debugPreviewSectionExpanded = "debugPreviewSectionExpanded"
+        static let modelIQDetailsExpanded =
+            "modelIQDetailsExpanded"
+        static let radarInsightsDetailsExpanded =
+            "radarInsightsDetailsExpanded"
         static let resetCreditSnapshot = "resetCreditSnapshot"
         static let resetCreditAutoRefreshEnabled = "resetCreditAutoRefreshEnabled"
         static let resetCreditProtectionEnabled = "resetCreditProtectionEnabled"
@@ -441,8 +463,23 @@ final class SentinelStore: NSObject, ObservableObject {
         self.chinaHolidayCalendarEnabled = defaults.object(forKey: DefaultsKey.chinaHolidayCalendarEnabled) as? Bool ?? true
         self.quotaPacingOptionsExpanded = defaults.object(forKey: DefaultsKey.quotaPacingOptionsExpanded) as? Bool ?? false
         self.selectedStatusMetrics = Self.loadSelectedStatusMetrics(defaults: defaults)
+        var dashboardLayout = DashboardLayout.load(from: defaults)
+        if defaults.object(
+            forKey: DashboardLayout.expandedDefaultsKey
+        ) == nil,
+           defaults.object(
+               forKey: DefaultsKey.debugPreviewSectionExpanded
+           ) as? Bool == true {
+            dashboardLayout.setExpanded(.preview, expanded: true)
+        }
+        self.dashboardLayout = dashboardLayout
+        self.modelIQDetailsExpanded = defaults.object(
+            forKey: DefaultsKey.modelIQDetailsExpanded
+        ) as? Bool ?? false
+        self.radarInsightsDetailsExpanded = defaults.object(
+            forKey: DefaultsKey.radarInsightsDetailsExpanded
+        ) as? Bool ?? false
         self.debugPreview = initialPreview
-        self.debugPreviewSectionExpanded = defaults.object(forKey: DefaultsKey.debugPreviewSectionExpanded) as? Bool ?? false
         self.predictionNotificationsEnabled = defaults.object(forKey: DefaultsKey.predictionNotificationsEnabled) as? Bool ?? true
         self.iqNotificationsEnabled = defaults.object(forKey: DefaultsKey.iqNotificationsEnabled) as? Bool ?? true
         self.notificationSoundEnabled = defaults.object(forKey: DefaultsKey.notificationSoundEnabled) as? Bool ?? false
@@ -664,6 +701,56 @@ final class SentinelStore: NSObject, ObservableObject {
             return
         }
         selectedStatusMetrics = StatusMetric.allCases.filter { next.contains($0) }
+    }
+
+    func isDashboardSectionExpanded(_ section: DashboardSection) -> Bool {
+        dashboardLayout.expandedSections.contains(section)
+    }
+
+    func setDashboardSection(
+        _ section: DashboardSection,
+        expanded: Bool
+    ) {
+        var next = dashboardLayout
+        next.setExpanded(section, expanded: expanded)
+        guard next != dashboardLayout else {
+            return
+        }
+        dashboardLayout = next
+    }
+
+    func moveDashboardSection(
+        _ section: DashboardSection,
+        to targetIndex: Int
+    ) {
+        var next = dashboardLayout
+        next.move(section, to: targetIndex)
+        guard next != dashboardLayout else {
+            return
+        }
+        dashboardLayout = next
+    }
+
+    func setDashboardSectionOrder(_ order: [DashboardSection]) {
+        var next = dashboardLayout
+        next.setOrder(order)
+        guard next != dashboardLayout else {
+            return
+        }
+        dashboardLayout = next
+    }
+
+    func resetDashboardLayout() {
+        guard dashboardLayout != .default
+                || modelIQDetailsExpanded
+                || radarInsightsDetailsExpanded else {
+            return
+        }
+        if dashboardLayout != .default {
+            dashboardLayout = .default
+        }
+        modelIQDetailsExpanded = false
+        radarInsightsDetailsExpanded = false
     }
 
     func resetStatusBarAdvancedOptions() {
@@ -1144,7 +1231,9 @@ final class SentinelStore: NSObject, ObservableObject {
         chinaHolidayCalendarEnabled = true
         quotaPacingOptionsExpanded = false
         statusBarAdvancedOptionsExpanded = false
-        debugPreviewSectionExpanded = false
+        dashboardLayout = .default
+        modelIQDetailsExpanded = false
+        radarInsightsDetailsExpanded = false
         selectedStatusMetrics = Self.defaultStatusMetrics
         debugPreview = .live
         predictionNotificationsEnabled = true
@@ -1171,6 +1260,19 @@ final class SentinelStore: NSObject, ObservableObject {
         state = documentationState
         resetCreditSnapshot = Self.documentationResetCreditSnapshot()
         resetCreditPhase = .idle
+    }
+
+    func configureForDocumentationAttention() {
+        resetCreditProtectionStatus = .blocked(
+            .requestFailed,
+            detail: nil
+        )
+        updatePhase = .failed(
+            appLanguage.text(
+                "校验失败，请重新检查",
+                "Verification failed; check again"
+            )
+        )
     }
 
     private static let documentationUpdatedAt = Date(timeIntervalSince1970: 1_784_270_280)

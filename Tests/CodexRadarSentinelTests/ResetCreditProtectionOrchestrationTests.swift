@@ -1985,7 +1985,10 @@ private final class OfflineStoreContext {
     }
 
     func cleanup() {
-        radarSession.invalidateAndCancel()
+        // Refresh tasks are cancelled by their stores and can still be
+        // unwinding when a test returns. The ephemeral session is released
+        // with this context after those tasks finish; explicitly invalidating
+        // it here can race a final request and raise an Objective-C exception.
         defaults.removePersistentDomain(forName: suiteName)
         try? FileManager.default.removeItem(at: directory)
     }

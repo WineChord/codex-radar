@@ -98,6 +98,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 77 | [e067f5e](https://github.com/WineChord/codex-radar/commit/e067f5e6c5a2b424511d2defdd27a8a74c89e314), [`Prompt-Id: 77 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+77%22&type=commits) | 将核心额度与 Codex IQ 前置、低频信息默认折叠，并固化 Issue/PR 的证据化维护流程。 |
 | 78 | [bf6d6c4](https://github.com/WineChord/codex-radar/commit/bf6d6c4b211e3a158ccd57f8cc986db94c1a984f), [`Prompt-Id: 78 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+78%22&type=commits) | 修复全部模型 IQ 表格在较大字号下拆分通过数值的问题，并增加全字号列宽回归检查。 |
 | 79 | [acee3fb](https://github.com/WineChord/codex-radar/commit/acee3fb5a403a99a4b0600090aa88bd056f91218), [`Prompt-Id: 79 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+79%22&type=commits) | 将多模型表格可读性修复作为 v0.1.58 发布，并让下载后的 SHA256 清单可直接校验同目录资产。 |
+| 80 | [`Prompt-Id: 80 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+80%22&type=commits) | 保留核心信息优先的默认层级，并增加可持久化、可恢复且不会隐藏关键状态的菜单布局编辑。 |
 
 ## Prompts
 
@@ -631,4 +632,10 @@ commit 要求是可以点击的链接
 
 ```text
 将已经通过完整测试与中英文 M/L/XL 视觉验证的多模型 IQ 单行可读性修复作为 v0.1.58 发布，更新版本、双语说明、截图和可校验的 macOS 安装包；SHA256 清单应使用下载目录可直接解析的文件名。
+```
+
+### 80. 自定义菜单布局
+
+```text
+保留核心信息优先的默认菜单层级，将重置卡摘要放到常用信息附近，并提供显式的布局编辑入口。用户可以调整顶层模块顺序和默认展开状态，也可以恢复默认；选择应在重新打开菜单和重启应用后保留。全部模型 IQ 与洞察明细的展开选择同样需要持久化。紧急提示、连接错误、重置卡异常和更新失败不得被自定义布局隐藏；取消拖动不应保存临时顺序，并需提供上移、下移等无拖拽替代操作。
 ```

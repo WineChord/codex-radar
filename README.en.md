@@ -74,7 +74,7 @@ See [GitHub Releases](https://github.com/WineChord/codex-radar/releases) for the
 | Reset-credit status | Checks each reset credit at a low frequency and caches only sanitized results. |
 | Auto-use before expiry | Strictly off by default; only an explicit opt-in allows an attempt near a target credit's expiry. |
 | Alerts and updates | Notifies for quota, recovery, low IQ, and auto-use results; verifies update assets with SHA256. |
-| Personalization | Supports two interface languages, font sizes, menu-bar segments, separators, spacing, and IQ formats. |
+| Personalization | Supports two interface languages, font sizes, section order, default expansion, menu-bar segments, and display formats. |
 
 ## Menu Bar Meaning
 
@@ -109,9 +109,15 @@ These images are rendered by the app in an isolated preview environment. They co
 
 <img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel full menu">
 
-The panel leads with the current conclusion, local quota, Codex IQ, and usage pace. Notices, community notes, radar detail, and low-frequency settings stay collapsed until requested. Critical alerts remain visible, and reset-credit detail opens automatically when it needs attention. Refresh, Radar, Codex, GitHub, and Quit stay fixed at the bottom.
+The default order leads with the current conclusion, local quota, Codex IQ, reset-credit summary, usage pace, and Insights. Notices, community notes, radar detail, and low-frequency settings stay collapsed until requested. Critical alerts remain visible, and reset-credit or update detail opens automatically when it needs attention. Refresh, Radar, Codex, GitHub, Layout, and Quit stay fixed at the bottom.
 
 ## Using the App
+
+### Menu layout
+
+Choose `Layout` in the bottom toolbar to customize top-level sections. Drag a handle or use the move-up and move-down buttons to change the order, then choose which sections are expanded by default. Preferences persist when the menu reopens and after an app restart. Expansion choices for `All model IQ` and Insights detail persist independently. `Restore default layout` resets only layout preferences, not language, text size, alerts, or automatic updates.
+
+The current result, urgent alerts, and connection errors are not sortable. Reset-credit or update sections temporarily lock open when they need attention, then return to the user's saved preference after the issue clears.
 
 ### Usage pacing
 

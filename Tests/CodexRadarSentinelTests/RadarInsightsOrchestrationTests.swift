@@ -76,7 +76,9 @@ final class RadarInsightsOrchestrationTests: XCTestCase {
         defer {
             controller.releaseSuspendedRequest()
             store.stop()
-            session.invalidateAndCancel()
+            // The cancelled refresh task can still be unwinding through
+            // URLSession. Let the per-test session live until those tasks
+            // release it instead of invalidating it underneath them.
             defaults.removePersistentDomain(forName: suiteName)
             try? FileManager.default.removeItem(at: directory)
         }

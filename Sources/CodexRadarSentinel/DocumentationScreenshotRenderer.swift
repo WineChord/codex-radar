@@ -10,6 +10,14 @@ enum DocumentationScreenshotRenderer {
         "CODEX_RADAR_VISUAL_TEST_TEXT_SIZE"
     private static let modelIQEnvironmentKey =
         "CODEX_RADAR_VISUAL_TEST_EXPAND_MODEL_IQ"
+    private static let layoutEditorEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_LAYOUT_EDITOR"
+    private static let fullLayoutEditorEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_LAYOUT_EDITOR_FULL"
+    private static let layoutProfileEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_LAYOUT_PROFILE"
+    private static let attentionEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_ATTENTION"
     private static let defaultsSuitePrefix = "com.codexradar.sentinel.docs"
     private static let layoutProbeHeight: CGFloat = 10
     private static let captureSettleSeconds: TimeInterval = 0.2
@@ -96,13 +104,26 @@ enum DocumentationScreenshotRenderer {
             language: language,
             textSize: textSize
         )
+        configureLayoutProfileIfRequested(store)
+        if ProcessInfo.processInfo.environment[
+            attentionEnvironmentKey
+        ] == "1" {
+            store.configureForDocumentationAttention()
+        }
 
+        let showsLayoutEditor = ProcessInfo.processInfo.environment[
+            layoutEditorEnvironmentKey
+        ] == "1"
+        let showsFullLayoutEditor = ProcessInfo.processInfo.environment[
+            fullLayoutEditorEnvironmentKey
+        ] == "1"
         let usesFixedViewport = ProcessInfo.processInfo.environment[
             modelIQEnvironmentKey
-        ] == "1"
+        ] == "1" || (showsLayoutEditor && !showsFullLayoutEditor)
         let view = DashboardMenuView(
             store: store,
-            scrolling: usesFixedViewport
+            scrolling: usesFixedViewport,
+            customizesLayoutInitially: showsLayoutEditor
         )
             .environment(\.colorScheme, .light)
         let image = try renderImage(view: view, width: store.menuTextSize.metrics.width)
@@ -110,6 +131,26 @@ enum DocumentationScreenshotRenderer {
         try writePNG(image, to: destination)
 
         print("\(destination.path)")
+    }
+
+    private static func configureLayoutProfileIfRequested(
+        _ store: SentinelStore
+    ) {
+        guard ProcessInfo.processInfo.environment[
+            layoutProfileEnvironmentKey
+        ] == "custom" else {
+            return
+        }
+        store.moveDashboardSection(.resetCredits, to: 0)
+        store.moveDashboardSection(.updates, to: 1)
+        for section in DashboardSection.allCases {
+            store.setDashboardSection(
+                section,
+                expanded: section == .resetCredits
+                    || section == .modelIQ
+                    || section == .displayAndAlerts
+            )
+        }
     }
 
     private static func renderImage<Content: View>(

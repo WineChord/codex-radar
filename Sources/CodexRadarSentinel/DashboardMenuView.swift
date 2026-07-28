@@ -1,6 +1,13 @@
 import AppKit
 import CodexRadarCore
 import SwiftUI
+import UniformTypeIdentifiers
+
+private extension UTType {
+    static let codexRadarDashboardSection = UTType(
+        exportedAs: "com.codexradar.sentinel.dashboard-section"
+    )
+}
 
 private enum DashboardVisualTestOverrides {
     static let expandsSecondarySections =
@@ -11,25 +18,35 @@ private enum DashboardVisualTestOverrides {
         ProcessInfo.processInfo.environment[
             "CODEX_RADAR_VISUAL_TEST_EXPAND_MODEL_IQ"
         ] == "1"
+    static let showsLayoutEditor =
+        ProcessInfo.processInfo.environment[
+            "CODEX_RADAR_VISUAL_TEST_LAYOUT_EDITOR"
+        ] == "1"
 }
 
 struct DashboardMenuView: View {
     @ObservedObject var store: SentinelStore
     @State private var copiedCommunityPrompt = false
     @State private var expandedTextKeys: Set<String> = []
-    @State private var modelIQModelsExpanded =
-        DashboardVisualTestOverrides.expandsModelIQ
-    @State private var radarInsightsExpanded = false
-    @State private var resetCreditDetailsExpanded =
-        DashboardVisualTestOverrides.expandsSecondarySections
-    @State private var codexRadarDetailsExpanded =
-        DashboardVisualTestOverrides.expandsSecondarySections
-    @State private var statusLegendExpanded =
-        DashboardVisualTestOverrides.expandsSecondarySections
-    @State private var settingsExpanded =
-        DashboardVisualTestOverrides.expandsSecondarySections
+    @State private var customizesLayout: Bool
+    @State private var draggedDashboardSection: DashboardSection?
+    @State private var dashboardSectionDragPreview:
+        [DashboardSection]?
     @State private var showsResetCreditProtectionConfirmation = false
     var scrolling: Bool = true
+
+    init(
+        store: SentinelStore,
+        scrolling: Bool = true,
+        customizesLayoutInitially: Bool =
+            DashboardVisualTestOverrides.showsLayoutEditor
+    ) {
+        self.store = store
+        self.scrolling = scrolling
+        _customizesLayout = State(
+            initialValue: customizesLayoutInitially
+        )
+    }
 
     private enum Layout {
         static let contentPadding: CGFloat = 12
@@ -70,7 +87,11 @@ struct DashboardMenuView: View {
     private var scrollingBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView(.vertical, showsIndicators: true) {
-                menuContent
+                if customizesLayout {
+                    layoutEditorContent
+                } else {
+                    menuContent
+                }
             }
             Divider()
             toolbarContent
@@ -80,7 +101,11 @@ struct DashboardMenuView: View {
 
     private var fullBody: some View {
         VStack(alignment: .leading, spacing: 0) {
-            menuContent
+            if customizesLayout {
+                layoutEditorContent
+            } else {
+                menuContent
+            }
             Divider()
             toolbarContent
         }
@@ -90,28 +115,340 @@ struct DashboardMenuView: View {
 
     private var menuContent: some View {
         VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
-            if store.shouldEmphasizeSpeedAlert {
-                speedAlertBanner
+            fixedStatusContent
+            ForEach(store.dashboardLayout.order) { section in
+                dashboardSection(section)
             }
-            header
-            quotaSection
-            iqSection
-            quotaPacingSection
-            if let error = state.lastError {
-                errorSection(error)
-            }
-            codexRadarInsightsSection
-            resetCreditSection
-            codexRadarDetailsSection
-            Divider()
-            statusLegend
-            settingsSection
-            updateSection
-            previewSection
         }
         .padding(.horizontal, Layout.contentPadding)
         .padding(.top, Layout.contentPadding)
         .padding(.bottom, 8)
+    }
+
+    @ViewBuilder
+    private func dashboardSection(_ section: DashboardSection) -> some View {
+        switch section {
+        case .quota:
+            quotaSection
+        case .modelIQ:
+            iqSection
+        case .resetCredits:
+            resetCreditSection
+        case .usagePace:
+            quotaPacingSection
+        case .insights:
+            codexRadarInsightsSection
+        case .radarDetails:
+            codexRadarDetailsSection
+        case .menuBarGuide:
+            statusLegend
+        case .displayAndAlerts:
+            settingsSection
+        case .updates:
+            updateSection
+        case .preview:
+            previewSection
+        }
+    }
+
+    @ViewBuilder
+    private var fixedStatusContent: some View {
+        if store.shouldEmphasizeSpeedAlert {
+            speedAlertBanner
+        }
+        header
+        if let error = state.lastError {
+            errorSection(error)
+        }
+    }
+
+    private var layoutEditorContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            fixedStatusContent
+            if forcesResetCreditSectionExpansion {
+                resetCreditSection
+            }
+            if updateRequiresAttention {
+                updateSection
+            }
+            Divider()
+
+            VStack(alignment: .leading, spacing: 4) {
+                Label(
+                    text("自定义菜单布局", "Customize menu layout"),
+                    systemImage: "rectangle.3.group"
+                )
+                .font(.system(size: metrics.headerTitle, weight: .semibold))
+                Text(text(
+                    "拖动调整顶层模块顺序；勾选“默认展开”可在每次打开菜单时直接显示该项内容。",
+                    "Drag to reorder top-level sections. Choose which sections are expanded when the menu opens."
+                ))
+                .font(.system(size: metrics.caption))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(
+                    Array(layoutEditorOrder.enumerated()),
+                    id: \.element.id
+                ) { index, section in
+                    layoutEditorRow(section, index: index)
+                }
+            }
+            .onDrop(
+                of: [.codexRadarDashboardSection],
+                isTargeted: nil
+            ) { _ in
+                commitDashboardSectionDrag()
+                return true
+            }
+
+            Text(text(
+                "当前结论、紧急提示和连接错误始终固定显示；需要处理的重置卡或更新状态也会临时展开，不会被布局偏好隐藏。",
+                "The current result, urgent alerts, and connection errors always remain visible. Reset-credit or update states that need attention also open temporarily instead of being hidden by layout preferences."
+            ))
+            .font(.system(size: metrics.caption))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            HStack {
+                Button(text("恢复默认布局", "Restore default layout")) {
+                    withAnimation(.easeInOut(duration: 0.16)) {
+                        cancelDashboardSectionDrag()
+                        store.resetDashboardLayout()
+                    }
+                }
+                .font(.system(size: metrics.label, weight: .medium))
+                Spacer()
+            }
+        }
+        .padding(.horizontal, Layout.contentPadding)
+        .padding(.vertical, Layout.contentPadding)
+        .onDisappear {
+            cancelDashboardSectionDrag()
+        }
+    }
+
+    private func layoutEditorRow(
+        _ section: DashboardSection,
+        index: Int
+    ) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: metrics.section, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+                .onDrag {
+                    beginDashboardSectionDrag(section)
+                }
+                .help(text("拖动调整顺序", "Drag to reorder"))
+                .accessibilityLabel(text(
+                    "拖动 \(section.label(language: language)) 调整顺序",
+                    "Drag \(section.label(language: language)) to reorder"
+                ))
+
+            Image(systemName: section.systemImage)
+                .frame(width: 18)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(section.layoutEditorLabel(language: language))
+                    .font(.system(size: metrics.label, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+
+            Spacer(minLength: 4)
+
+            Toggle(
+                text("默认展开", "Open by default"),
+                isOn: storedExpansionBinding(for: section)
+            )
+            .toggleStyle(.checkbox)
+            .font(.system(size: metrics.caption, weight: .medium))
+            .accessibilityLabel(text(
+                "\(section.label(language: language)) 默认展开",
+                "Open \(section.label(language: language)) by default"
+            ))
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    cancelDashboardSectionDrag()
+                    store.moveDashboardSection(section, to: index - 1)
+                }
+            } label: {
+                Image(systemName: "chevron.up")
+            }
+            .buttonStyle(.plain)
+            .disabled(index == 0)
+            .help(text("上移", "Move up"))
+            .accessibilityLabel(text(
+                "上移 \(section.label(language: language))",
+                "Move \(section.label(language: language)) up"
+            ))
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    cancelDashboardSectionDrag()
+                    store.moveDashboardSection(section, to: index + 1)
+                }
+            } label: {
+                Image(systemName: "chevron.down")
+            }
+            .buttonStyle(.plain)
+            .disabled(index == store.dashboardLayout.order.count - 1)
+            .help(text("下移", "Move down"))
+            .accessibilityLabel(text(
+                "下移 \(section.label(language: language))",
+                "Move \(section.label(language: language)) down"
+            ))
+        }
+        .accessibilityValue(text(
+            "第 \(index + 1) 项",
+            "Position \(index + 1)"
+        ))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .onDrop(
+            of: [.codexRadarDashboardSection],
+            delegate: DashboardSectionDropDelegate(
+                targetSection: section,
+                draggedSection: $draggedDashboardSection,
+                sections: layoutEditorOrder,
+                move: { movedSection, targetIndex in
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        previewDashboardSectionMove(
+                            movedSection,
+                            to: targetIndex
+                        )
+                    }
+                },
+                commit: commitDashboardSectionDrag
+            )
+        )
+    }
+
+    private var layoutEditorOrder: [DashboardSection] {
+        dashboardSectionDragPreview ?? store.dashboardLayout.order
+    }
+
+    private func beginDashboardSectionDrag(
+        _ section: DashboardSection
+    ) -> NSItemProvider {
+        draggedDashboardSection = section
+        dashboardSectionDragPreview = store.dashboardLayout.order
+
+        let provider = NSItemProvider()
+        provider.registerDataRepresentation(
+            forTypeIdentifier:
+                UTType.codexRadarDashboardSection.identifier,
+            visibility: .ownProcess
+        ) { completion in
+            completion(Data(section.rawValue.utf8), nil)
+            return nil
+        }
+        return provider
+    }
+
+    private func previewDashboardSectionMove(
+        _ section: DashboardSection,
+        to targetIndex: Int
+    ) {
+        var preview = DashboardLayout(
+            order: layoutEditorOrder,
+            expandedSections:
+                store.dashboardLayout.expandedSections
+        )
+        preview.move(section, to: targetIndex)
+        dashboardSectionDragPreview = preview.order
+    }
+
+    private func commitDashboardSectionDrag() {
+        if let dashboardSectionDragPreview {
+            store.setDashboardSectionOrder(
+                dashboardSectionDragPreview
+            )
+        }
+        cancelDashboardSectionDrag()
+    }
+
+    private func cancelDashboardSectionDrag() {
+        draggedDashboardSection = nil
+        dashboardSectionDragPreview = nil
+    }
+
+    private func storedExpansionBinding(
+        for section: DashboardSection
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                store.isDashboardSectionExpanded(section)
+            },
+            set: { expanded in
+                store.setDashboardSection(section, expanded: expanded)
+            }
+        )
+    }
+
+    private func renderedExpansionBinding(
+        for section: DashboardSection
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                if DashboardVisualTestOverrides.expandsSecondarySections {
+                    return true
+                }
+                return expansionResolution(for: section).isExpanded
+            },
+            set: { expanded in
+                let resolution = expansionResolution(for: section)
+                if !expanded, !resolution.canCollapse {
+                    return
+                }
+                store.setDashboardSection(section, expanded: expanded)
+            }
+        )
+    }
+
+    private func expansionResolution(
+        for section: DashboardSection
+    ) -> DashboardSectionExpansionPolicy.Resolution {
+        DashboardSectionExpansionPolicy.resolve(
+            section: section,
+            preferredExpanded:
+                store.isDashboardSectionExpanded(section),
+            resetCreditStatus: store.resetCreditProtectionStatus,
+            hasUnresolvedResetCreditAttempt:
+                store.hasUnresolvedResetCreditProtectionAttempt,
+            requiresUpdateAttention: updateRequiresAttention
+        )
+    }
+
+    private var modelIQDetailsExpansionBinding: Binding<Bool> {
+        Binding(
+            get: {
+                DashboardVisualTestOverrides.expandsModelIQ
+                    || store.modelIQDetailsExpanded
+            },
+            set: { expanded in
+                store.modelIQDetailsExpanded = expanded
+            }
+        )
+    }
+
+    private var radarInsightsDetailsExpansionBinding: Binding<Bool> {
+        Binding(
+            get: {
+                DashboardVisualTestOverrides.expandsSecondarySections
+                    || store.radarInsightsDetailsExpanded
+            },
+            set: { expanded in
+                store.radarInsightsDetailsExpanded = expanded
+            }
+        )
     }
 
     private var toolbarContent: some View {
@@ -179,7 +516,7 @@ struct DashboardMenuView: View {
 
     private var statusLegend: some View {
         collapsibleSection(
-            isExpanded: $statusLegendExpanded,
+            isExpanded: renderedExpansionBinding(for: .menuBarGuide),
             systemImage: "menubar.rectangle",
             title: text("状态栏说明", "Menu bar guide"),
             trailing: menuBarTitle
@@ -221,71 +558,99 @@ struct DashboardMenuView: View {
     }
 
     private var quotaSection: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            sectionTitle(text("Codex 额度", "Codex Quota"), systemImage: "speedometer")
-            HStack(spacing: Layout.tileSpacing) {
-                quotaTile(
-                    title: text("周额度", "Weekly"),
-                    value: DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent),
-                    resetAt: state.rateLimits?.weeklyBucket?.resetsAt
-                )
-                if hasLocalShortQuota {
+        collapsibleSection(
+            isExpanded: renderedExpansionBinding(for: .quota),
+            systemImage: DashboardSection.quota.systemImage,
+            title: DashboardSection.quota.label(language: language),
+            trailing: DisplayFormatters.percent(
+                state.rateLimits?.weeklyRemainingPercent
+            )
+        ) {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: Layout.tileSpacing) {
                     quotaTile(
-                        title: text("短窗", "Short"),
-                        value: DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent),
-                        resetAt: state.rateLimits?.shortBucket?.resetsAt
+                        title: text("周额度", "Weekly"),
+                        value: DisplayFormatters.percent(
+                            state.rateLimits?.weeklyRemainingPercent
+                        ),
+                        resetAt: state.rateLimits?.weeklyBucket?.resetsAt
                     )
+                    if hasLocalShortQuota {
+                        quotaTile(
+                            title: text("短窗", "Short"),
+                            value: DisplayFormatters.percent(
+                                state.rateLimits?.shortRemainingPercent
+                            ),
+                            resetAt: state.rateLimits?.shortBucket?.resetsAt
+                        )
+                    }
                 }
-            }
-            if let planType = state.rateLimits?.snapshot.planType {
-                Text("\(text("套餐", "Plan")) \(planType)")
-                    .font(.system(size: metrics.caption))
-                    .foregroundStyle(.secondary)
+                if let planType = state.rateLimits?.snapshot.planType {
+                    Text("\(text("套餐", "Plan")) \(planType)")
+                        .font(.system(size: metrics.caption))
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
 
     private var quotaPacingSection: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            sectionTitle(text("用量节奏", "Usage Pace"), systemImage: "chart.xyaxis.line")
-            if let pacing = state.rateLimits?.quotaPacing(
-                strategy: store.quotaPacingStrategy,
-                holidayCalendar: store.quotaPacingHolidayCalendar
-            ) {
-                HStack(spacing: Layout.tileSpacing) {
-                    pacingTile(
-                        title: text("建议剩余", "Target left"),
-                        value: DisplayFormatters.percent(pacing.roundedTargetRemainingPercent),
-                        detail: quotaPacingStrategyLabel(pacing.strategy),
-                        color: quotaPaceColor
+        let pacing = state.rateLimits?.quotaPacing(
+            strategy: store.quotaPacingStrategy,
+            holidayCalendar: store.quotaPacingHolidayCalendar
+        )
+        return collapsibleSection(
+            isExpanded: renderedExpansionBinding(for: .usagePace),
+            systemImage: DashboardSection.usagePace.systemImage,
+            title: DashboardSection.usagePace.label(language: language),
+            trailing: pacing.map {
+                text(
+                    "建议 \(DisplayFormatters.percent($0.roundedTargetRemainingPercent))",
+                    "Target \(DisplayFormatters.percent($0.roundedTargetRemainingPercent))"
+                )
+            }
+        ) {
+            VStack(alignment: .leading, spacing: 7) {
+                if let pacing {
+                    HStack(spacing: Layout.tileSpacing) {
+                        pacingTile(
+                            title: text("建议剩余", "Target left"),
+                            value: DisplayFormatters.percent(
+                                pacing.roundedTargetRemainingPercent
+                            ),
+                            detail: quotaPacingStrategyLabel(pacing.strategy),
+                            color: quotaPaceColor
+                        )
+                        pacingTile(
+                            title: text("实际剩余", "Actual left"),
+                            value: DisplayFormatters.percent(
+                                pacing.roundedCurrentRemainingPercent
+                            ),
+                            detail: text("本机周额度", "local weekly"),
+                            color: .primary
+                        )
+                        pacingTile(
+                            title: quotaPacingDeltaTitle(pacing),
+                            value: quotaPacingDeltaValue(pacing),
+                            detail: quotaPacingDeltaDetail(pacing),
+                            color: quotaPaceColor
+                        )
+                    }
+                    expandableCaptionText(
+                        quotaPacingExplanation(pacing),
+                        key: "quota-pacing-explanation-\(pacing.strategy.rawValue)-\(pacing.roundedTargetRemainingPercent)-\(pacing.roundedCurrentRemainingPercent)",
+                        collapsedLines: 3
                     )
-                    pacingTile(
-                        title: text("实际剩余", "Actual left"),
-                        value: DisplayFormatters.percent(pacing.roundedCurrentRemainingPercent),
-                        detail: text("本机周额度", "local weekly"),
-                        color: .primary
-                    )
-                    pacingTile(
-                        title: quotaPacingDeltaTitle(pacing),
-                        value: quotaPacingDeltaValue(pacing),
-                        detail: quotaPacingDeltaDetail(pacing),
-                        color: quotaPaceColor
+                } else {
+                    expandableCaptionText(
+                        text(
+                            "还没有读取到周额度 reset 时间，暂时无法计算建议剩余。",
+                            "Weekly reset timing is not loaded yet, so the target remaining quota is unavailable."
+                        ),
+                        key: "quota-pacing-unavailable",
+                        collapsedLines: 2
                     )
                 }
-                expandableCaptionText(
-                    quotaPacingExplanation(pacing),
-                    key: "quota-pacing-explanation-\(pacing.strategy.rawValue)-\(pacing.roundedTargetRemainingPercent)-\(pacing.roundedCurrentRemainingPercent)",
-                    collapsedLines: 3
-                )
-            } else {
-                expandableCaptionText(
-                    text(
-                        "还没有读取到周额度 reset 时间，暂时无法计算建议剩余。",
-                        "Weekly reset timing is not loaded yet, so the target remaining quota is unavailable."
-                    ),
-                    key: "quota-pacing-unavailable",
-                    collapsedLines: 2
-                )
             }
         }
     }
@@ -476,39 +841,23 @@ struct DashboardMenuView: View {
 
     private var resetCreditSection: some View {
         collapsibleSection(
-            isExpanded: $resetCreditDetailsExpanded,
+            isExpanded: renderedExpansionBinding(for: .resetCredits),
             systemImage: "creditcard",
             title: text("重置卡与自动使用", "Reset credits & auto-use"),
-            trailing: resetCreditSectionSummary
+            trailing: resetCreditSectionSummary,
+            isExpansionLocked: forcesResetCreditSectionExpansion
         ) {
             communityKnowledgeSection
         }
-        .onAppear {
-            if shouldRevealResetCreditDetails(
-                for: store.resetCreditProtectionStatus
-            ) {
-                resetCreditDetailsExpanded = true
-            }
-        }
-        .onChange(of: store.resetCreditProtectionStatus) { status in
-            if shouldRevealResetCreditDetails(for: status) {
-                resetCreditDetailsExpanded = true
-            }
-        }
     }
 
-    private func shouldRevealResetCreditDetails(
-        for status: ResetCreditProtectionStatus
-    ) -> Bool {
-        if store.hasUnresolvedResetCreditProtectionAttempt {
-            return true
-        }
-        switch status {
-        case .blocked, .missed, .using, .reconciling:
-            return true
-        default:
-            return false
-        }
+    private var forcesResetCreditSectionExpansion: Bool {
+        DashboardSectionExpansionPolicy.forcesExpansion(
+            of: .resetCredits,
+            resetCreditStatus: store.resetCreditProtectionStatus,
+            hasUnresolvedResetCreditAttempt:
+                store.hasUnresolvedResetCreditProtectionAttempt
+        )
     }
 
     private var resetCreditSectionSummary: String {
@@ -545,7 +894,7 @@ struct DashboardMenuView: View {
 
     private var codexRadarDetailsSection: some View {
         collapsibleSection(
-            isExpanded: $codexRadarDetailsExpanded,
+            isExpanded: renderedExpansionBinding(for: .radarDetails),
             systemImage: "dot.radiowaves.left.and.right",
             title: text("更多 CodexRadar 信息", "More from CodexRadar"),
             trailing: text("公告、社区与雷达", "Notice, community & radar")
@@ -1133,68 +1482,82 @@ struct DashboardMenuView: View {
         let groups = radarRecommendationGroups
         let alerts = radarDegradationItems
         if !groups.isEmpty || !alerts.isEmpty {
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    sectionTitle(
-                        text("CodexRadar 智能洞察", "CodexRadar Insights"),
-                        systemImage: "sparkles"
-                    )
-                    Spacer(minLength: 8)
+            collapsibleSection(
+                isExpanded: renderedExpansionBinding(for: .insights),
+                systemImage: DashboardSection.insights.systemImage,
+                title: DashboardSection.insights.label(language: language),
+                trailing: insightsSectionSummary(alerts: alerts)
+            ) {
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(spacing: Layout.tileSpacing) {
+                        radarInsightPickTile(groups)
+                        radarInsightAlertTile(alerts)
+                    }
+
                     if let updated = radarInsightsUpdatedLabel {
                         Text(updated)
                             .font(.system(size: metrics.caption, weight: .medium))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
-                }
 
-                HStack(spacing: Layout.tileSpacing) {
-                    radarInsightPickTile(groups)
-                    radarInsightAlertTile(alerts)
-                }
-
-                collapsibleSection(
-                    isExpanded: $radarInsightsExpanded,
-                    systemImage: "list.bullet.rectangle",
-                    title: text("场景推荐与降智预警", "Recommendations and alerts"),
-                    trailing: radarInsightsCountLabel(groups: groups, alerts: alerts)
-                ) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if !alerts.isEmpty {
-                            Text(text("降智预警", "Degradation alerts"))
-                                .font(.system(size: metrics.caption, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                            VStack(alignment: .leading, spacing: 5) {
-                                ForEach(
-                                    Array(alerts.enumerated()),
-                                    id: \.offset
-                                ) { _, alert in
-                                    radarDegradationRow(alert)
+                    collapsibleSection(
+                        isExpanded:
+                            radarInsightsDetailsExpansionBinding,
+                        systemImage: "list.bullet.rectangle",
+                        title: text("场景推荐与降智预警", "Recommendations and alerts"),
+                        trailing: radarInsightsCountLabel(groups: groups, alerts: alerts)
+                    ) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !alerts.isEmpty {
+                                Text(text("降智预警", "Degradation alerts"))
+                                    .font(.system(size: metrics.caption, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: 5) {
+                                    ForEach(
+                                        Array(alerts.enumerated()),
+                                        id: \.offset
+                                    ) { _, alert in
+                                        radarDegradationRow(alert)
+                                    }
                                 }
+                                .padding(8)
+                                .background(
+                                    Color.orange.opacity(0.08),
+                                    in: RoundedRectangle(cornerRadius: 8)
+                                )
                             }
-                            .padding(8)
-                            .background(
-                                Color.orange.opacity(0.08),
-                                in: RoundedRectangle(cornerRadius: 8)
-                            )
-                        }
 
-                        if !groups.isEmpty {
-                            Text(text("场景推荐", "Scenario recommendations"))
-                                .font(.system(size: metrics.caption, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                            ForEach(
-                                Array(groups.enumerated()),
-                                id: \.offset
-                            ) { index, group in
-                                radarRecommendationCard(group, index: index)
+                            if !groups.isEmpty {
+                                Text(text("场景推荐", "Scenario recommendations"))
+                                    .font(.system(size: metrics.caption, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                ForEach(
+                                    Array(groups.enumerated()),
+                                    id: \.offset
+                                ) { index, group in
+                                    radarRecommendationCard(group, index: index)
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    private func insightsSectionSummary(
+        alerts: [RadarDegradationAlert]
+    ) -> String {
+        if alerts.isEmpty {
+            return text("当前无预警", "No alerts")
+        }
+        return text(
+            "\(alerts.count) 个预警",
+            "\(alerts.count) \(alerts.count == 1 ? "alert" : "alerts")"
+        )
     }
 
     private func radarInsightPickTile(
@@ -1606,67 +1969,104 @@ struct DashboardMenuView: View {
     }
 
     private var iqSection: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
-                sectionTitle(
-                    isDistributedModelIQ
-                        ? text("Codex IQ · 分布式众测", "Codex IQ · Distributed")
-                        : "Codex IQ",
-                    systemImage: "brain.head.profile"
-                )
-                Spacer()
-                if let source = state.modelIQ?.dataSource,
-                   let url = source.linkURL {
-                    Link(destination: url) {
-                        HStack(spacing: 3) {
-                            if let validCells = source.validCells {
-                                Text(text("\(validCells) 条", "\(validCells) results"))
-                            } else {
-                                Text(text("分布式雷达", "Distributed radar"))
-                            }
-                            Image(systemName: "arrow.up.right.square")
-                        }
-                        .font(.system(size: metrics.caption, weight: .medium))
-                        .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                    .help(text("打开 CodexRadar 分布式雷达", "Open CodexRadar distributed radar"))
-                }
-            }
-            HStack {
-                labelPair("IQ", DisplayFormatters.iqScore(state.modelIQ?.latest?.iqScore))
-                Spacer()
-                let passed = state.modelIQ?.latest?.passed.map(String.init) ?? "?"
-                let tasks = state.modelIQ?.latest?.tasks.map(String.init) ?? "?"
-                labelPair(modelIQResultLabel, "\(passed)/\(tasks)")
-                Spacer()
-                labelPair(text("状态", "Status"), state.modelIQ?.latest?.status ?? text("未知", "unknown"))
-            }
-            if let latest = state.modelIQ?.latest {
+        collapsibleSection(
+            isExpanded: renderedExpansionBinding(for: .modelIQ),
+            systemImage: DashboardSection.modelIQ.systemImage,
+            title: DashboardSection.modelIQ.label(language: language),
+            trailing: DisplayFormatters.iqScore(
+                state.modelIQ?.latest?.iqScore
+            )
+        ) {
+            VStack(alignment: .leading, spacing: 7) {
                 HStack {
                     labelPair(
-                        latest.usesPerTaskAverages ? text("单题耗时", "Avg time") : text("耗时", "Time"),
-                        modelIQTimeText(latest)
+                        "IQ",
+                        DisplayFormatters.iqScore(
+                            state.modelIQ?.latest?.iqScore
+                        )
                     )
+                    Spacer()
+                    let passed = state.modelIQ?.latest?.passed.map(String.init) ?? "?"
+                    let tasks = state.modelIQ?.latest?.tasks.map(String.init) ?? "?"
+                    labelPair(modelIQResultLabel, "\(passed)/\(tasks)")
                     Spacer()
                     labelPair(
-                        latest.usesPerTaskAverages ? text("单题费用", "Avg cost") : text("费用", "Cost"),
-                        DisplayFormatters.costUSD(latest.displayedCostUSD)
+                        text("状态", "Status"),
+                        state.modelIQ?.latest?.status ?? text("未知", "unknown")
                     )
-                    Spacer()
-                    labelPair("Cache", latest.cacheHitRateText)
-                    Spacer()
-                    labelPair(text("体感", "Rating"), modelRatingText(state.modelRatings?.rating(for: latest)))
                 }
-            }
-            if let rows = state.modelIQ?.latestRows, rows.count > 1 {
-                collapsibleSection(
-                    isExpanded: $modelIQModelsExpanded,
-                    systemImage: "square.grid.2x2",
-                    title: text("全部模型 IQ", "All model IQ"),
-                    trailing: text("\(rows.count) 组", "\(rows.count) configs")
-                ) {
-                    modelIQComparisonTable(rows)
+                if let latest = state.modelIQ?.latest {
+                    HStack {
+                        labelPair(
+                            latest.usesPerTaskAverages
+                                ? text("单题耗时", "Avg time")
+                                : text("耗时", "Time"),
+                            modelIQTimeText(latest)
+                        )
+                        Spacer()
+                        labelPair(
+                            latest.usesPerTaskAverages
+                                ? text("单题费用", "Avg cost")
+                                : text("费用", "Cost"),
+                            DisplayFormatters.costUSD(
+                                latest.displayedCostUSD
+                            )
+                        )
+                        Spacer()
+                        labelPair("Cache", latest.cacheHitRateText)
+                        Spacer()
+                        labelPair(
+                            text("体感", "Rating"),
+                            modelRatingText(
+                                state.modelRatings?.rating(for: latest)
+                            )
+                        )
+                    }
+                }
+                if let source = state.modelIQ?.dataSource,
+                   let url = source.linkURL {
+                    HStack {
+                        Spacer()
+                        Link(destination: url) {
+                            HStack(spacing: 3) {
+                                if let validCells = source.validCells {
+                                    Text(text(
+                                        "\(validCells) 条分布式结果",
+                                        "\(validCells) distributed results"
+                                    ))
+                                } else {
+                                    Text(text(
+                                        "打开分布式雷达",
+                                        "Open distributed radar"
+                                    ))
+                                }
+                                Image(systemName: "arrow.up.right.square")
+                            }
+                            .font(.system(
+                                size: metrics.caption,
+                                weight: .medium
+                            ))
+                            .foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        .help(text(
+                            "打开 CodexRadar 分布式雷达",
+                            "Open CodexRadar distributed radar"
+                        ))
+                    }
+                }
+                if let rows = state.modelIQ?.latestRows, rows.count > 1 {
+                    collapsibleSection(
+                        isExpanded: modelIQDetailsExpansionBinding,
+                        systemImage: "square.grid.2x2",
+                        title: text("全部模型 IQ", "All model IQ"),
+                        trailing: text(
+                            "\(rows.count) 组",
+                            "\(rows.count) configs"
+                        )
+                    ) {
+                        modelIQComparisonTable(rows)
+                    }
                 }
             }
         }
@@ -2235,7 +2635,7 @@ struct DashboardMenuView: View {
 
     private var settingsSection: some View {
         collapsibleSection(
-            isExpanded: $settingsExpanded,
+            isExpanded: renderedExpansionBinding(for: .displayAndAlerts),
             systemImage: "slider.horizontal.3",
             title: text("显示与提醒", "Display & alerts"),
             trailing: language.label
@@ -2421,52 +2821,96 @@ struct DashboardMenuView: View {
     }
 
     private var updateSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle(text("版本更新", "Updates"), systemImage: "arrow.down.app")
-            HStack(alignment: .center, spacing: Layout.tileSpacing) {
-                Toggle(text("自动更新", "Auto update"), isOn: $store.automaticUpdatesEnabled)
+        collapsibleSection(
+            isExpanded: renderedExpansionBinding(for: .updates),
+            systemImage: DashboardSection.updates.systemImage,
+            title: DashboardSection.updates.label(language: language),
+            trailing: updateSectionSummary,
+            isExpansionLocked: updateRequiresAttention
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: Layout.tileSpacing) {
+                    Toggle(
+                        text("自动更新", "Auto update"),
+                        isOn: $store.automaticUpdatesEnabled
+                    )
                     .toggleStyle(.checkbox)
                     .font(.system(size: metrics.label))
-                Spacer()
-                Text("v\(AppConstants.appVersion)")
-                    .font(.system(size: metrics.caption, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
-            }
-            expandableMenuText(
-                updateStatusText,
-                key: "update-status-\(updateStatusText)",
-                collapsedLines: 2,
-                fontSize: metrics.caption,
-                color: updateStatusColor
-            )
-            HStack(spacing: Layout.tileSpacing) {
-                compactActionButton(title: text("检查更新", "Check"), systemImage: "arrow.clockwise") {
-                    store.checkForUpdatesNow()
+                    Spacer()
+                    Text("v\(AppConstants.appVersion)")
+                        .font(.system(
+                            size: metrics.caption,
+                            weight: .medium,
+                            design: .monospaced
+                        ))
+                        .foregroundStyle(.secondary)
                 }
-                compactActionButton(title: "Changelog", systemImage: "doc.text") {
-                    store.openLatestReleaseNotes()
-                }
-                compactActionButton(
-                    title: "Prompts",
-                    systemImage: "text.quote",
-                    help: text("打开 PROMPTS.md", "Open PROMPTS.md")
-                ) {
-                    store.openPromptLog()
-                }
-                compactActionButton(
-                    title: "GitHub",
-                    systemImage: "star",
-                    help: text("打开 GitHub 仓库", "Open the GitHub repo")
-                ) {
-                    store.openGitHubRepository()
+                expandableMenuText(
+                    updateStatusText,
+                    key: "update-status-\(updateStatusText)",
+                    collapsedLines: 2,
+                    fontSize: metrics.caption,
+                    color: updateStatusColor
+                )
+                HStack(spacing: Layout.tileSpacing) {
+                    compactActionButton(
+                        title: text("检查更新", "Check"),
+                        systemImage: "arrow.clockwise"
+                    ) {
+                        store.checkForUpdatesNow()
+                    }
+                    compactActionButton(
+                        title: "Changelog",
+                        systemImage: "doc.text"
+                    ) {
+                        store.openLatestReleaseNotes()
+                    }
+                    compactActionButton(
+                        title: "Prompts",
+                        systemImage: "text.quote",
+                        help: text("打开 PROMPTS.md", "Open PROMPTS.md")
+                    ) {
+                        store.openPromptLog()
+                    }
+                    compactActionButton(
+                        title: "GitHub",
+                        systemImage: "star",
+                        help: text("打开 GitHub 仓库", "Open the GitHub repo")
+                    ) {
+                        store.openGitHubRepository()
+                    }
                 }
             }
         }
     }
 
+    private var updateRequiresAttention: Bool {
+        if case .failed = store.updatePhase {
+            return true
+        }
+        return false
+    }
+
+    private var updateSectionSummary: String {
+        switch store.updatePhase {
+        case .checking:
+            return text("检查中", "Checking")
+        case .available(let version):
+            return text("\(version) 可用", "\(version) available")
+        case .downloading(let version):
+            return text("下载 \(version)", "Downloading \(version)")
+        case .installing(let version):
+            return text("安装 \(version)", "Installing \(version)")
+        case .failed:
+            return text("需要处理", "Needs attention")
+        case .idle, .upToDate:
+            return "v\(AppConstants.appVersion)"
+        }
+    }
+
     private var previewSection: some View {
         collapsibleSection(
-            isExpanded: $store.debugPreviewSectionExpanded,
+            isExpanded: renderedExpansionBinding(for: .preview),
             systemImage: "eye",
             title: text("调试预览", "Preview"),
             trailing: store.debugPreview.label(language: language)
@@ -2504,6 +2948,19 @@ struct DashboardMenuView: View {
             }
             toolbarButton(title: "GitHub", systemImage: "star") {
                 store.openGitHubRepository()
+            }
+            toolbarButton(
+                title: customizesLayout
+                    ? text("完成", "Done")
+                    : text("布局", "Layout"),
+                systemImage: customizesLayout
+                    ? "checkmark"
+                    : "rectangle.3.group"
+            ) {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    cancelDashboardSectionDrag()
+                    customizesLayout.toggle()
+                }
             }
             toolbarButton(title: text("退出", "Quit"), systemImage: "power") {
                 store.quit()
@@ -2580,25 +3037,39 @@ struct DashboardMenuView: View {
         systemImage: String,
         title: String,
         trailing: String? = nil,
+        isExpansionLocked: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
+                guard !isExpansionLocked else {
+                    return
+                }
                 withAnimation(.easeInOut(duration: 0.12)) {
                     isExpanded.wrappedValue.toggle()
                 }
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: isExpansionLocked
+                        ? "lock.fill"
+                        : "chevron.right")
                         .font(.system(size: metrics.caption, weight: .semibold))
-                        .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
+                        .rotationEffect(.degrees(
+                            !isExpansionLocked && isExpanded.wrappedValue
+                                ? 90
+                                : 0
+                        ))
                         .foregroundStyle(.secondary)
                     Image(systemName: systemImage)
                     Text(title)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                     Spacer(minLength: 6)
                     if let trailing {
                         Text(trailing)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.65)
                     }
                 }
                 .font(.system(size: metrics.caption, weight: .semibold))
@@ -2607,10 +3078,38 @@ struct DashboardMenuView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(title)
+            .help(
+                isExpansionLocked
+                    ? text(
+                        "需要处理，暂时保持展开",
+                        "Needs attention; temporarily remains expanded"
+                    )
+                    : title
+            )
             .accessibilityLabel(title)
-            .accessibilityValue(isExpanded.wrappedValue ? text("已展开", "Expanded") : text("已折叠", "Collapsed"))
-            .accessibilityHint(text("点击展开或收起", "Click to expand or collapse"))
+            .accessibilityValue(
+                isExpansionLocked
+                    ? text(
+                        "需要处理，暂时保持展开",
+                        "Needs attention; temporarily expanded"
+                    )
+                    : (
+                        isExpanded.wrappedValue
+                            ? text("已展开", "Expanded")
+                            : text("已折叠", "Collapsed")
+                    )
+            )
+            .accessibilityHint(
+                isExpansionLocked
+                    ? text(
+                        "处理完成后可再次收起",
+                        "Can be collapsed after the issue is resolved"
+                    )
+                    : text(
+                        "点击展开或收起",
+                        "Click to expand or collapse"
+                    )
+            )
 
             if isExpanded.wrappedValue {
                 content()
@@ -3188,6 +3687,43 @@ struct DashboardMenuView: View {
         }
     }
 
+}
+
+private struct DashboardSectionDropDelegate: DropDelegate {
+    let targetSection: DashboardSection
+    @Binding var draggedSection: DashboardSection?
+    let sections: [DashboardSection]
+    let move: (DashboardSection, Int) -> Void
+    let commit: () -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggedSection != nil
+            && info.hasItemsConforming(
+                to: [.codexRadarDashboardSection]
+            )
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedSection,
+              draggedSection != targetSection,
+              let targetIndex = sections.firstIndex(of: targetSection) else {
+            return
+        }
+        move(draggedSection, targetIndex)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard validateDrop(info: info) else {
+            return false
+        }
+        commit()
+        draggedSection = nil
+        return true
+    }
 }
 
 private struct TruncationAwareExpandableText: View {
