@@ -94,9 +94,10 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 73 | [`Prompt-Id: 73 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+73%22&type=commits) | 每日巡检发现 CodexRadar 新增场景推荐与降智预警，将实时智能洞察紧凑映射到菜单。 |
 | 74 | [`Prompt-Id: 74 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+74%22&type=commits) | 每日巡检修正临时公告缺席时的 live contract 误报，恢复可靠发布检查。 |
 | 75 | [443fb42](https://github.com/WineChord/codex-radar/commit/443fb424b57de0b6ecf44584a859b8dd666c3c74), [`Prompt-Id: 75 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+75%22&type=commits) | 把 README 重构为用户优先的产品首页，并固化 README、Prompt History 与自动 Git 收尾的仓库维护边界。 |
-| 76 | [`Prompt-Id: 76 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+76%22&type=commits) | 将“到期保护”改成直观的“重置卡到期前自动使用”，统一菜单、状态、通知、文档和截图。 |
-| 77 | [`Prompt-Id: 77 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+77%22&type=commits) | 将核心额度与 Codex IQ 前置、低频信息默认折叠，并固化 Issue/PR 的证据化维护流程。 |
-| 78 | [`Prompt-Id: 78 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+78%22&type=commits) | 修复全部模型 IQ 表格在较大字号下拆分通过数值的问题，并增加全字号列宽回归检查。 |
+| 76 | [661c997](https://github.com/WineChord/codex-radar/commit/661c9978b29ec28e8a85726205a5b2960c81e257), [`Prompt-Id: 76 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+76%22&type=commits) | 将“到期保护”改成直观的“重置卡到期前自动使用”，统一菜单、状态、通知、文档和截图。 |
+| 77 | [e067f5e](https://github.com/WineChord/codex-radar/commit/e067f5e6c5a2b424511d2defdd27a8a74c89e314), [`Prompt-Id: 77 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+77%22&type=commits) | 将核心额度与 Codex IQ 前置、低频信息默认折叠，并固化 Issue/PR 的证据化维护流程。 |
+| 78 | [bf6d6c4](https://github.com/WineChord/codex-radar/commit/bf6d6c4b211e3a158ccd57f8cc986db94c1a984f), [`Prompt-Id: 78 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+78%22&type=commits) | 修复全部模型 IQ 表格在较大字号下拆分通过数值的问题，并增加全字号列宽回归检查。 |
+| 79 | [`Prompt-Id: 79 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+79%22&type=commits) | 将多模型表格可读性修复作为 v0.1.58 发布，并同步版本、双语说明、截图与安装包。 |
 
 ## Prompts
 
@@ -624,4 +625,10 @@ commit 要求是可以点击的链接
 
 ```text
 修复“全部模型 IQ”表格在较大字号下把通过数（如 77/112）拆成两行的问题。IQ、通过和体感列应按 M/L/XL 的实际字体宽度稳定保持单行，并检查中英文展开态，避免同类窄列回归。
+```
+
+### 79. 发布多模型表格可读性修复
+
+```text
+将已经通过完整测试与中英文 M/L/XL 视觉验证的多模型 IQ 单行可读性修复作为 v0.1.58 发布，更新版本、双语说明、截图和可校验的 macOS 安装包。
 ```

@@ -25,6 +25,11 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ## News / 最新功能
 
+### v0.1.58：多模型通过数保持完整
+
+- “全部模型 IQ”中的 `78/112` 等通过数不再在较大字号下断成两行，横向比较更直接。
+- IQ、通过和体感三列会随 M/L/XL 字号保持单行，同时为模型名称保留足够空间；中英文布局一致。
+
 ### v0.1.57：核心信息先看见
 
 - 下拉菜单首先展示当前结论、本机额度、Codex IQ 和用量节奏；完整的“全部模型 IQ”表就在 IQ 摘要下方一键展开。
@@ -36,15 +41,10 @@ https://github.com/WineChord/codex-radar/releases/latest
 - CodexRadar 没有临时公告时，菜单会正常隐藏公告区，而不是把有效的空状态当作故障。
 - 公告变化不会影响本机额度、Model IQ、重置雷达、Fast 雷达或智能洞察的更新。
 
-### v0.1.55：场景推荐与降智预警
-
-- `CodexRadar 智能洞察` 会先显示适合日常开发的模型档位、IQ、费用和当前预警数量。
-- 展开后可查看难题攻坚、后台任务等场景建议，以及各档位 24h / 48h 的质量变化。
-- 网络或数据格式异常时保留上一次有效结果，不会用占位数据掩盖失败，也不会拖慢核心额度刷新。
-
 <details>
 <summary><strong>历史版本</strong> — 展开查看更早的产品里程碑</summary>
 
+- **v0.1.55**：加入场景推荐与降智预警，并在网络或数据格式异常时保留上一次有效结果。
 - **v0.1.54**：避免正常系统校时误关重置卡自动使用，并让未决请求优先只读对账。
 - **v0.1.53**：补齐 19 组智力效率数据，改善“超用”表达，并加入默认关闭、需要明确确认的重置卡到期前自动使用。
 - **v0.1.52**：接入分布式 Model IQ，统一单题费用、耗时、通过数和社区体感口径。
@@ -205,14 +205,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.57
+./scripts/check_release_readiness.sh 0.1.58
 ```
 
 构建发布包：
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.57
+./scripts/package_release.sh 0.1.58
 ```
 
 更新中英文状态栏与菜单截图：

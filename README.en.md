@@ -25,6 +25,11 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.58: Pass counts stay on one line
+
+- Values such as `78/112` in `All model IQ` no longer split across lines at larger text sizes, making comparisons easier to scan.
+- The IQ, Passed, and Rating columns stay on one line across M, L, and XL while preserving room for model names in both interface languages.
+
 ### v0.1.57: Core information first
 
 - The panel now leads with the current conclusion, local quota, Codex IQ, and usage pace. The complete `All model IQ` table expands directly beneath the IQ summary.
@@ -36,15 +41,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - When CodexRadar has no temporary notice, the menu hides the notice section instead of treating a valid empty state as a failure.
 - Notice changes do not interrupt local quota, Model IQ, Reset Radar, Fast Radar, or Insights updates.
 
-### v0.1.55: Recommendations and degradation alerts
-
-- `CodexRadar Insights` leads with the recommended everyday-development configuration, IQ, cost, and current alert count.
-- Expand it for difficult-task and background-work recommendations, plus each configuration's 24h and 48h quality change.
-- Network or schema failures retain the last valid result without blocking core quota refreshes or filling the UI with invented placeholders.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.55**: added scenario recommendations and degradation alerts while retaining the last valid result through network or schema failures.
 - **v0.1.54**: prevented normal clock synchronization from disabling reset-credit auto-use and made unresolved attempts reconcile read only first.
 - **v0.1.53**: completed 19 Intelligence Efficiency configurations, clarified overuse wording, and added explicitly enabled, default-off auto-use before reset credits expire.
 - **v0.1.52**: added distributed Model IQ with consistent per-task cost, runtime, pass count, and community-rating semantics.
@@ -205,14 +205,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.57
+./scripts/check_release_readiness.sh 0.1.58
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.57
+./scripts/package_release.sh 0.1.58
 ```
 
 Update the menu-bar and full-menu screenshots:
