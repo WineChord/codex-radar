@@ -1133,9 +1133,12 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
-    func configureForDocumentation(language: AppLanguage) {
+    func configureForDocumentation(
+        language: AppLanguage,
+        textSize: DashboardTextSize = .large
+    ) {
         appLanguage = language
-        menuTextSize = .large
+        menuTextSize = textSize
         resetStatusBarAdvancedOptions()
         quotaPacingStrategy = .timeProportional
         chinaHolidayCalendarEnabled = true

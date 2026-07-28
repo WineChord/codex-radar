@@ -6,6 +6,8 @@ import SwiftUI
 @MainActor
 enum DocumentationScreenshotRenderer {
     private static let renderEnvironmentKey = "CODEX_RADAR_RENDER_DOC_SCREENSHOTS"
+    private static let textSizeEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_TEXT_SIZE"
     private static let defaultsSuitePrefix = "com.codexradar.sentinel.docs"
     private static let layoutProbeHeight: CGFloat = 10
     private static let captureSettleSeconds: TimeInterval = 0.2
@@ -83,7 +85,15 @@ enum DocumentationScreenshotRenderer {
             resetCreditProtectionProcessLockURL: isolationDirectory
                 .appendingPathComponent("process.lock")
         )
-        store.configureForDocumentation(language: language)
+        let textSize = ProcessInfo.processInfo.environment[
+            textSizeEnvironmentKey
+        ]
+        .flatMap(DashboardTextSize.init(rawValue:))
+            ?? .large
+        store.configureForDocumentation(
+            language: language,
+            textSize: textSize
+        )
 
         let view = DashboardMenuView(store: store, scrolling: false)
             .environment(\.colorScheme, .light)

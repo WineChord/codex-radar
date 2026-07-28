@@ -18,6 +18,51 @@ add narrower requirements without weakening these rules.
 - Public commits, releases, issues, documentation, and screenshots follow the
   same boundary.
 
+## Product restraint
+
+- Rank information by frequency, urgency, and user value. Put the current
+  result, the most important state, and the next useful action before supporting
+  explanation or low-frequency controls.
+- Prefer progressive disclosure. Keep secondary radar detail, background
+  context, long explanations, and rarely changed settings behind one clear,
+  accessible disclosure instead of making every capability permanently visible.
+- Remove or combine duplicate labels, summaries, controls, and decoration before
+  adding another surface. Every visible block must justify the attention and
+  space it consumes.
+- Keep the product calm, concise, direct, and visually consistent. Favor a small
+  number of obvious choices over feature accumulation or dense dashboards.
+- Never hide critical failures, irreversible-action warnings, privacy or safety
+  state, or the action needed to recover. Simplicity must preserve
+  discoverability, accessibility, and safe defaults.
+- Validate hierarchy changes in both languages and at every supported text size.
+  Check the collapsed state, expanded state, keyboard/accessibility labels, and
+  representative normal and warning data.
+
+## Issue and pull-request stewardship
+
+- During repository maintenance, inspect open Issues and pull requests in
+  recently updated order before inventing new work. Read the full discussion,
+  attachments, patch, review state, checks, and divergence from current `main`.
+- Treat feedback as product evidence, not an automatic command or a popularity
+  vote. Reproduce the behavior, identify the underlying user need, compare it
+  with product consistency and safety, and choose the smallest durable response.
+- Acknowledge a clear Issue briefly and respectfully. If it is safely
+  deliverable, implement and verify the complete fix; reply with the exact
+  released version and evidence, then close it as completed only after that
+  release is available. Keep ambiguous or unverified reports open and ask only
+  the question that materially unblocks the next decision.
+- Review pull requests promptly with one consolidated, actionable review. Use
+  inline comments only for line-specific defects, mention the author in the
+  review summary, request changes for blocking issues, and re-review after the
+  author updates the branch.
+- Approval requires compatibility with current `main`, passing relevant checks,
+  and adequate evidence for logic, edge cases, security, privacy, performance,
+  accessibility, documentation, packaging, and supported platforms. Never merge
+  unverified code or silently rewrite a contributor's branch.
+- Do not repeat comments or mentions when there is no new evidence. If a
+  proposal is declined, explain the product tradeoff plainly and appreciatively
+  instead of dismissing the contributor.
+
 ## README contract
 
 - Keep `README.md` and `README.en.md` structurally equivalent and factually

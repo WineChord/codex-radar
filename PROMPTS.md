@@ -95,6 +95,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 74 | [`Prompt-Id: 74 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+74%22&type=commits) | 每日巡检修正临时公告缺席时的 live contract 误报，恢复可靠发布检查。 |
 | 75 | [443fb42](https://github.com/WineChord/codex-radar/commit/443fb424b57de0b6ecf44584a859b8dd666c3c74), [`Prompt-Id: 75 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+75%22&type=commits) | 把 README 重构为用户优先的产品首页，并固化 README、Prompt History 与自动 Git 收尾的仓库维护边界。 |
 | 76 | [`Prompt-Id: 76 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+76%22&type=commits) | 将“到期保护”改成直观的“重置卡到期前自动使用”，统一菜单、状态、通知、文档和截图。 |
+| 77 | [`Prompt-Id: 77 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+77%22&type=commits) | 将核心额度与 Codex IQ 前置、低频信息默认折叠，并固化 Issue/PR 的证据化维护流程。 |
 
 ## Prompts
 
@@ -610,4 +611,10 @@ commit 要求是可以点击的链接
 
 ```text
 把“重置卡到期保护”改成更直观的“重置卡到期前自动使用”，让用户一眼知道它会在重置卡快过期时自动尝试使用。默认关闭、显式确认和安全核验机制保持不变，并统一菜单、状态、通知、中英文文档和截图。
+```
+
+### 77. 核心信息前置与社区维护
+
+```text
+把菜单重新组织为核心结果优先、补充信息渐进披露：本机额度、Codex IQ 和用量节奏先展示，公告、社区知识、雷达明细与低频设置默认折叠，同时保留关键告警和安全恢复入口。将克制、清晰的产品层级，以及 Issue 确认、修复、发布后关闭和 PR 集中评审的维护流程写入仓库规则与每日巡检。
 ```

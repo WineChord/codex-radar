@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.57: Core information first
+
+- The panel now leads with the current conclusion, local quota, Codex IQ, and usage pace. The complete `All model IQ` table expands directly beneath the IQ summary.
+- Notices, community notes, and detailed radar sections share one `More from CodexRadar` disclosure. Reset credits, the menu-bar guide, and display settings also use clear collapsed-by-default entries.
+- Critical alerts remain fixed at the top. Reset-credit detail opens automatically for blocked, missed, or unresolved attempts, so only routine state stays out of the way.
+
 ### v0.1.56: More resilient live data
 
 - When CodexRadar has no temporary notice, the menu hides the notice section instead of treating a valid empty state as a failure.
@@ -36,14 +42,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Expand it for difficult-task and background-work recommendations, plus each configuration's 24h and 48h quality change.
 - Network or schema failures retain the last valid result without blocking core quota refreshes or filling the UI with invented placeholders.
 
-### v0.1.54: More reliable auto-use before reset credits expire
-
-- Normal clock synchronization no longer turns auto-use off. Reconfirmation is required only when time continuity cannot be established safely.
-- Unresolved operations reconcile read only first. Once auto-use is off, the app does not retry, switch credits, or send a new consume request.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.54**: prevented normal clock synchronization from disabling reset-credit auto-use and made unresolved attempts reconcile read only first.
 - **v0.1.53**: completed 19 Intelligence Efficiency configurations, clarified overuse wording, and added explicitly enabled, default-off auto-use before reset credits expire.
 - **v0.1.52**: added distributed Model IQ with consistent per-task cost, runtime, pass count, and community-rating semantics.
 - **v0.1.51**: hides the 5h window while paused and restores it automatically when available.
@@ -106,7 +108,7 @@ These images are rendered by the app in an isolated preview environment. They co
 
 <img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel full menu">
 
-The panel puts local status first and public radar context second. Refresh, Radar, Codex, GitHub, and Quit remain fixed at the bottom, so common actions do not require scrolling.
+The panel leads with the current conclusion, local quota, Codex IQ, and usage pace. Notices, community notes, radar detail, and low-frequency settings stay collapsed until requested. Critical alerts remain visible, and reset-credit detail opens automatically when it needs attention. Refresh, Radar, Codex, GitHub, and Quit stay fixed at the bottom.
 
 ## Using the App
 
@@ -124,7 +126,7 @@ Pacing cards use unsigned percentages with an explicit direction. When actual us
 
 ### Reset credits and auto-use before expiry
 
-Reset-credit expiry refreshes at launch or when the cache is more than six hours old. Automatic checks can be disabled, and a manual refresh is always available. Failures keep the previous cache and distinguish sign-in, expired-session, network, and data-format issues.
+`Reset credits & auto-use` is collapsed by default and shows the available count or current execution state in its row. Expand it for full details, switches, and recovery actions. Reset-credit expiry refreshes at launch or when the cache is more than six hours old. Automatic checks can be disabled, and a manual refresh is always available. Failures keep the previous cache and distinguish sign-in, expired-session, network, and data-format issues.
 
 `Auto-use reset credits before expiry` is a separate switch and is strictly off by default. Before enabling, the app explains the irreversible action and requires explicit confirmation. Authorization covers only supported credits that are visible and have a clear expiry at that moment. Plan checks are read only and never consume a credit.
 
@@ -203,14 +205,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.56
+./scripts/check_release_readiness.sh 0.1.57
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.56
+./scripts/package_release.sh 0.1.57
 ```
 
 Update the menu-bar and full-menu screenshots:

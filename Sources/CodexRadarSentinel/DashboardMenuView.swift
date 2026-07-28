@@ -2,12 +2,27 @@ import AppKit
 import CodexRadarCore
 import SwiftUI
 
+private enum DashboardVisualTestOverrides {
+    static let expandsSecondarySections =
+        ProcessInfo.processInfo.environment[
+            "CODEX_RADAR_VISUAL_TEST_EXPAND_SECONDARY"
+        ] == "1"
+}
+
 struct DashboardMenuView: View {
     @ObservedObject var store: SentinelStore
     @State private var copiedCommunityPrompt = false
     @State private var expandedTextKeys: Set<String> = []
     @State private var modelIQModelsExpanded = false
     @State private var radarInsightsExpanded = false
+    @State private var resetCreditDetailsExpanded =
+        DashboardVisualTestOverrides.expandsSecondarySections
+    @State private var codexRadarDetailsExpanded =
+        DashboardVisualTestOverrides.expandsSecondarySections
+    @State private var statusLegendExpanded =
+        DashboardVisualTestOverrides.expandsSecondarySections
+    @State private var settingsExpanded =
+        DashboardVisualTestOverrides.expandsSecondarySections
     @State private var showsResetCreditProtectionConfirmation = false
     var scrolling: Bool = true
 
@@ -74,27 +89,17 @@ struct DashboardMenuView: View {
                 speedAlertBanner
             }
             header
-            statusLegend
-            siteAnnouncementSection
-            codexRadarCommunitySection
-            Divider()
             quotaSection
-            quotaPacingSection
-            codexRadarInsightsSection
-            resetJudgementSection
-            communityKnowledgeSection
-            codexRadarQuotaSection
-            codexRadarFastSection
-            Divider()
-            radarSection
-            if showsPredictionSection {
-                predictionSection
-            }
             iqSection
+            quotaPacingSection
             if let error = state.lastError {
                 errorSection(error)
             }
+            codexRadarInsightsSection
+            resetCreditSection
+            codexRadarDetailsSection
             Divider()
+            statusLegend
             settingsSection
             updateSection
             previewSection
@@ -168,21 +173,27 @@ struct DashboardMenuView: View {
     }
 
     private var statusLegend: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            sectionTitle(text("状态栏含义", "Menu Bar"), systemImage: "menubar.rectangle")
-            expandableCaptionText(
-                statusLegendDescription,
-                key: "status-legend",
-                collapsedLines: 2
-            )
-            HStack(spacing: 6) {
-                legendTile(metric: .weeklyQuota, color: quotaColor)
-                if hasLocalShortQuota {
-                    legendTile(metric: .shortQuota, color: shortQuotaColor)
+        collapsibleSection(
+            isExpanded: $statusLegendExpanded,
+            systemImage: "menubar.rectangle",
+            title: text("状态栏说明", "Menu bar guide"),
+            trailing: menuBarTitle
+        ) {
+            VStack(alignment: .leading, spacing: 7) {
+                expandableCaptionText(
+                    statusLegendDescription,
+                    key: "status-legend",
+                    collapsedLines: 2
+                )
+                HStack(spacing: 6) {
+                    legendTile(metric: .weeklyQuota, color: quotaColor)
+                    if hasLocalShortQuota {
+                        legendTile(metric: .shortQuota, color: shortQuotaColor)
+                    }
+                    legendTile(metric: .quotaPace, color: quotaPaceColor)
+                    legendTile(metric: .codexIQ, color: iqColor)
+                    legendTile(metric: .signal, color: signalColor)
                 }
-                legendTile(metric: .quotaPace, color: quotaPaceColor)
-                legendTile(metric: .codexIQ, color: iqColor)
-                legendTile(metric: .signal, color: signalColor)
             }
         }
     }
@@ -407,10 +418,6 @@ struct DashboardMenuView: View {
 
     private var communityKnowledgeSection: some View {
         VStack(alignment: .leading, spacing: 7) {
-            sectionTitle(
-                text("重置卡过期与自动使用", "Reset Credit Expiry & Auto-Use"),
-                systemImage: "creditcard"
-            )
             Text(resetCreditCommunityKnowledge?.title ?? text("重置卡过期时间自查", "Reset credit expiry check"))
                 .font(.system(size: metrics.body, weight: .semibold))
                 .lineLimit(1)
@@ -457,6 +464,96 @@ struct DashboardMenuView: View {
                 }
                 compactActionButton(title: "Codex", systemImage: "terminal") {
                     store.openCodexApp()
+                }
+            }
+        }
+    }
+
+    private var resetCreditSection: some View {
+        collapsibleSection(
+            isExpanded: $resetCreditDetailsExpanded,
+            systemImage: "creditcard",
+            title: text("重置卡与自动使用", "Reset credits & auto-use"),
+            trailing: resetCreditSectionSummary
+        ) {
+            communityKnowledgeSection
+        }
+        .onAppear {
+            if shouldRevealResetCreditDetails(
+                for: store.resetCreditProtectionStatus
+            ) {
+                resetCreditDetailsExpanded = true
+            }
+        }
+        .onChange(of: store.resetCreditProtectionStatus) { status in
+            if shouldRevealResetCreditDetails(for: status) {
+                resetCreditDetailsExpanded = true
+            }
+        }
+    }
+
+    private func shouldRevealResetCreditDetails(
+        for status: ResetCreditProtectionStatus
+    ) -> Bool {
+        if store.hasUnresolvedResetCreditProtectionAttempt {
+            return true
+        }
+        switch status {
+        case .blocked, .missed, .using, .reconciling:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var resetCreditSectionSummary: String {
+        switch store.resetCreditProtectionStatus {
+        case .enabling, .checking:
+            return text("检查中", "Checking")
+        case .scheduled:
+            return text("已排期", "Scheduled")
+        case .waitingForUsage:
+            return text("等待可重置额度", "Waiting for usage")
+        case .using:
+            return text("正在使用", "Using")
+        case .reconciling:
+            return text("正在对账", "Reconciling")
+        case .succeeded:
+            return text("已使用", "Used")
+        case .blocked, .missed:
+            return text("需要处理", "Needs attention")
+        case .noCredits, .previewNoCredits:
+            return text("暂无可用卡", "No available credits")
+        case .preview(_, _, let availableCount, _):
+            return text("\(availableCount) 张可用", "\(availableCount) available")
+        case .unavailable:
+            return text("已不可用", "Unavailable")
+        case .disabled:
+            if let count = store.resetCreditSnapshot?.effectiveAvailableCount {
+                return count > 0
+                    ? text("\(count) 张可用 · 自动使用关", "\(count) available · auto-use off")
+                    : text("暂无可用卡 · 自动使用关", "No credits · auto-use off")
+            }
+            return text("自动使用关", "Auto-use off")
+        }
+    }
+
+    private var codexRadarDetailsSection: some View {
+        collapsibleSection(
+            isExpanded: $codexRadarDetailsExpanded,
+            systemImage: "dot.radiowaves.left.and.right",
+            title: text("更多 CodexRadar 信息", "More from CodexRadar"),
+            trailing: text("公告、社区与雷达", "Notice, community & radar")
+        ) {
+            VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
+                siteAnnouncementSection
+                codexRadarCommunitySection
+                resetJudgementSection
+                codexRadarQuotaSection
+                codexRadarFastSection
+                radarSection
+                if showsPredictionSection {
+                    predictionSection
                 }
             }
         }
@@ -1561,7 +1658,7 @@ struct DashboardMenuView: View {
                 collapsibleSection(
                     isExpanded: $modelIQModelsExpanded,
                     systemImage: "square.grid.2x2",
-                    title: text("智力效率", "Intelligence efficiency"),
+                    title: text("全部模型 IQ", "All model IQ"),
                     trailing: text("\(rows.count) 组", "\(rows.count) configs")
                 ) {
                     modelIQComparisonTable(rows)
@@ -2102,79 +2199,85 @@ struct DashboardMenuView: View {
     }
 
     private var settingsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionTitle(text("显示与提醒", "Display & Alerts"), systemImage: "slider.horizontal.3")
-            settingRow(title: text("语言", "Language")) {
-                Picker(text("语言", "Language"), selection: $store.appLanguage) {
-                    ForEach(AppLanguage.allCases) { language in
-                        Text(language.label).tag(language)
+        collapsibleSection(
+            isExpanded: $settingsExpanded,
+            systemImage: "slider.horizontal.3",
+            title: text("显示与提醒", "Display & alerts"),
+            trailing: language.label
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                settingRow(title: text("语言", "Language")) {
+                    Picker(text("语言", "Language"), selection: $store.appLanguage) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.label).tag(language)
+                        }
                     }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
-            }
-            settingRow(title: text("字号", "Text size")) {
-                Picker(text("字号", "Text size"), selection: $store.menuTextSize) {
-                    ForEach(DashboardTextSize.allCases) { size in
-                        Text(size.label).tag(size)
+                settingRow(title: text("字号", "Text size")) {
+                    Picker(text("字号", "Text size"), selection: $store.menuTextSize) {
+                        ForEach(DashboardTextSize.allCases) { size in
+                            Text(size.label).tag(size)
+                        }
                     }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
-            }
-            VStack(alignment: .leading, spacing: 7) {
-                Text(text("状态栏显示", "Menu bar segments"))
-                    .font(.system(size: metrics.caption, weight: .medium))
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(text("状态栏显示", "Menu bar segments"))
+                        .font(.system(size: metrics.caption, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    LazyVGrid(
+                        columns: Array(
+                            repeating: GridItem(.flexible(), spacing: Layout.tileSpacing),
+                            count: hasLocalShortQuota ? 3 : 2
+                        ),
+                        alignment: .leading,
+                        spacing: 7
+                    ) {
+                        metricToggle(.weeklyQuota)
+                        if hasLocalShortQuota {
+                            metricToggle(.shortQuota)
+                        }
+                        metricToggle(.quotaPace)
+                        metricToggle(.codexIQ)
+                        metricToggle(.signal)
+                    }
+                    if !hasLocalShortQuota {
+                        Text(text(
+                            "Codex 当前未返回 5h 短窗，已自动隐藏；恢复后选项会自动出现。",
+                            "Codex is not currently returning a 5h window, so it is hidden automatically and will reappear when available."
+                        ))
+                        .font(.system(size: metrics.caption))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                    quotaPacingOptions
+                    Toggle(
+                        text("状态栏 IQ 小数", "Decimal IQ in menu bar"),
+                        isOn: $store.statusBarPreciseIQEnabled
+                    )
+                    .toggleStyle(.checkbox)
+                    statusBarAdvancedOptions
+                }
                 LazyVGrid(
-                    columns: Array(
-                        repeating: GridItem(.flexible(), spacing: Layout.tileSpacing),
-                        count: hasLocalShortQuota ? 3 : 2
-                    ),
+                    columns: [
+                        GridItem(.flexible(), spacing: Layout.tileSpacing),
+                        GridItem(.flexible(), spacing: Layout.tileSpacing),
+                    ],
                     alignment: .leading,
                     spacing: 7
                 ) {
-                    metricToggle(.weeklyQuota)
-                    if hasLocalShortQuota {
-                        metricToggle(.shortQuota)
+                    if showsPredictionSection {
+                        Toggle(text("Prediction 提醒", "Prediction alerts"), isOn: $store.predictionNotificationsEnabled)
                     }
-                    metricToggle(.quotaPace)
-                    metricToggle(.codexIQ)
-                    metricToggle(.signal)
+                    Toggle(text("IQ 提醒", "IQ alerts"), isOn: $store.iqNotificationsEnabled)
+                    Toggle(text("通知声音", "Notification sound"), isOn: $store.notificationSoundEnabled)
+                    Toggle(text("登录时启动", "Launch at login"), isOn: $store.launchAtLoginEnabled)
                 }
-                if !hasLocalShortQuota {
-                    Text(text(
-                        "Codex 当前未返回 5h 短窗，已自动隐藏；恢复后选项会自动出现。",
-                        "Codex is not currently returning a 5h window, so it is hidden automatically and will reappear when available."
-                    ))
-                    .font(.system(size: metrics.caption))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                quotaPacingOptions
-                Toggle(
-                    text("状态栏 IQ 小数", "Decimal IQ in menu bar"),
-                    isOn: $store.statusBarPreciseIQEnabled
-                )
-                .toggleStyle(.checkbox)
-                statusBarAdvancedOptions
             }
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: Layout.tileSpacing),
-                    GridItem(.flexible(), spacing: Layout.tileSpacing),
-                ],
-                alignment: .leading,
-                spacing: 7
-            ) {
-                if showsPredictionSection {
-                    Toggle(text("Prediction 提醒", "Prediction alerts"), isOn: $store.predictionNotificationsEnabled)
-                }
-                Toggle(text("IQ 提醒", "IQ alerts"), isOn: $store.iqNotificationsEnabled)
-                Toggle(text("通知声音", "Notification sound"), isOn: $store.notificationSoundEnabled)
-                Toggle(text("登录时启动", "Launch at login"), isOn: $store.launchAtLoginEnabled)
-            }
+            .toggleStyle(.checkbox)
+            .font(.system(size: metrics.label))
         }
-        .toggleStyle(.checkbox)
-        .font(.system(size: metrics.label))
     }
 
     private var quotaPacingOptions: some View {

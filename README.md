@@ -25,6 +25,12 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ## News / 最新功能
 
+### v0.1.57：核心信息先看见
+
+- 下拉菜单首先展示当前结论、本机额度、Codex IQ 和用量节奏；完整的“全部模型 IQ”表就在 IQ 摘要下方一键展开。
+- 公告、社区知识和各类雷达明细统一收进“更多 CodexRadar 信息”，重置卡、状态栏说明和显示设置也采用清晰的默认折叠入口。
+- 关键告警仍固定在顶部；重置卡遇到阻塞、遗漏或未决对账时会自动展开，折叠只减少正常状态下的日常干扰。
+
 ### v0.1.56：更稳的在线数据兼容
 
 - CodexRadar 没有临时公告时，菜单会正常隐藏公告区，而不是把有效的空状态当作故障。
@@ -36,14 +42,10 @@ https://github.com/WineChord/codex-radar/releases/latest
 - 展开后可查看难题攻坚、后台任务等场景建议，以及各档位 24h / 48h 的质量变化。
 - 网络或数据格式异常时保留上一次有效结果，不会用占位数据掩盖失败，也不会拖慢核心额度刷新。
 
-### v0.1.54：更可靠的重置卡到期前自动使用
-
-- 正常系统校时不再误关自动使用；只有时间连续性确实无法证明时，才会关闭并要求重新确认。
-- 未决请求会优先只读对账。自动使用关闭后不会重试、换卡或发送新的使用请求。
-
 <details>
 <summary><strong>历史版本</strong> — 展开查看更早的产品里程碑</summary>
 
+- **v0.1.54**：避免正常系统校时误关重置卡自动使用，并让未决请求优先只读对账。
 - **v0.1.53**：补齐 19 组智力效率数据，改善“超用”表达，并加入默认关闭、需要明确确认的重置卡到期前自动使用。
 - **v0.1.52**：接入分布式 Model IQ，统一单题费用、耗时、通过数和社区体感口径。
 - **v0.1.51**：5h 短窗暂停时自动隐藏，恢复后自动出现。
@@ -106,7 +108,7 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 <img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 中文完整菜单">
 
-面板按“本机状态优先、公开雷达补充”的顺序组织。常用的刷新、Radar、Codex、GitHub 和退出入口固定在底部，不需要滚动寻找。
+面板先展示当前结论、本机额度、Codex IQ 和用量节奏。公告、社区知识、雷达明细和低频设置默认折叠，需要时仍可在原位展开；关键告警保持可见，需要处理的重置卡状态会自动展开。常用的刷新、Radar、Codex、GitHub 和退出入口固定在底部。
 
 ## 使用说明
 
@@ -124,7 +126,7 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ### 重置卡与到期前自动使用
 
-重置卡到期时间会在应用启动后或缓存超过 6 小时时低频刷新，也可以在菜单中关闭自动查询或手动刷新。查询失败时会保留旧缓存，并给出未登录、登录过期、网络或数据格式等可操作提示。
+`重置卡与自动使用` 默认折叠，并在折叠行显示可用数量或当前执行状态。展开后可查看完整明细、开关和恢复操作。重置卡到期时间会在应用启动后或缓存超过 6 小时时低频刷新，也可以关闭自动查询或手动刷新；查询失败时会保留旧缓存，并给出未登录、登录过期、网络或数据格式等可操作提示。
 
 `重置卡到期前自动使用` 是独立开关，并且严格默认关闭。开启前会展示不可撤销说明并要求明确确认；启用后只覆盖确认时可见、受支持且有明确到期时间的卡片。计划检查是只读操作，不会消耗卡。
 
@@ -203,14 +205,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.56
+./scripts/check_release_readiness.sh 0.1.57
 ```
 
 构建发布包：
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.56
+./scripts/package_release.sh 0.1.57
 ```
 
 更新中英文状态栏与菜单截图：
