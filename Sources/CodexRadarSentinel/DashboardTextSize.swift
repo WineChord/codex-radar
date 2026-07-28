@@ -37,7 +37,10 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
                 tileValue: 20,
                 quotaTileHeight: 82,
                 toolbarHeight: 48,
-                settingLabelWidth: 72
+                settingLabelWidth: 72,
+                modelIQScoreColumnWidth: 44,
+                modelIQResultColumnWidth: 62,
+                modelIQRatingColumnWidth: 44
             )
         case .large:
             return Metrics(
@@ -53,7 +56,10 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
                 tileValue: 22,
                 quotaTileHeight: 88,
                 toolbarHeight: 50,
-                settingLabelWidth: 78
+                settingLabelWidth: 78,
+                modelIQScoreColumnWidth: 46,
+                modelIQResultColumnWidth: 67,
+                modelIQRatingColumnWidth: 46
             )
         case .extraLarge:
             return Metrics(
@@ -69,7 +75,10 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
                 tileValue: 24,
                 quotaTileHeight: 96,
                 toolbarHeight: 54,
-                settingLabelWidth: 86
+                settingLabelWidth: 86,
+                modelIQScoreColumnWidth: 48,
+                modelIQResultColumnWidth: 72,
+                modelIQRatingColumnWidth: 48
             )
         }
     }
@@ -88,5 +97,8 @@ enum DashboardTextSize: String, CaseIterable, Identifiable {
         let quotaTileHeight: CGFloat
         let toolbarHeight: CGFloat
         let settingLabelWidth: CGFloat
+        let modelIQScoreColumnWidth: CGFloat
+        let modelIQResultColumnWidth: CGFloat
+        let modelIQRatingColumnWidth: CGFloat
     }
 }

@@ -96,6 +96,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 75 | [443fb42](https://github.com/WineChord/codex-radar/commit/443fb424b57de0b6ecf44584a859b8dd666c3c74), [`Prompt-Id: 75 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+75%22&type=commits) | 把 README 重构为用户优先的产品首页，并固化 README、Prompt History 与自动 Git 收尾的仓库维护边界。 |
 | 76 | [`Prompt-Id: 76 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+76%22&type=commits) | 将“到期保护”改成直观的“重置卡到期前自动使用”，统一菜单、状态、通知、文档和截图。 |
 | 77 | [`Prompt-Id: 77 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+77%22&type=commits) | 将核心额度与 Codex IQ 前置、低频信息默认折叠，并固化 Issue/PR 的证据化维护流程。 |
+| 78 | [`Prompt-Id: 78 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+78%22&type=commits) | 修复全部模型 IQ 表格在较大字号下拆分通过数值的问题，并增加全字号列宽回归检查。 |
 
 ## Prompts
 
@@ -617,4 +618,10 @@ commit 要求是可以点击的链接
 
 ```text
 把菜单重新组织为核心结果优先、补充信息渐进披露：本机额度、Codex IQ 和用量节奏先展示，公告、社区知识、雷达明细与低频设置默认折叠，同时保留关键告警和安全恢复入口。将克制、清晰的产品层级，以及 Issue 确认、修复、发布后关闭和 PR 集中评审的维护流程写入仓库规则与每日巡检。
+```
+
+### 78. 全部模型 IQ 表格单行可读
+
+```text
+修复“全部模型 IQ”表格在较大字号下把通过数（如 77/112）拆成两行的问题。IQ、通过和体感列应按 M/L/XL 的实际字体宽度稳定保持单行，并检查中英文展开态，避免同类窄列回归。
 ```

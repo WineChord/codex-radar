@@ -7,13 +7,18 @@ private enum DashboardVisualTestOverrides {
         ProcessInfo.processInfo.environment[
             "CODEX_RADAR_VISUAL_TEST_EXPAND_SECONDARY"
         ] == "1"
+    static let expandsModelIQ =
+        ProcessInfo.processInfo.environment[
+            "CODEX_RADAR_VISUAL_TEST_EXPAND_MODEL_IQ"
+        ] == "1"
 }
 
 struct DashboardMenuView: View {
     @ObservedObject var store: SentinelStore
     @State private var copiedCommunityPrompt = false
     @State private var expandedTextKeys: Set<String> = []
-    @State private var modelIQModelsExpanded = false
+    @State private var modelIQModelsExpanded =
+        DashboardVisualTestOverrides.expandsModelIQ
     @State private var radarInsightsExpanded = false
     @State private var resetCreditDetailsExpanded =
         DashboardVisualTestOverrides.expandsSecondarySections
@@ -1673,11 +1678,26 @@ struct DashboardMenuView: View {
                 Text(text("多模型", "Models"))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text("IQ")
-                    .frame(width: 44, alignment: .trailing)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .frame(
+                        width: metrics.modelIQScoreColumnWidth,
+                        alignment: .trailing
+                    )
                 Text(modelIQResultLabel)
-                    .frame(width: 46, alignment: .trailing)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .frame(
+                        width: metrics.modelIQResultColumnWidth,
+                        alignment: .trailing
+                    )
                 Text(text("体感", "Rating"))
-                    .frame(width: 70, alignment: .trailing)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .frame(
+                        width: metrics.modelIQRatingColumnWidth,
+                        alignment: .trailing
+                    )
             }
             .font(.system(size: metrics.caption, weight: .semibold))
             .foregroundStyle(.secondary)
@@ -1693,13 +1713,28 @@ struct DashboardMenuView: View {
                         Text(DisplayFormatters.iqScore(row.snapshot.iqScore))
                             .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
                             .foregroundStyle(iqColor(for: row.snapshot))
-                            .frame(width: 44, alignment: .trailing)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                            .frame(
+                                width: metrics.modelIQScoreColumnWidth,
+                                alignment: .trailing
+                            )
                         Text(modelIQProbeText(row.snapshot))
                             .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                            .frame(width: 46, alignment: .trailing)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                            .frame(
+                                width: metrics.modelIQResultColumnWidth,
+                                alignment: .trailing
+                            )
                         Text(modelRatingCompactText(state.modelRatings?.rating(for: row.snapshot)))
                             .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
-                            .frame(width: 70, alignment: .trailing)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                            .frame(
+                                width: metrics.modelIQRatingColumnWidth,
+                                alignment: .trailing
+                            )
                     }
                     if row.snapshot.usesPerTaskAverages {
                         Text(modelIQAverageDetailText(row.snapshot))

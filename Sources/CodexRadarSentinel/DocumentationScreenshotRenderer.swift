@@ -8,6 +8,8 @@ enum DocumentationScreenshotRenderer {
     private static let renderEnvironmentKey = "CODEX_RADAR_RENDER_DOC_SCREENSHOTS"
     private static let textSizeEnvironmentKey =
         "CODEX_RADAR_VISUAL_TEST_TEXT_SIZE"
+    private static let modelIQEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_EXPAND_MODEL_IQ"
     private static let defaultsSuitePrefix = "com.codexradar.sentinel.docs"
     private static let layoutProbeHeight: CGFloat = 10
     private static let captureSettleSeconds: TimeInterval = 0.2
@@ -95,7 +97,13 @@ enum DocumentationScreenshotRenderer {
             textSize: textSize
         )
 
-        let view = DashboardMenuView(store: store, scrolling: false)
+        let usesFixedViewport = ProcessInfo.processInfo.environment[
+            modelIQEnvironmentKey
+        ] == "1"
+        let view = DashboardMenuView(
+            store: store,
+            scrolling: usesFixedViewport
+        )
             .environment(\.colorScheme, .light)
         let image = try renderImage(view: view, width: store.menuTextSize.metrics.width)
         let destination = languageDirectory.appendingPathComponent("menu-full.png")
