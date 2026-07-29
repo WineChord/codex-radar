@@ -538,9 +538,88 @@ struct DashboardMenuView: View {
     }
 
     private var toolbarContent: some View {
-        actionButtons
-            .padding(.horizontal, Layout.contentPadding)
-            .padding(.vertical, 8)
+        VStack(spacing: 0) {
+            if !customizesLayout && !store.layoutDiscoveryTipDismissed {
+                layoutDiscoveryTip
+                    .padding(.horizontal, Layout.contentPadding)
+                    .padding(.top, 8)
+            }
+            actionButtons
+                .padding(.horizontal, Layout.contentPadding)
+                .padding(.vertical, 8)
+        }
+    }
+
+    private var layoutDiscoveryTip: some View {
+        HStack(spacing: 6) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    setLayoutEditorVisible(true)
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "rectangle.3.group")
+                        .foregroundStyle(Color.accentColor)
+                    Text(text(
+                        "模块顺序与默认展开都能调整",
+                        "Reorder sections and set defaults"
+                    ))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    Spacer(minLength: 4)
+                    Text(text("试试布局", "Try Layout"))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.accentColor)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.right")
+                        .font(.system(
+                            size: metrics.caption,
+                            weight: .semibold
+                        ))
+                        .foregroundStyle(Color.accentColor)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(text(
+                "打开布局编辑器，调整模块顺序和默认展开",
+                "Open Layout to reorder sections and set defaults"
+            ))
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    store.dismissLayoutDiscoveryTip()
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(
+                        size: metrics.caption,
+                        weight: .semibold
+                    ))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(text("关闭布局提示", "Dismiss Layout tip"))
+            .accessibilityLabel(text(
+                "不再显示布局提示",
+                "Do not show the Layout tip again"
+            ))
+        }
+        .font(.system(size: metrics.caption))
+        .padding(.leading, 9)
+        .padding(.trailing, 6)
+        .padding(.vertical, 7)
+        .background(
+            Color.accentColor.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: Layout.toolbarCornerRadius)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: Layout.toolbarCornerRadius)
+                .stroke(Color.accentColor.opacity(0.16))
+        }
     }
 
     private var speedAlertBanner: some View {
@@ -3044,14 +3123,21 @@ struct DashboardMenuView: View {
                     : "rectangle.3.group"
             ) {
                 withAnimation(.easeInOut(duration: 0.12)) {
-                    cancelDashboardSectionDrag()
-                    customizesLayout.toggle()
+                    setLayoutEditorVisible(!customizesLayout)
                 }
             }
             toolbarButton(title: text("退出", "Quit"), systemImage: "power") {
                 store.quit()
             }
         }
+    }
+
+    private func setLayoutEditorVisible(_ isVisible: Bool) {
+        cancelDashboardSectionDrag()
+        if isVisible {
+            store.dismissLayoutDiscoveryTip()
+        }
+        customizesLayout = isVisible
     }
 
     private func toolbarButton(

@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.61: Make Layout easier to discover
+
+- A compact tip above the bottom toolbar explains that section order and default-open states are customizable. `Try Layout` opens the editor directly.
+- Opening Layout from either entry point dismisses the tip. It can also be closed immediately, and that choice persists across app restarts.
+- The tip appears only once and stays out of the top content area, preserving the priority of the current result, critical alerts, and everyday data.
+
 ### v0.1.60: Set defaults for nested details
 
 - The layout editor now lists collapsible details beneath their parent sections, including `All model IQ` and `Recommendations & alerts`, with their own default-open controls.
@@ -37,15 +43,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Choose `Layout` to drag sections or use the move-up and move-down buttons, then set which sections open by default. Preferences persist when the menu reopens and after an app restart.
 - The current result, urgent alerts, and connection errors remain fixed. Reset-credit or update detail opens temporarily when it needs attention, and the default layout is always one click away.
 
-### v0.1.58: Pass counts stay on one line
-
-- Values such as `78/112` in `All model IQ` no longer split across lines at larger text sizes, making comparisons easier to scan.
-- The IQ, Passed, and Rating columns stay on one line across M, L, and XL while preserving room for model names in both interface languages.
-- The SHA256 manifest uses filenames from the download directory, so manual package verification no longer depends on repository paths.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.58**: kept multi-model IQ pass counts intact across M, L, and XL and made the SHA256 manifest directly verifiable from the download directory.
 - **v0.1.57**: moved quota and Codex IQ forward, grouped low-frequency information behind clear disclosures, and kept critical alerts visible.
 - **v0.1.56**: accepts a missing temporary notice as a normal empty state without interrupting other live data.
 - **v0.1.55**: added scenario recommendations and degradation alerts while retaining the last valid result through network or schema failures.
@@ -112,13 +113,15 @@ These images are rendered by the app in an isolated preview environment. They co
 
 <img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel full menu">
 
-The default order leads with the current conclusion, local quota, Codex IQ, reset-credit summary, usage pace, and Insights. Notices, community notes, radar detail, and low-frequency settings stay collapsed until requested. Critical alerts remain visible, and reset-credit or update detail opens automatically when it needs attention. Refresh, Radar, Codex, GitHub, Layout, and Quit stay fixed at the bottom.
+The default order leads with the current conclusion, local quota, Codex IQ, reset-credit summary, usage pace, and Insights. Notices, community notes, radar detail, and low-frequency settings stay collapsed until requested. Critical alerts remain visible, and reset-credit or update detail opens automatically when it needs attention. Refresh, Radar, Codex, GitHub, Layout, and Quit stay fixed at the bottom. A dismissible, one-time Layout tip appears above the toolbar.
 
 ## Using the App
 
 ### Menu layout
 
 Choose `Layout` in the bottom toolbar to customize top-level sections. Drag a handle or use the move-up and move-down buttons to change the order, then choose which sections are expanded by default. When a section contains collapsible details, they appear indented beneath it—for example, `All model IQ` under `Codex IQ`—with independent default-open controls. Every preference persists when the menu reopens and after an app restart. `Restore default layout` resets only layout preferences, not language, text size, alerts, or automatic updates.
+
+A compact tip above the bottom toolbar introduces Layout the first time it is shown. Selecting the tip opens the editor directly; choosing `Layout` itself or dismissing the tip prevents it from appearing again.
 
 The current result, urgent alerts, and connection errors are not sortable. Reset-credit or update sections temporarily lock open when they need attention, then return to the user's saved preference after the issue clears.
 
@@ -215,14 +218,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.60
+./scripts/check_release_readiness.sh 0.1.61
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.60
+./scripts/package_release.sh 0.1.61
 ```
 
 Update the menu-bar and full-menu screenshots:

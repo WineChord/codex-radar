@@ -190,6 +190,15 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published private(set) var layoutDiscoveryTipDismissed: Bool {
+        didSet {
+            defaults.set(
+                layoutDiscoveryTipDismissed,
+                forKey: DefaultsKey.layoutDiscoveryTipDismissed
+            )
+        }
+    }
+
     @Published var modelIQDetailsExpanded: Bool {
         didSet {
             defaults.set(
@@ -309,6 +318,8 @@ final class SentinelStore: NSObject, ObservableObject {
         static let notificationMemory = "notificationMemory"
         static let dismissedSpeedAlertKey = "dismissedSpeedAlertKey"
         static let debugPreviewSectionExpanded = "debugPreviewSectionExpanded"
+        static let layoutDiscoveryTipDismissed =
+            "layoutDiscoveryTipDismissedV1"
         static let modelIQDetailsExpanded =
             "modelIQDetailsExpanded"
         static let radarInsightsDetailsExpanded =
@@ -473,6 +484,9 @@ final class SentinelStore: NSObject, ObservableObject {
             dashboardLayout.setExpanded(.preview, expanded: true)
         }
         self.dashboardLayout = dashboardLayout
+        self.layoutDiscoveryTipDismissed = defaults.bool(
+            forKey: DefaultsKey.layoutDiscoveryTipDismissed
+        )
         self.modelIQDetailsExpanded = defaults.object(
             forKey: DefaultsKey.modelIQDetailsExpanded
         ) as? Bool
@@ -707,6 +721,13 @@ final class SentinelStore: NSObject, ObservableObject {
 
     func isDashboardSectionExpanded(_ section: DashboardSection) -> Bool {
         dashboardLayout.expandedSections.contains(section)
+    }
+
+    func dismissLayoutDiscoveryTip() {
+        guard !layoutDiscoveryTipDismissed else {
+            return
+        }
+        layoutDiscoveryTipDismissed = true
     }
 
     func setDashboardSection(
@@ -1263,6 +1284,7 @@ final class SentinelStore: NSObject, ObservableObject {
         quotaPacingOptionsExpanded = false
         statusBarAdvancedOptionsExpanded = false
         dashboardLayout = .default
+        layoutDiscoveryTipDismissed = false
         for disclosure in DashboardDisclosure.allCases {
             setDashboardDisclosure(
                 disclosure,

@@ -388,6 +388,27 @@ final class DashboardLayoutTests: XCTestCase {
         )
     }
 
+    func testLayoutDiscoveryTipDismissalPersistsWithoutChangingLayout()
+        throws
+    {
+        let context = try LayoutTestContext()
+        defer { context.cleanup() }
+
+        var firstStore: SentinelStore? = context.makeStore()
+        XCTAssertFalse(firstStore?.layoutDiscoveryTipDismissed == true)
+        XCTAssertEqual(firstStore?.dashboardLayout, .default)
+
+        firstStore?.dismissLayoutDiscoveryTip()
+
+        XCTAssertTrue(firstStore?.layoutDiscoveryTipDismissed == true)
+        XCTAssertEqual(firstStore?.dashboardLayout, .default)
+        firstStore = nil
+
+        let secondStore = context.makeStore()
+        XCTAssertTrue(secondStore.layoutDiscoveryTipDismissed)
+        XCTAssertEqual(secondStore.dashboardLayout, .default)
+    }
+
     func testLegacyPreviewExpansionMigratesOnlyUntilNewPreferenceExists()
         throws
     {
