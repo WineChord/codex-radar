@@ -1,0 +1,85 @@
+name: Windows
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/windows.yml"
+      - "windows/**"
+      - "PROMPTS.md"
+      - "README.md"
+      - "README.en.md"
+      - "skills/codex-radar-sync/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/windows.yml"
+      - "windows/**"
+      - "PROMPTS.md"
+      - "README.md"
+      - "README.en.md"
+      - "skills/codex-radar-sync/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Windows x64 build, self-test, and package
+            runner: windows-2022
+            runtime: win-x64
+            architecture: x64
+          - label: Windows 11 ARM64 native build, self-test, and package
+            runner: windows-11-arm
+            runtime: win-arm64
+            architecture: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj
+
+      - name: Build and run offline regression suite
+        shell: pwsh
+        run: |
+          dotnet build .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-restore
+          dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --self-test
+          dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --ui-self-test
+
+      - name: Create self-contained release asset
+        shell: pwsh
+        run: .\windows\build.ps1 -Runtime '${{ matrix.runtime }}'
+
+      - name: Verify release contract and run packaged binary natively
+        shell: pwsh
+        run: .\windows\verify-release.ps1 -Runtime '${{ matrix.runtime }}' -RunSelfTest
+
+      - name: Upload verified package and validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodexRadarSentinel-Windows-${{ matrix.architecture }}
+          path: |
+            artifacts/windows/release/*-Windows-${{ matrix.architecture }}.zip
+            artifacts/windows/release/*-Windows-${{ matrix.architecture }}.sha256
+            artifacts/windows/validation-${{ matrix.architecture }}.json
+          if-no-files-found: error

@@ -108,6 +108,10 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 87 | [`Prompt-Id: 87 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+87%22&type=commits) | 将额度历史、布局显示控制与紧凑单行编辑器作为 v0.1.62 正式发布。 |
 | 88 | [`Prompt-Id: 88 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+88%22&type=commits) | 例行兼容检查发现 CodexRadar 更新重置雷达卡片结构，恢复状态、结论和说明解析并加强在线契约验证。 |
 | 89 | [`Prompt-Id: 89 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+89%22&type=commits) | 修复升级或重启后独立会话无登录态导致额度未知的问题，优先复用当前用户已登录的 Codex 受管会话，并保留安全回退。 |
+| 90 | [`Prompt-Id: 90 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+90%22&type=commits) | 增加原生 Windows 10/11 版本、平台隔离安装与右键退出，并持续补齐 macOS 数据与安全语义。 |
+| 91 | [`Prompt-Id: 91 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+91%22&type=commits) | 完善 Windows 本地启动、额度读取、响应性能、圆角底栏和公开安装说明。 |
+| 92 | [`Prompt-Id: 92 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+92%22&type=commits) | 修复长期运行刷新白屏，并提供通知区域图标与输入法左侧常驻任务栏文字两种状态位置。 |
+| 93 | [`Prompt-Id: 93 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+93%22&type=commits) | 对齐跨平台实时数据、额度历史、布局控制、重置卡安全与隐私边界，并补齐 Windows x64/ARM64 自动化验证。 |
 
 ## Prompts
 
@@ -701,4 +705,28 @@ commit 要求是可以点击的链接
 
 ```text
 修复应用升级或重启后本机额度偶尔显示为未知的问题：优先复用 Codex 桌面版已经登录的当前用户受管会话，在它不可用时安全回退到独立本机 app-server。不得读取、复制或缓存登录凭证；离线覆盖握手、分帧、失败回退和写操作安全边界，并用真实登录态只读验证额度，不消耗重置卡。
+```
+
+### 90. 原生 Windows 版本与完整功能对齐
+
+```text
+为 Windows 10 和 Windows 11 增加原生 Codex Radar 状态应用，完整对齐 macOS 版的数据、布局、通知、更新和安全功能。Windows 与 macOS 的安装包、安装路径和自动选择逻辑必须严格隔离；右键菜单要提供退出。
+```
+
+### 91. Windows 启动、额度与界面体验
+
+```text
+让 Windows 版可以从源码和安装包可靠启动，修复本机周额度与 5h 额度读取，并优化打开面板时的卡顿。底部操作按钮使用文字居中、不溢出的微软圆角风格；安装文档要解释默认分支脚本尚未发布时的 404，并确保公开文件不含开发机路径或账号数据。
+```
+
+### 92. 长期刷新稳定性与可选状态位置
+
+```text
+修复 Windows 版静置后定时刷新导致面板短暂白屏的问题。除可能进入折叠区的通知区域图标外，增加可选的常驻任务栏文字，让三组摘要无需点开即可显示在输入法和通知区域左侧；两种位置都要支持左键打开和右键退出，并进行视觉验证。
+```
+
+### 93. Windows 跨平台维护与发布验证
+
+```text
+以当前 macOS 行为为基准，补齐 Windows 对实时数据契约、19 组 Intelligence Efficiency、智能洞察、可交互额度历史、模块与子项显示控制，以及重置卡到期前自动使用的完整语义。额度历史只记录真实本机观测并采用当前用户专属、原子且损坏不覆盖的存储；隐藏模块不停止后台能力，关键状态仍会临时显示。重置卡持久化只能使用不可逆指纹，自动使用必须默认关闭并在异常时安全撤销；为 Windows 10/11 x64 与 Windows 11 ARM64 提供可复现的构建、视觉、包格式和原生运行验证，保持后续双平台同步维护。
 ```

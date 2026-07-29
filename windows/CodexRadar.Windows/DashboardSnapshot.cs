@@ -11,6 +11,7 @@ internal sealed record DashboardSnapshot
     public double? ShortWindowMinutes { get; init; }
     public DateTimeOffset? WeeklyResetsAt { get; init; }
     public DateTimeOffset? ShortResetsAt { get; init; }
+    public DateTimeOffset? QuotaObservedAt { get; init; }
     public string? PlanType { get; init; }
     public string? CreditsBalance { get; init; }
     public bool LimitReached { get; init; }
@@ -18,13 +19,20 @@ internal sealed record DashboardSnapshot
     public string? IqDate { get; init; }
     public string? IqStatus { get; init; }
     public string? ModelLabel { get; init; }
+    public string? ModelName { get; init; }
+    public string? ReasoningEffort { get; init; }
     public int? Passed { get; init; }
     public int? ValidTasks { get; init; }
     public string? WallTime { get; init; }
     public double? CostUsd { get; init; }
+    public double? AverageCostUsd { get; init; }
+    public double? AverageTaskMinutes { get; init; }
     public string? CacheHitRate { get; init; }
     public double? CommunityRating { get; init; }
     public int? CommunityRatingCount { get; init; }
+    public string? IqDataSourceUrl { get; init; }
+    public int? IqValidCells { get; init; }
+    public DateTimeOffset? IqSourceUpdatedAt { get; init; }
     public string? SchemaVersion { get; init; }
     public DateTimeOffset? CheckedAt { get; init; }
     public string? RadarStatus { get; init; }
@@ -60,11 +68,14 @@ internal sealed record DashboardSnapshot
     public long? QuotaRadarTotalTokens { get; init; }
     public double? QuotaRadarSevenDayTrendDelta { get; init; }
     public IReadOnlyList<ModelComparison> Comparisons { get; init; } = [];
+    public RadarInsightsEnvelope? RadarInsights { get; init; }
     public IReadOnlyList<ResetCredit> ResetCredits { get; init; } = [];
     public int? AvailableResetCredits { get; init; }
     public int? TotalEarnedResetCredits { get; init; }
     public DateTimeOffset? ResetCreditsCheckedAt { get; init; }
     public ResetCreditFailureInfo? ResetCreditFailure { get; init; }
+    public ResetCreditProtectionStatus ResetCreditProtection { get; init; } =
+        ResetCreditProtectionStatus.Disabled;
     public QuotaPacingSnapshot? QuotaPacing { get; init; }
     public IReadOnlyList<string> Errors { get; init; } = [];
 
@@ -123,9 +134,11 @@ internal sealed record QuotaEstimate(string Tier, double? FiveHourUsd, double? S
 internal sealed record ModelComparison(
     string Label, double? Iq, string? Status, int? Passed = null, int? Tasks = null,
     double? Rating = null, int? RatingCount = null, string? WallTime = null,
-    double? CostUsd = null, string? CacheHitRate = null);
+    double? CostUsd = null, string? CacheHitRate = null, string? Model = null,
+    string? Effort = null, double? AverageCostUsd = null, double? AverageMinutes = null,
+    string? LatestGradedAt = null);
 internal sealed record ResetCredit(
-    string Title, string Status, DateTimeOffset? GrantedAt, DateTimeOffset? ExpiresAt, string? IdSuffix,
+    string Title, string Status, DateTimeOffset? GrantedAt, DateTimeOffset? ExpiresAt, string? Fingerprint,
     string? ResetType = null, DateTimeOffset? RedeemStartedAt = null, DateTimeOffset? RedeemedAt = null)
 {
     public bool IsAvailable => string.Equals(Status, "available", StringComparison.OrdinalIgnoreCase);

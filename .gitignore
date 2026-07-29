@@ -6,3 +6,4 @@ DerivedData/
 /windows/**/obj/
 /artifacts/windows/
 /artifacts/ui-validation/
+/artifacts/build-check/

@@ -23,7 +23,14 @@ internal sealed class SettingsForm : Form
         MinimumSize = new Size(480, 540);
         StartPosition = FormStartPosition.CenterScreen;
         ShowInTaskbar = false;
-        Font = new Font("Segoe UI", 9f);
+        Font = new Font(
+            "Segoe UI",
+            settings.TextSize switch
+            {
+                DashboardTextSize.Medium => 9f,
+                DashboardTextSize.Large => 10f,
+                _ => 11f
+            });
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
         Build();
         ResumeLayout(true);
@@ -75,8 +82,14 @@ internal sealed class SettingsForm : Form
     public void ReloadLanguage()
     {
         if (IsDisposed) return;
+        var selectedIndex = _tabs.SelectedIndex;
         Text = T("Codex Radar Sentinel · 设置", "Codex Radar Sentinel · Settings");
         Build();
+        if (_tabs.TabCount > 0)
+            _tabs.SelectedIndex = Math.Clamp(
+                selectedIndex,
+                0,
+                _tabs.TabCount - 1);
     }
 
     private TabPage BuildGeneral()
@@ -107,9 +120,18 @@ internal sealed class SettingsForm : Form
 
     private TabPage BuildTray()
     {
-        var page = Page(T("托盘", "Tray"));
+        var page = Page(T("状态栏", "Status"));
         var body = Stack(page);
-        body.Controls.Add(Heading(T("托盘悬停摘要段", "Tray tooltip segments")));
+        body.Controls.Add(Heading(T("Windows 状态显示", "Windows status display")));
+        body.Controls.Add(ComboRow(T("显示位置", "Location"), new[]
+        {
+            T("通知区域图标（当前位置）", "Notification-area icon"),
+            T("任务栏文字（输入法左侧）", "Taskbar text (left of input)")
+        }, (int)_settings.StatusDisplayMode, index =>
+        {
+            _settings.StatusDisplayMode = (StatusDisplayMode)index; Changed();
+        }));
+        body.Controls.Add(Heading(T("摘要内容", "Summary segments")));
         var metrics = new CheckedListBox
         {
             Height = ScaleDynamic(105), Width = ScaleDynamic(440), CheckOnClick = true,
@@ -139,8 +161,9 @@ internal sealed class SettingsForm : Form
             index => { _settings.HorizontalPadding = (StatusBarHorizontalPadding)index; Changed(); }));
         body.Controls.Add(ComboRow(T("摘要字体", "Summary font"), new[] { T("正常", "Normal"), T("紧凑", "Compact"), T("更小", "Tiny") }, (int)_settings.FontScale,
             index => { _settings.FontScale = (StatusBarFontScale)index; Changed(); }));
-        body.Controls.Add(Caption(T("Windows 通知区域不支持常驻文字或逐段颜色；段值与分隔符作用于悬停摘要，留白与字号作用于面板标题。",
-            "The Windows notification area cannot show permanent or per-segment colored text; values and separators affect the tooltip, while padding and font size affect the dashboard summary.")));
+        body.Controls.Add(Caption(T(
+            "“任务栏文字”会把同一组摘要常驻显示在输入法/通知区域左侧；左键打开面板，右键可退出。它使用安全的无激活窗口，不修改 Explorer。选择“通知区域图标”时，图标是否收进折叠菜单由 Windows 决定。",
+            "Taskbar text keeps the same summary visible immediately left of the input/notification area; left-click opens the dashboard and right-click includes Exit. It uses a safe no-activate window and does not modify Explorer. Windows decides whether the notification-area icon is placed in overflow.")));
         return page;
     }
 
@@ -156,8 +179,8 @@ internal sealed class SettingsForm : Form
         body.Controls.Add(Check(T("使用 2026 中国节假日/调休", "Use 2026 China holidays"), _settings.UseChinaHolidays,
             value => { _settings.UseChinaHolidays = value; Changed(); }));
         body.Controls.Add(Caption(T(
-            "按时间：连续比例；每日：按天分配；留余：最后阶段释放 20%；工作日：工作日权重 1、周末/假日 0.35；先用：前半程使用 70%。策略同时影响面板“建议剩余”和可选托盘摘要段。",
-            "Time is continuous; Daily budgets by day; Reserve releases 20% near the end; Workdays weight weekdays as 1 and weekends/holidays as 0.35; Front-load spends 70% in the first half. The rule affects both Target left and the optional tray segment.")));
+            "按时间：连续比例；每日：按天分配；留余：最后阶段释放 20%；工作日：工作日权重 1、周末/假日 0.35；先用：前半程使用 70%。策略同时影响面板“建议剩余”和可选状态摘要段。",
+            "Time is continuous; Daily budgets by day; Reserve releases 20% near the end; Workdays weight weekdays as 1 and weekends/holidays as 0.35; Front-load spends 70% in the first half. The rule affects both Target left and the optional status segment.")));
         return page;
     }
 
@@ -170,6 +193,275 @@ internal sealed class SettingsForm : Form
             (int)_settings.Preview, index => { _settings.Preview = (DashboardPreview)index; SettingsChanged?.Invoke(this, EventArgs.Empty); }));
         body.Controls.Add(Caption(T("预览只改变显示，不会触发通知，也不会覆盖实时数据。", "Preview affects display only; it does not send notifications or replace live data.")));
         return page;
+    }
+
+    private TabPage BuildLayout()
+    {
+        var page = Page(T("布局", "Layout"));
+        var body = Stack(page);
+        body.Controls.Add(Heading(T("自定义面板布局", "Customize dashboard layout")));
+        body.Controls.Add(Caption(T(
+            "调整模块顺序，并在同一行选择是否显示、是否默认展开。子项跟随所属模块缩进显示。",
+            "Reorder sections, then choose on the same row what appears and opens by default. Nested items stay indented beneath their section.")));
+
+        var editor = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Width = ScaleDynamic(450),
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Margin = ScaleDynamic(new Padding(0, 2, 0, 2)),
+            BackColor = Color.Transparent
+        };
+        body.Controls.Add(editor);
+
+        var actions = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            Width = ScaleDynamic(450),
+            Margin = ScaleDynamic(new Padding(0, 8, 0, 0))
+        };
+        body.Controls.Add(actions);
+
+        void ReloadRows()
+        {
+            var previousLoading = _loading;
+            _loading = true;
+            editor.SuspendLayout();
+            try
+            {
+                foreach (var control in editor.Controls
+                             .Cast<Control>()
+                             .ToArray())
+                    control.Dispose();
+                editor.Controls.Clear();
+
+                var order = _settings.DashboardSectionOrder;
+                for (var index = 0; index < order.Count; index++)
+                {
+                    var section = order[index];
+                    var row = LayoutEditorRow(
+                        LayoutEditorLabel(section),
+                        _settings.IsDashboardSectionVisible(section),
+                        _settings.IsDashboardSectionExpanded(section),
+                        canMoveUp: index > 0,
+                        canMoveDown: index < order.Count - 1,
+                        nested: false);
+                    var show = (CheckBox)row.Controls["show"]!;
+                    var startOpen =
+                        (CheckBox)row.Controls["startOpen"]!;
+                    var moveUp =
+                        (Button)row.Controls["moveUp"]!;
+                    var moveDown =
+                        (Button)row.Controls["moveDown"]!;
+
+                    show.CheckedChanged += (_, _) =>
+                    {
+                        if (_loading) return;
+                        _settings.SetDashboardSectionVisible(
+                            section,
+                            show.Checked);
+                        startOpen.Enabled = show.Checked;
+                        Changed();
+                    };
+                    startOpen.CheckedChanged += (_, _) =>
+                    {
+                        if (_loading) return;
+                        _settings.SetDashboardSectionExpanded(
+                            section,
+                            startOpen.Checked);
+                        Changed();
+                    };
+                    moveUp.Click += (_, _) =>
+                    {
+                        _settings.MoveDashboardSection(section, -1);
+                        ReloadRows();
+                        Changed();
+                    };
+                    moveDown.Click += (_, _) =>
+                    {
+                        _settings.MoveDashboardSection(section, 1);
+                        ReloadRows();
+                        Changed();
+                    };
+                    editor.Controls.Add(row);
+
+                    foreach (var disclosure in
+                             DashboardLayout.Children(section))
+                    {
+                        var child = LayoutEditorRow(
+                            DisclosureEditorLabel(disclosure),
+                            _settings.IsDashboardDisclosureVisible(
+                                disclosure),
+                            _settings.IsDashboardDisclosureExpanded(
+                                disclosure),
+                            canMoveUp: false,
+                            canMoveDown: false,
+                            nested: true);
+                        var childShow =
+                            (CheckBox)child.Controls["show"]!;
+                        var childStartOpen =
+                            (CheckBox)child.Controls["startOpen"]!;
+                        childShow.CheckedChanged += (_, _) =>
+                        {
+                            if (_loading) return;
+                            _settings.SetDashboardDisclosureVisible(
+                                disclosure,
+                                childShow.Checked);
+                            childStartOpen.Enabled =
+                                childShow.Checked;
+                            Changed();
+                        };
+                        childStartOpen.CheckedChanged += (_, _) =>
+                        {
+                            if (_loading) return;
+                            _settings.SetDashboardDisclosureExpanded(
+                                disclosure,
+                                childStartOpen.Checked);
+                            Changed();
+                        };
+                        editor.Controls.Add(child);
+                    }
+                }
+            }
+            finally
+            {
+                editor.ResumeLayout(true);
+                _loading = previousLoading;
+            }
+        }
+
+        actions.Controls.Add(Button(T("恢复默认", "Restore defaults"), (_, _) =>
+        {
+            _settings.ResetDashboardLayout();
+            ReloadRows();
+            Changed();
+        }));
+        body.Controls.Add(Caption(T(
+            "隐藏只影响面板展示，不会停止额度历史记录、提醒或重置卡自动使用。当前结论、紧急提示和连接错误始终显示；需要处理的重置卡或更新状态会临时显示并展开。",
+            "Hiding changes only the dashboard. Quota-history recording, alerts, and reset-credit auto-use continue. Current results, urgent alerts, and connection errors always remain visible; reset-credit or update states that need attention temporarily appear expanded.")));
+        ReloadRows();
+        return page;
+    }
+
+    private TableLayoutPanel LayoutEditorRow(
+        string label,
+        bool visible,
+        bool expanded,
+        bool canMoveUp,
+        bool canMoveDown,
+        bool nested)
+    {
+        var row = new TableLayoutPanel
+        {
+            Width = ScaleDynamic(nested ? 420 : 440),
+            Height = ScaleDynamic(36),
+            ColumnCount = 5,
+            Margin = ScaleDynamic(new Padding(
+                nested ? 20 : 0,
+                2,
+                0,
+                2)),
+            Padding = ScaleDynamic(new Padding(
+                nested ? 5 : 8,
+                3,
+                5,
+                3)),
+            BackColor = nested
+                ? Color.FromArgb(247, 248, 250)
+                : Color.FromArgb(240, 242, 245),
+            AccessibleName = label
+        };
+        row.ColumnStyles.Add(new ColumnStyle(
+            SizeType.Percent,
+            100));
+        for (var column = 1; column < 5; column++)
+            row.ColumnStyles.Add(new ColumnStyle(
+                SizeType.AutoSize));
+
+        var title = new Label
+        {
+            Text = nested ? $"↳ {label}" : label,
+            AutoEllipsis = true,
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Font = new Font(
+                "Segoe UI Semibold",
+                Font.Size,
+                FontStyle.Bold),
+            UseMnemonic = false,
+            AccessibleName = label
+        };
+        var show = new CheckBox
+        {
+            Name = "show",
+            Text = T("显示", "Show"),
+            Checked = visible,
+            AutoSize = true,
+            Anchor = AnchorStyles.Right,
+            AccessibleName = T(
+                $"显示 {label}",
+                $"Show {label}")
+        };
+        var startOpen = new CheckBox
+        {
+            Name = "startOpen",
+            Text = T("默认展开", "Start open"),
+            Checked = expanded,
+            Enabled = visible,
+            AutoSize = true,
+            Anchor = AnchorStyles.Right,
+            AccessibleName = T(
+                $"{label} 默认展开",
+                $"Open {label} by default")
+        };
+        var moveUp = LayoutMoveButton(
+            "moveUp",
+            "↑",
+            canMoveUp,
+            T($"上移 {label}", $"Move {label} up"));
+        var moveDown = LayoutMoveButton(
+            "moveDown",
+            "↓",
+            canMoveDown,
+            T($"下移 {label}", $"Move {label} down"));
+        if (nested)
+        {
+            moveUp.Visible = false;
+            moveDown.Visible = false;
+        }
+
+        row.Controls.Add(title, 0, 0);
+        row.Controls.Add(show, 1, 0);
+        row.Controls.Add(startOpen, 2, 0);
+        row.Controls.Add(moveUp, 3, 0);
+        row.Controls.Add(moveDown, 4, 0);
+        return row;
+    }
+
+    private Button LayoutMoveButton(
+        string name,
+        string text,
+        bool enabled,
+        string accessibleName)
+    {
+        var button = new Button
+        {
+            Name = name,
+            Text = text,
+            Enabled = enabled,
+            Width = ScaleDynamic(29),
+            Height = ScaleDynamic(26),
+            Margin = ScaleDynamic(new Padding(3, 0, 0, 0)),
+            FlatStyle = FlatStyle.Flat,
+            TextAlign = ContentAlignment.MiddleCenter,
+            UseMnemonic = false,
+            AccessibleName = accessibleName
+        };
+        button.FlatAppearance.BorderColor =
+            Color.FromArgb(195, 201, 210);
+        return button;
     }
 
     private TabPage BuildUpdates()
@@ -292,6 +584,46 @@ internal sealed class SettingsForm : Form
         : value;
 
     private string T(string zh, string en) => _settings.Chinese ? zh : en;
+    private string SectionLabel(DashboardSection section) => section switch
+    {
+        DashboardSection.Quota => T("Codex 额度", "Codex Quota"),
+        DashboardSection.ModelIq => "Codex IQ",
+        DashboardSection.ResetCredits => T("重置卡与自动使用", "Reset credits & auto-use"),
+        DashboardSection.UsagePace => T("用量节奏", "Usage Pace"),
+        DashboardSection.Insights => T("CodexRadar 智能洞察", "CodexRadar Insights"),
+        DashboardSection.RadarDetails => T("更多 CodexRadar 信息", "More from CodexRadar"),
+        DashboardSection.TaskbarGuide => T("状态栏说明", "Taskbar guide"),
+        DashboardSection.DisplayAndAlerts => T("显示与提醒", "Display & alerts"),
+        DashboardSection.Updates => T("版本更新", "Updates"),
+        DashboardSection.Preview => T("调试预览", "Preview"),
+        _ => section.ToString()
+    };
+    private string LayoutEditorLabel(
+        DashboardSection section) =>
+        !_settings.Chinese
+            ? section switch
+            {
+                DashboardSection.ResetCredits =>
+                    "Reset credits",
+                DashboardSection.Insights =>
+                    "Insights",
+                DashboardSection.RadarDetails =>
+                    "Radar details",
+                _ => SectionLabel(section)
+            }
+            : SectionLabel(section);
+
+    private string DisclosureEditorLabel(
+        DashboardDisclosure disclosure) => disclosure switch
+    {
+        DashboardDisclosure.QuotaHistory =>
+            T("额度历史", "Quota history"),
+        DashboardDisclosure.ModelIqDetails =>
+            T("全部模型 IQ", "All model IQ"),
+        DashboardDisclosure.RadarInsightsDetails =>
+            T("场景推荐与降智预警", "Tips & alerts"),
+        _ => disclosure.ToString()
+    };
     private static void Open(string url)
     {
         try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }

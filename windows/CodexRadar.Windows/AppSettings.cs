@@ -8,19 +8,35 @@ internal sealed class AppSettings
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunName = "Codex Radar Sentinel";
-    private static readonly string SettingsDirectory = Path.Combine(
+    internal static readonly string SettingsDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CodexRadarSentinel");
     private static readonly string SettingsPath = Path.Combine(SettingsDirectory, "settings.json");
+    private static readonly object SaveGate = new();
     internal static readonly string InstallerFailureMarkerPath = Path.Combine(SettingsDirectory, "installer-failure.json");
 
     public bool Chinese { get; set; } = true;
     public DashboardTextSize TextSize { get; set; } = DashboardTextSize.Large;
     public bool PreciseIq { get; set; }
+    public StatusDisplayMode StatusDisplayMode { get; set; } = StatusDisplayMode.NotificationArea;
     public StatusBarIqDisplayMode IqDisplayMode { get; set; } = StatusBarIqDisplayMode.Raw;
     public bool ShowPercentSymbol { get; set; } = true;
     public StatusBarSeparator Separator { get; set; } = StatusBarSeparator.Slash;
     public StatusBarHorizontalPadding HorizontalPadding { get; set; } = StatusBarHorizontalPadding.System;
     public StatusBarFontScale FontScale { get; set; } = StatusBarFontScale.Normal;
+    public List<DashboardSection> DashboardSectionOrder { get; set; } =
+        [.. DashboardLayout.DefaultOrder];
+    public Dictionary<DashboardSection, bool> DashboardSectionExpansion { get; set; } =
+        DashboardLayout.NormalizeExpansion(null);
+    public Dictionary<DashboardSection, bool> DashboardSectionVisibility { get; set; } =
+        DashboardLayout.NormalizeVisibility(null);
+    public Dictionary<DashboardDisclosure, bool> DashboardDisclosureVisibility { get; set; } =
+        DashboardLayout.NormalizeDisclosureVisibility(null);
+    public bool QuotaHistoryExpanded { get; set; }
+    public QuotaHistoryRange QuotaHistoryRange { get; set; } =
+        QuotaHistoryRange.Hours24;
+    public bool ModelIqDetailsExpanded { get; set; }
+    public bool RadarInsightsDetailsExpanded { get; set; }
+    public bool LayoutDiscoveryTipDismissed { get; set; }
     public QuotaPacingStrategy PacingStrategy { get; set; } = QuotaPacingStrategy.TimeProportional;
     public bool UseChinaHolidays { get; set; } = true;
     public List<StatusMetric> SelectedStatusMetrics { get; set; } =
@@ -30,6 +46,7 @@ internal sealed class AppSettings
     public bool NotificationSound { get; set; }
     public bool AutomaticUpdates { get; set; } = true;
     public bool AutoResetCreditCheck { get; set; } = true;
+    public bool ResetCreditProtectionEnabled { get; set; }
     public DateTimeOffset? LastResetCreditCheck { get; set; }
     public List<ResetCredit> CachedResetCredits { get; set; } = [];
     public int? CachedAvailableResetCredits { get; set; }
@@ -46,23 +63,53 @@ internal sealed class AppSettings
     public static AppSettings Load()
     {
         AppSettings settings;
+        var legacyResetCreditIdentifierFound = false;
         try
         {
-            settings = File.Exists(SettingsPath)
-                ? JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new AppSettings()
-                : new AppSettings();
+            if (File.Exists(SettingsPath))
+            {
+                var json = File.ReadAllText(SettingsPath);
+                legacyResetCreditIdentifierFound = json.Contains(
+                    "\"IdSuffix\"", StringComparison.OrdinalIgnoreCase);
+                settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            }
+            else
+            {
+                settings = new AppSettings();
+            }
         }
         catch { settings = new AppSettings(); }
 
         settings.SelectedStatusMetrics ??= [];
+        settings.DashboardSectionOrder = DashboardLayout.NormalizeOrder(
+            settings.DashboardSectionOrder);
+        settings.DashboardSectionExpansion = DashboardLayout.NormalizeExpansion(
+            settings.DashboardSectionExpansion);
+        settings.DashboardSectionVisibility = DashboardLayout.NormalizeVisibility(
+            settings.DashboardSectionVisibility);
+        settings.DashboardDisclosureVisibility =
+            DashboardLayout.NormalizeDisclosureVisibility(
+                settings.DashboardDisclosureVisibility);
         settings.CachedResetCredits ??= [];
         settings.NotificationMemory ??= new NotificationMemory();
-        settings.CachedResetCredits = settings.CachedResetCredits.OfType<ResetCredit>().ToList();
+        if (!Enum.IsDefined(settings.StatusDisplayMode))
+            settings.StatusDisplayMode = StatusDisplayMode.NotificationArea;
+        if (!Enum.IsDefined(settings.QuotaHistoryRange))
+            settings.QuotaHistoryRange =
+                QuotaHistoryRange.Hours24;
+        var cachedResetCredits = settings.CachedResetCredits.OfType<ResetCredit>().ToList();
+        var invalidCachedFingerprintFound = cachedResetCredits.Any(
+            credit => !ResetCreditPrivacy.IsValidFingerprint(credit.Fingerprint));
+        settings.CachedResetCredits = cachedResetCredits
+            .Select(ResetCreditPrivacy.NormalizeCachedCredit)
+            .ToList();
         settings.SelectedStatusMetrics = Enum.GetValues<StatusMetric>()
             .Where(metric => settings.SelectedStatusMetrics.Contains(metric)).ToList();
         if (settings.SelectedStatusMetrics.Count == 0)
             settings.SelectedStatusMetrics = [StatusMetric.WeeklyQuota, StatusMetric.CodexIq, StatusMetric.Signal];
-        var changed = settings.ImportInstallerFailureMarker();
+        var changed = legacyResetCreditIdentifierFound
+                      || invalidCachedFingerprintFound
+                      || settings.ImportInstallerFailureMarker();
         if (settings.LastInstallerFailureVersion == AppUpdateService.CurrentVersion)
         {
             settings.LastInstallerFailureVersion = null;
@@ -103,16 +150,23 @@ internal sealed class AppSettings
 
     public void Save()
     {
-        Directory.CreateDirectory(SettingsDirectory);
-        var temporary = SettingsPath + $".{Environment.ProcessId}.tmp";
-        try
+        lock (SaveGate)
         {
-            File.WriteAllText(temporary, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
-            File.Move(temporary, SettingsPath, true);
-        }
-        finally
-        {
-            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
+            Directory.CreateDirectory(SettingsDirectory);
+            var temporary = SettingsPath + $".{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+            try
+            {
+                File.WriteAllText(
+                    temporary,
+                    JsonSerializer.Serialize(
+                        this,
+                        new JsonSerializerOptions { WriteIndented = true }));
+                File.Move(temporary, SettingsPath, true);
+            }
+            finally
+            {
+                try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
+            }
         }
     }
 
@@ -127,6 +181,116 @@ internal sealed class AppSettings
         LastResetCreditCheck = LastResetCreditCheck,
         LastResetCreditFailure = LastResetCreditFailure
     };
+
+    public bool IsDashboardSectionExpanded(DashboardSection section) =>
+        DashboardSectionExpansion.TryGetValue(section, out var expanded)
+            ? expanded
+            : DashboardLayout.DefaultExpanded.Contains(section);
+
+    public void SetDashboardSectionExpanded(DashboardSection section, bool expanded) =>
+        DashboardSectionExpansion[section] = expanded;
+
+    public bool IsDashboardSectionVisible(
+        DashboardSection section) =>
+        DashboardSectionVisibility.TryGetValue(
+            section,
+            out var visible)
+            ? visible
+            : true;
+
+    public void SetDashboardSectionVisible(
+        DashboardSection section,
+        bool visible) =>
+        DashboardSectionVisibility[section] = visible;
+
+    public bool IsDashboardDisclosureExpanded(
+        DashboardDisclosure disclosure) => disclosure switch
+    {
+        DashboardDisclosure.QuotaHistory =>
+            QuotaHistoryExpanded,
+        DashboardDisclosure.ModelIqDetails =>
+            ModelIqDetailsExpanded,
+        DashboardDisclosure.RadarInsightsDetails =>
+            RadarInsightsDetailsExpanded,
+        _ => false
+    };
+
+    public void SetDashboardDisclosureExpanded(
+        DashboardDisclosure disclosure,
+        bool expanded)
+    {
+        switch (disclosure)
+        {
+            case DashboardDisclosure.QuotaHistory:
+                QuotaHistoryExpanded = expanded;
+                break;
+            case DashboardDisclosure.ModelIqDetails:
+                ModelIqDetailsExpanded = expanded;
+                break;
+            case DashboardDisclosure.RadarInsightsDetails:
+                RadarInsightsDetailsExpanded = expanded;
+                break;
+        }
+    }
+
+    public bool IsDashboardDisclosureVisible(
+        DashboardDisclosure disclosure) =>
+        DashboardDisclosureVisibility.TryGetValue(
+            disclosure,
+            out var visible)
+            ? visible
+            : true;
+
+    public void SetDashboardDisclosureVisible(
+        DashboardDisclosure disclosure,
+        bool visible) =>
+        DashboardDisclosureVisibility[disclosure] =
+            visible;
+
+    public void MoveDashboardSection(DashboardSection section, int offset)
+    {
+        DashboardSectionOrder = DashboardLayout.NormalizeOrder(DashboardSectionOrder);
+        var source = DashboardSectionOrder.IndexOf(section);
+        if (source < 0) return;
+        var target = Math.Clamp(source + offset, 0, DashboardSectionOrder.Count - 1);
+        MoveDashboardSectionTo(
+            section,
+            target,
+            normalizeFirst: false);
+    }
+
+    public void MoveDashboardSectionTo(
+        DashboardSection section,
+        int targetIndex,
+        bool normalizeFirst = true)
+    {
+        if (normalizeFirst)
+            DashboardSectionOrder =
+                DashboardLayout.NormalizeOrder(
+                    DashboardSectionOrder);
+        var source = DashboardSectionOrder.IndexOf(section);
+        if (source < 0) return;
+        var target = Math.Clamp(
+            targetIndex,
+            0,
+            DashboardSectionOrder.Count - 1);
+        if (source == target) return;
+        DashboardSectionOrder.RemoveAt(source);
+        DashboardSectionOrder.Insert(target, section);
+    }
+
+    public void ResetDashboardLayout()
+    {
+        DashboardSectionOrder = [.. DashboardLayout.DefaultOrder];
+        DashboardSectionExpansion = DashboardLayout.NormalizeExpansion(null);
+        DashboardSectionVisibility =
+            DashboardLayout.NormalizeVisibility(null);
+        DashboardDisclosureVisibility =
+            DashboardLayout.NormalizeDisclosureVisibility(null);
+        QuotaHistoryExpanded = false;
+        ModelIqDetailsExpanded = false;
+        RadarInsightsDetailsExpanded = false;
+    }
 
     public static bool StartsWithWindows
     {

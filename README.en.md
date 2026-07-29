@@ -2,13 +2,15 @@
 
 [中文](README.md) | English
 
-A menu bar app for macOS 13 and later. It brings local Codex quota, usage pacing, reset-credit status, and public model-quality signals from [CodexRadar](https://codexradar.com/) into one compact, configurable panel.
+A native status app for macOS 13 and later, Windows 10 version 1809 and later, and Windows 11. It brings local Codex quota, usage pacing, reset-credit status, and public model-quality signals from [CodexRadar](https://codexradar.com/) into one compact, configurable panel.
 
 ![Codex Radar Sentinel menu bar](docs/assets/en/status-normal.png)
 
-[Latest release](https://github.com/WineChord/codex-radar/releases/latest) · [Features](#core-features) · [Privacy and security](#privacy-and-security) · [Run from source](#run-from-source)
+[Latest release](https://github.com/WineChord/codex-radar/releases/latest) · [Windows guide](windows/README.md) · [Features](#core-features) · [Privacy and security](#privacy-and-security) · [Run from source](#run-from-source)
 
 ## Install With Codex
+
+### macOS: install with Codex
 
 > **Recommended:** Send the text below to the Codex desktop app to download, verify, install, launch, and confirm the current version.
 
@@ -22,6 +24,16 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 Installation requires network access and permission to write to `/Applications`. On first launch, macOS may ask for notification permission; allow it to receive quota, Model IQ, and reset-credit auto-use alerts.
 
 You can also install manually from [GitHub Releases](https://github.com/WineChord/codex-radar/releases/latest).
+
+### Windows: install with Codex
+
+Windows and macOS use non-overlapping asset names and install locations. Send the prompt below to Codex Desktop on Windows. The default is a per-user install and does not require administrator access.
+
+```text
+Install Codex Radar Sentinel for Windows only: confirm this PC runs Windows 10 version 1809+ or Windows 11 and detect x64 versus ARM64. Download and inspect https://raw.githubusercontent.com/WineChord/codex-radar/main/windows/install.ps1; allow it to select only the unique CodexRadarSentinel-<version>-Windows-<architecture>.zip and same-name .sha256 for this PC from https://github.com/WineChord/codex-radar/releases/latest. Never use a .dmg, a ZIP containing -macOS, or the other architecture. After verifying the release SHA256, the package's platform=windows/runtime manifest, and the executable SHA256, install for the current user in %LOCALAPPDATA%\Programs\CodexRadarSentinel, create the Start Menu shortcut, launch it, and confirm the process plus either its notification-area icon or taskbar text. Stop if there is no unique matching Windows package; ask me before any required permission.
+```
+
+Windows offers two optional status locations: a normal notification-area icon, which Windows may place in the `^` overflow, and always-visible taskbar text immediately left of the input/notification area. Both support left-click to open the panel and right-click to exit. See the [Windows guide](windows/README.md) for direct installation, local launch, uninstall, and compatibility validation.
 
 ## News
 
@@ -84,7 +96,7 @@ See [GitHub Releases](https://github.com/WineChord/codex-radar/releases) for the
 | Alerts and updates | Notifies for quota, recovery, low IQ, and auto-use results; verifies update assets with SHA256. |
 | Personalization | Supports two interface languages, font sizes, section and nested-item order, visibility and default expansion, menu-bar segments, and display formats. |
 
-## Menu Bar Meaning
+## Status Summary Meaning
 
 The default title stays intentionally short:
 
@@ -95,29 +107,31 @@ The default title stays intentionally short:
 | Segment | Meaning |
 | --- | --- |
 | `96%` | Local weekly Codex quota remaining. |
-| `112` | Codex IQ; the menu bar uses a whole number by default while the panel keeps the precise value. |
+| `112` | Codex IQ; the status summary uses a whole number by default while the panel keeps the precise value. |
 | `ok` | CodexRadar model-quality state; low IQ appears as `low`. |
 
 Optional segments and controls include:
 
 - `5h`: available when local Codex returns a 5-hour short window and hidden automatically while paused.
 - `Pace`: shows the weekly quota that should remain now, such as `R80%`.
-- `Decimal IQ in menu bar`: keeps the precise IQ in the title.
-- `Menu bar advanced`: adjusts separators, side padding, font scale, `/10` style, and percent signs.
+- `Decimal IQ in status summary`: keeps precise IQ in the macOS menu bar or Windows taskbar text.
+- `Status summary advanced`: adjusts separators, side padding, font scale, `/10` style, and percent signs.
 
 ## Status States
 
-These images are rendered by the app in an isolated preview environment. They contain no live account data or unrelated menu-bar content.
+These images are rendered by the macOS app in an isolated preview environment. They contain no live account data or unrelated menu-bar content. Windows uses the same summary semantics and can switch between a notification-area icon and persistent taskbar text.
 
 | Normal | Low IQ | Limit reached | Custom |
 | --- | --- | --- | --- |
 | ![Normal status](docs/assets/en/status-normal.png) | ![Low IQ status](docs/assets/en/status-quality-low.png) | ![Limit reached](docs/assets/en/status-limit.png) | ![Custom status](docs/assets/en/status-custom.png) |
 
-## Full Menu
+## Full macOS Menu
 
 <img src="docs/assets/en/menu-full.png" width="390" alt="Codex Radar Sentinel full menu">
 
 The default order leads with the current conclusion, local quota, Codex IQ, reset-credit summary, usage pace, and Insights. Notices, community notes, radar detail, and low-frequency settings stay collapsed until requested. Critical alerts remain visible, and reset-credit or update detail opens automatically when it needs attention. Refresh, Radar, Codex, GitHub, Layout, and Quit stay fixed at the bottom. A dismissible, one-time Layout tip appears above the toolbar.
+
+The Windows dashboard uses the same section order, expansion state, and safety entry points. See the [Windows guide](windows/README.md) for native settings, taskbar behavior, and visual-validation instructions.
 
 ## Using the App
 
@@ -177,10 +191,11 @@ If verification or installation fails, the current version stays in place and th
 
 ## Privacy and Security
 
-- Local quota prefers the current user's already signed-in Codex managed session, then falls back to an independent local app-server. The quota-reading path never reads, copies, or caches sign-in credentials, and never uploads quota to CodexRadar.
-- Quota history stays on the Mac and contains only sample times, weekly quota remaining percentages, and server reset times for up to 31 days. It stores no account identity, access tokens, or request contents and is never uploaded.
+- On macOS, local quota prefers the current user's already signed-in Codex managed session and falls back to an independent local app-server. On Windows, quota comes from the current user's local Codex app-server. Neither path reads, copies, or caches sign-in credentials or uploads quota to CodexRadar.
+- Quota history stays on the device and contains only sample times, weekly quota remaining percentages, and server reset times for up to 31 days. It stores no account identity, access tokens, or request contents and is never uploaded. Windows protects the file with a current-user ACL, an exclusive lock, and atomic replacement.
 - Reset-credit expiry checks use the local Codex sign-in state only for the corresponding ChatGPT request. Credentials are not cached, logged, or sent to CodexRadar or GitHub.
 - Local cache stores only credit status, issue time, expiry time, and sanitized identifiers—never access tokens, cookies, email addresses, or full credit IDs.
+- On Windows, raw credit IDs become irreversible full SHA-256 fingerprints and the UI shows at most the first eight characters. Legacy suffix fields are migrated and overwritten at load time.
 - Auto-use before expiry works only after explicit opt-in and binds authorization to the current account and visible credit set. The target, authorization, and clock continuity are rechecked before every write.
 - Uncertain results reconcile read only first. The same unresolved operation keeps one idempotency key to avoid duplicate use.
 - Turning auto-use off prevents further retries or switching to another credit. A prior unresolved result must be reconciled before auto-use can be enabled again.
@@ -199,13 +214,21 @@ When a public endpoint is unavailable or returns an unknown shape, the app retai
 
 ## Manual Install
 
+### macOS
+
 1. Download the `.dmg` from the [latest GitHub Release](https://github.com/WineChord/codex-radar/releases/latest).
 2. Open the image and drag `Codex Radar Sentinel.app` into `Applications`.
 3. Launch the app and confirm the version in the update section of the menu.
 
 The `.zip` contains the same app for manual copying or automated installation.
 
+### Windows
+
+Download the one matching `CodexRadarSentinel-<version>-Windows-x64.zip` or `-Windows-arm64.zip` and same-name `.sha256` from the latest Release, verify it, and extract it; or use the inspected [`windows/install.ps1`](windows/install.ps1) for a per-user install, Start Menu shortcut, and launch check. Never substitute a macOS asset or the other architecture. See the [Windows installation guide](windows/README.md) for complete steps.
+
 ## Run From Source
+
+### macOS
 
 Build a standard macOS app:
 
@@ -226,7 +249,15 @@ If Codex is installed outside its default location:
 CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```
 
+### Windows
+
+```powershell
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release
+```
+
 ## Development and Verification
+
+macOS:
 
 ```bash
 swift test
@@ -249,8 +280,16 @@ Update the menu-bar and full-menu screenshots:
 
 The screenshot script uses isolated, non-live previews. It does not read live account data or change the installed app's settings.
 
+Windows:
+
+```powershell
+dotnet build .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --self-test
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --ui-self-test
+```
+
 ## Credits
 
-Thanks to [CodexRadar](https://codexradar.com/) for publishing public Codex radar, model-quality, and community signals. This app combines those public signals with local Codex status in a macOS menu-bar interface.
+Thanks to [CodexRadar](https://codexradar.com/) for publishing public Codex radar, model-quality, and community signals. This app combines those public signals with local Codex status in macOS menu-bar and Windows status interfaces.
 
 Codex Radar Sentinel is not affiliated with CodexRadar or OpenAI.

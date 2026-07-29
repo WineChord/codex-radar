@@ -4,12 +4,14 @@ namespace CodexRadar.Windows;
 
 internal enum DashboardTextSize { Medium, Large, ExtraLarge }
 internal enum StatusMetric { WeeklyQuota, ShortQuota, QuotaPace, CodexIq, Signal }
+internal enum StatusDisplayMode { NotificationArea, TaskbarText }
 internal enum StatusBarIqDisplayMode { Raw, DividedBy10Integer, DividedBy10Decimal }
 internal enum StatusBarSeparator { Slash, NarrowSlash, ThinSpace, Dot, None }
 internal enum StatusBarHorizontalPadding { System, Compact, Tight }
 internal enum StatusBarFontScale { Normal, Compact, Tiny }
 internal enum QuotaPacingStrategy { TimeProportional, SevenDay, ReserveTwenty, WorkdayWeighted, FrontLoaded }
 internal enum QuotaPacingStatus { UnderTarget, OnPace, OverTarget }
+internal enum QuotaHistoryRange { Hours24, Days7, Days30 }
 internal enum DashboardPreview { Live, QualityNormal, QualityLow, SpeedWindow, ResetConfirmed, Blocked }
 
 internal sealed record NotificationMemory

@@ -44,6 +44,9 @@ internal static partial class CodexRadarHtmlParser
 
     private static PublicRadarData? ParseModelIq(string html, DateTimeOffset checkedAt)
     {
+        var distributed = ParseDistributedModelIq(html);
+        if (distributed is not null) return distributed;
+
         var snapshots = new List<HomepageIq>();
         foreach (Match match in IqTitleRegex().Matches(html))
         {
@@ -72,10 +75,51 @@ internal static partial class CodexRadarHtmlParser
         return new PublicRadarData
         {
             IqDate = latest.Date(checkedAt.Year), IqScore = latest.Score, IqStatus = IqStatus(latest.Score),
-            ModelLabel = latest.Label, Passed = latest.Passed, ValidTasks = latest.Tasks,
+            ModelLabel = latest.Label, ModelName = latest.Model, ReasoningEffort = latest.Effort,
+            Passed = latest.Passed, ValidTasks = latest.Tasks,
             CostUsd = latest.Cost, WallTime = latest.WallSeconds is int seconds ? $"{Math.Max(1, seconds / 60)} min" : null,
             CacheHitRate = latest.CacheRate is double displayCache ? $"{displayCache:0.0}%" : null,
             Comparisons = comparisons
+        };
+    }
+
+    private static PublicRadarData? ParseDistributedModelIq(string html)
+    {
+        var chart = Capture(@"<div\s+class=[""']model-iq-chart-view[""']\s+data-model-iq-chart-view=[""']iq[""']>(.*?)</div>", html);
+        if (chart is null) return null;
+        var snapshots = Matches(
+                @"<circle[^>]+data-model-key=[""']([^""']+)[""'][^>]+data-model-iq-tooltip-key=[""']iq\|([^|""']+)\|[^""']+[""'][^>]+aria-label=[""']([^""']+)[""'][^>]*>",
+                chart)
+            .Select(groups => groups.Length == 3
+                ? DistributedHomepageIq.Parse(groups[0], groups[1], Clean(groups[2]))
+                : null)
+            .Where(snapshot => snapshot is not null)
+            .Cast<DistributedHomepageIq>()
+            .ToArray();
+        if (snapshots.Length == 0) return null;
+        var latestByModel = snapshots.GroupBy(snapshot => snapshot.ModelKey)
+            .Select(group => group.MaxBy(snapshot => snapshot.TimestampDate)!)
+            .ToArray();
+        var primary = latestByModel.FirstOrDefault(snapshot => snapshot.ModelKey == "gpt_56_sol_max")
+                      ?? latestByModel.MaxBy(snapshot => snapshot.TimestampDate);
+        if (primary is null) return null;
+        return new PublicRadarData
+        {
+            IqDate = primary.Timestamp,
+            IqScore = primary.Score,
+            IqStatus = IqStatus(primary.Score),
+            ModelLabel = primary.Label,
+            ModelName = primary.Model,
+            ReasoningEffort = primary.Effort,
+            Passed = primary.Passed,
+            ValidTasks = primary.Tasks,
+            AverageCostUsd = primary.AverageCostUsd,
+            AverageTaskMinutes = primary.AverageTaskMinutes,
+            CacheHitRate = $"{primary.CacheHitRate:0.0}%",
+            Comparisons = latestByModel.Where(snapshot => snapshot.ModelKey != primary.ModelKey)
+                .Select(snapshot => snapshot.Comparison()).ToArray(),
+            IqDataSourceUrl = "https://deng.codexradar.com",
+            IqSourceUpdatedAt = primary.TimestampDate
         };
     }
 
@@ -161,6 +205,94 @@ internal static partial class CodexRadarHtmlParser
                 var rank = effort.Contains("xhigh") ? 3 : effort.Contains("high") ? 2 : effort.Contains("medium") ? 1 : 0;
                 return (int)(version * 10) * 10 + rank;
             }
+        }
+    }
+
+    private sealed record DistributedHomepageIq(
+        string ModelKey,
+        string Timestamp,
+        string Label,
+        string? Model,
+        string? Effort,
+        double Score,
+        int Passed,
+        int Tasks,
+        double AverageCostUsd,
+        int AverageTaskMinutes,
+        double CacheHitRate)
+    {
+        private static readonly Regex AriaLabelRegex = new(
+            @"^[^\s]+\s+(.+?):\s*IQ指数\s*([0-9]+(?:\.[0-9]+)?),\s*(\d+)/(\d+),\s*平均费用\s*\$([0-9]+(?:\.[0-9]+)?),\s*平均耗时\s*(\d+)分钟,\s*cache命中率\s*([0-9]+(?:\.[0-9]+)?)%$",
+            RegexOptions.CultureInvariant);
+
+        public DateTimeOffset TimestampDate => RadarJson.Date(Timestamp) ?? DateTimeOffset.MinValue;
+
+        public static DistributedHomepageIq? Parse(
+            string modelKey,
+            string timestamp,
+            string ariaLabel)
+        {
+            var match = AriaLabelRegex.Match(ariaLabel);
+            if (!match.Success
+                || !double.TryParse(match.Groups[2].Value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var score)
+                || !int.TryParse(match.Groups[3].Value, out var passed)
+                || !int.TryParse(match.Groups[4].Value, out var tasks)
+                || !double.TryParse(match.Groups[5].Value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var cost)
+                || !int.TryParse(match.Groups[6].Value, out var minutes)
+                || !double.TryParse(match.Groups[7].Value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var cache))
+                return null;
+            var (model, effort, label) = ModelParts(modelKey);
+            return new DistributedHomepageIq(
+                modelKey,
+                timestamp,
+                label ?? match.Groups[1].Value,
+                model,
+                effort,
+                score,
+                passed,
+                tasks,
+                cost,
+                minutes,
+                cache);
+        }
+
+        public ModelComparison Comparison() => new(
+            Label,
+            Score,
+            IqStatus(Score),
+            Passed,
+            Tasks,
+            CacheHitRate: $"{CacheHitRate:0.0}%",
+            Model: Model,
+            Effort: Effort,
+            AverageCostUsd: AverageCostUsd,
+            AverageMinutes: AverageTaskMinutes,
+            LatestGradedAt: Timestamp);
+
+        private static (string? Model, string? Effort, string? Label) ModelParts(string modelKey)
+        {
+            var parts = modelKey.Split('_', StringSplitOptions.RemoveEmptyEntries).ToList();
+            if (parts.LastOrDefault() == "distributed") parts.RemoveAt(parts.Count - 1);
+            if (parts.Count < 3 || parts[0] != "gpt" || parts[1].Length < 2)
+                return (null, null, null);
+            var version = $"{parts[1][0]}.{parts[1][1..]}";
+            var families = new HashSet<string>(["sol", "terra", "luna"]);
+            var family = parts.Count >= 4 && families.Contains(parts[2]) ? parts[2] : null;
+            var effortIndex = family is null ? 2 : 3;
+            if (effortIndex >= parts.Count) return (null, null, null);
+            var effort = parts[effortIndex];
+            var model = $"gpt-{version}" + (family is null ? "" : $"-{family}");
+            var familyLabel = family is null ? null
+                : char.ToUpperInvariant(family[0]) + family[1..];
+            var label = string.Join(" ", new[] { $"GPT-{version}", familyLabel, effort }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+            return (model, effort, label);
         }
     }
 }

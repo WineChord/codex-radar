@@ -126,6 +126,80 @@ internal sealed class AppServerClient : IAsyncDisposable
         return ParseRateLimits(result.RootElement);
     }
 
+    public async Task<CodexAccountIdentity> ReadAccountAsync(
+        CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
+            using var result = await RequestAsync(
+                "account/read", new { refreshToken = false }, cancellationToken)
+                .ConfigureAwait(false);
+            return CodexAccountIdentity.Parse(result.RootElement);
+        }
+        catch
+        {
+            Stop();
+            throw;
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task<ProtectionRateLimitResponse> ReadProtectionRateLimitsAsync(
+        CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
+            using var result = await RequestAsync(
+                "account/rateLimits/read", null, cancellationToken)
+                .ConfigureAwait(false);
+            return ProtectionRateLimitResponse.Parse(result.RootElement);
+        }
+        catch
+        {
+            Stop();
+            throw;
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task<ResetCreditConsumeOutcome> ConsumeResetCreditAsync(
+        string creditId,
+        string idempotencyKey,
+        Action<Action> authorizedDispatch,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(creditId))
+            throw new ArgumentException("Reset credit ID must not be empty.", nameof(creditId));
+        if (!Guid.TryParse(idempotencyKey, out _))
+            throw new ArgumentException("Reset credit idempotency key must be a UUID.", nameof(idempotencyKey));
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_process is not { HasExited: false } || !_initialized)
+                throw new ResetCreditPreDispatchException(
+                    "The verified Codex app-server session ended before dispatch.");
+            using var result = await RequestAsync(
+                    "account/rateLimitResetCredit/consume",
+                    new { idempotencyKey, creditId },
+                    cancellationToken,
+                    authorizedDispatch)
+                .ConfigureAwait(false);
+            var outcome = result.RootElement.String("outcome");
+            return Enum.TryParse<ResetCreditConsumeOutcome>(outcome, true, out var parsed)
+                ? parsed
+                : throw new InvalidDataException("Codex returned an unknown reset-credit outcome.");
+        }
+        finally { _gate.Release(); }
+    }
+
     internal static LocalQuotaResult ParseRateLimits(JsonElement root)
     {
         JsonElement selected;
@@ -256,7 +330,48 @@ internal sealed class AppServerClient : IAsyncDisposable
         _initialized = true;
     }
 
-    private async Task<JsonDocument> RequestAsync(string method, object? parameters, CancellationToken cancellationToken)
+    private async Task EnsureStartedAsync(CancellationToken cancellationToken)
+    {
+        if (_process is { HasExited: false } && _initialized) return;
+        Stop();
+        var executables = _cachedExecutables ??= FindCodexBinaries();
+        if (executables.Count == 0)
+        {
+            _cachedExecutables = null;
+            throw new FileNotFoundException(
+                "未找到 Codex CLI。请安装 Codex，或通过 CODEX_RADAR_CODEX_PATH 指定 codex.exe。\n" +
+                "Codex CLI was not found. Set CODEX_RADAR_CODEX_PATH to codex.exe.");
+        }
+
+        var failures = new List<string>();
+        foreach (var executable in executables.OrderByDescending(path =>
+                     string.Equals(path, _preferredExecutable, StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                await StartAsync(executable, cancellationToken).ConfigureAwait(false);
+                _runningExecutable = executable;
+                _preferredExecutable = executable;
+                return;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) when (ShouldTryNextStartCandidate(ex))
+            {
+                failures.Add($"{Path.GetFileName(executable)}: {ex.Message}");
+                Stop();
+            }
+        }
+        _cachedExecutables = null;
+        _preferredExecutable = null;
+        throw new InvalidOperationException(
+            "Codex app-server candidates failed: " + string.Join("; ", failures.Take(4)));
+    }
+
+    private async Task<JsonDocument> RequestAsync(
+        string method,
+        object? parameters,
+        CancellationToken cancellationToken,
+        Action<Action>? authorizedDispatch = null)
     {
         var process = _process;
         var input = _input;
@@ -265,7 +380,30 @@ internal sealed class AppServerClient : IAsyncDisposable
             throw new InvalidOperationException("Codex app-server 不可用");
         var id = _nextId++;
         var request = parameters is null ? new { id, method } : (object)new { id, method, @params = parameters };
-        await input.WriteLineAsync(JsonSerializer.Serialize(request));
+        var serialized = JsonSerializer.Serialize(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (authorizedDispatch is null)
+        {
+            await input.WriteLineAsync(serialized);
+        }
+        else
+        {
+            try
+            {
+                authorizedDispatch(() =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    input.WriteLine(serialized);
+                });
+            }
+            catch (ResetCreditAuthorizationException) { throw; }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                throw new ResetCreditPreDispatchException(
+                    "Reset-credit dispatch authorization could not be verified.", ex);
+            }
+        }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));

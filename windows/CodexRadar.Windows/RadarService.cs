@@ -11,9 +11,24 @@ internal sealed class RadarService : IAsyncDisposable
         BaseAddress = new Uri("https://codexradar.com/"),
         Timeout = TimeSpan.FromSeconds(15)
     };
+    private readonly HttpClient _insightsHttp = new(new HttpClientHandler
+    {
+        UseCookies = false
+    })
+    {
+        Timeout = TimeSpan.FromSeconds(15)
+    };
     private readonly AppServerClient _appServer = new();
+    private readonly SemaphoreSlim _insightsGate = new(1, 1);
+    private long? _lastInsightsFetchTick;
+    private RadarInsightsEnvelope? _lastRadarInsights;
 
-    public RadarService() => _http.DefaultRequestHeaders.UserAgent.ParseAdd($"CodexRadarSentinel-Windows/{AppUpdateService.CurrentVersion}");
+    public RadarService()
+    {
+        var userAgent = $"CodexRadarSentinel-Windows/{AppUpdateService.CurrentVersion}";
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+        _insightsHttp.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+    }
 
     public Task<DashboardSnapshot> RefreshAsync(AppSettings settings, CancellationToken cancellationToken) =>
         RefreshAsync(settings, null, cancellationToken);
@@ -57,12 +72,13 @@ internal sealed class RadarService : IAsyncDisposable
     {
         var currentTask = _http.GetStringAsync("current.json", cancellationToken);
         var ratingsTask = ReadRatingsAsync(cancellationToken);
+        var intelligenceTask = ReadIntelligenceEfficiencyAsync(cancellationToken);
+        var insightsTask = ReadRadarInsightsAsync(cancellationToken);
         var body = await currentTask.ConfigureAwait(false);
         PublicRadarData current;
         if (body.TrimStart().StartsWith('<'))
         {
             current = CodexRadarHtmlParser.Parse(body);
-            if (current.IqScore is null) throw new InvalidDataException("CodexRadar homepage did not include readable Model IQ data.");
         }
         else
         {
@@ -81,8 +97,61 @@ internal sealed class RadarService : IAsyncDisposable
                 catch { /* JSON remains authoritative when the optional homepage fallback fails. */ }
             }
         }
+        var intelligence = await intelligenceTask.ConfigureAwait(false);
+        if (intelligence is not null)
+            current = IntelligenceEfficiencyParser.Merge(current, intelligence);
+        if (current.IqScore is null)
+            throw new InvalidDataException("CodexRadar did not include readable Model IQ data.");
         var ratings = await ratingsTask.ConfigureAwait(false);
-        return ApplyRatings(current, ratings);
+        current = ApplyRatings(current, ratings);
+        return current with { RadarInsights = await insightsTask.ConfigureAwait(false) };
+    }
+
+    private async Task<IntelligenceEfficiencyEnvelope?> ReadIntelligenceEfficiencyAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var body = await _http.GetStringAsync(
+                "data/intelligence-efficiency.json", cancellationToken).ConfigureAwait(false);
+            return IntelligenceEfficiencyParser.Parse(body);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch { return null; }
+    }
+
+    private async Task<RadarInsightsEnvelope?> ReadRadarInsightsAsync(
+        CancellationToken cancellationToken)
+    {
+        await _insightsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var tick = Environment.TickCount64;
+            if (_lastInsightsFetchTick is long previousTick)
+            {
+                var elapsed = tick - previousTick;
+                if (elapsed >= 0 && elapsed < TimeSpan.FromMinutes(10).TotalMilliseconds)
+                    return _lastRadarInsights;
+            }
+            _lastInsightsFetchTick = tick;
+            try
+            {
+                var body = await _insightsHttp.GetStringAsync(
+                    "https://api.codexradar.com/api/v1/radar-insights",
+                    cancellationToken).ConfigureAwait(false);
+                var candidate = RadarInsightsParser.Parse(body);
+                if (RadarInsightsParser.ShouldAccept(_lastRadarInsights, candidate))
+                    _lastRadarInsights = candidate;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch
+            {
+                // Insights are supplemental. Keep the last valid response on
+                // endpoint, schema, decoding, or timestamp-regression failure.
+            }
+            return _lastRadarInsights;
+        }
+        finally { _insightsGate.Release(); }
     }
 
     private async Task<IReadOnlyList<ModelRatingInfo>> ReadRatingsAsync(CancellationToken cancellationToken)
@@ -106,6 +175,7 @@ internal sealed class RadarService : IAsyncDisposable
     {
         var modelIq = root.Object("model_iq");
         var latest = modelIq?.Object("latest");
+        var dataSource = modelIq?.Object("data_source");
         var comparisons = new List<ModelComparison>();
         if (modelIq?.Object("comparisons") is JsonElement comparisonMap)
         {
@@ -176,9 +246,17 @@ internal sealed class RadarService : IAsyncDisposable
             CheckedAt = RadarJson.Date(root.String("checked_at", "monitored_at")),
             RadarStatus = root.String("status"), RecommendedAction = action,
             IqDate = latest?.String("date"), IqScore = latest?.Number("iq_score", "score"), IqStatus = latest?.String("status"),
-            ModelLabel = latest is null ? null : ModelName(latest.Value), Passed = latest?.Int32("passed"),
+            ModelLabel = latest is null ? null : ModelName(latest.Value),
+            ModelName = latest?.String("model"), ReasoningEffort = latest?.String("reasoning_effort"),
+            Passed = latest?.Int32("passed"),
             ValidTasks = latest?.Int32("valid_tasks", "tasks"), WallTime = latest?.String("wall_time_human") ?? Minutes(latest?.Int32("wall_seconds")),
-            CostUsd = latest?.Number("cost_usd"), CacheHitRate = CacheRate(latest), Comparisons = comparisons,
+            CostUsd = latest?.Number("cost_usd"), AverageCostUsd = latest?.Number("average_cost_usd"),
+            AverageTaskMinutes = latest?.Number("average_task_seconds") is double averageSeconds
+                ? averageSeconds / 60
+                : ParseMinutes(latest?.String("average_task_time_human")),
+            CacheHitRate = CacheRate(latest), Comparisons = comparisons,
+            IqDataSourceUrl = dataSource?.String("url"), IqValidCells = dataSource?.Int32("valid_cells"),
+            IqSourceUpdatedAt = RadarJson.Date(dataSource?.String("checked_at") ?? modelIq?.String("updated_at")),
             WindowOpen = windowOpen, WindowId = lastWindow?.String("id"), WindowStatus = windowStatus,
             WindowTitle = lastWindow?.String("title"), WindowSummary = lastWindow?.String("summary", "message"),
             WindowHuman = windowHuman, WindowScope = lastWindow?.String("scope"),
@@ -202,10 +280,17 @@ internal sealed class RadarService : IAsyncDisposable
     {
         IqDate = current.IqDate ?? homepage.IqDate, IqScore = current.IqScore ?? homepage.IqScore,
         IqStatus = current.IqStatus ?? homepage.IqStatus, ModelLabel = current.ModelLabel ?? homepage.ModelLabel,
+        ModelName = current.ModelName ?? homepage.ModelName,
+        ReasoningEffort = current.ReasoningEffort ?? homepage.ReasoningEffort,
         Passed = current.Passed ?? homepage.Passed, ValidTasks = current.ValidTasks ?? homepage.ValidTasks,
         WallTime = current.WallTime ?? homepage.WallTime, CostUsd = current.CostUsd ?? homepage.CostUsd,
+        AverageCostUsd = current.AverageCostUsd ?? homepage.AverageCostUsd,
+        AverageTaskMinutes = current.AverageTaskMinutes ?? homepage.AverageTaskMinutes,
         CacheHitRate = current.CacheHitRate ?? homepage.CacheHitRate,
         Comparisons = current.Comparisons.Count > 0 ? current.Comparisons : homepage.Comparisons,
+        IqDataSourceUrl = current.IqDataSourceUrl ?? homepage.IqDataSourceUrl,
+        IqValidCells = current.IqValidCells ?? homepage.IqValidCells,
+        IqSourceUpdatedAt = current.IqSourceUpdatedAt ?? homepage.IqSourceUpdatedAt,
         ResetRadarTitle = current.ResetRadarTitle ?? homepage.ResetRadarTitle,
         ResetRadarUpdatedLabel = current.ResetRadarUpdatedLabel ?? homepage.ResetRadarUpdatedLabel,
         ResetRadarCards = current.ResetRadarCards.Count > 0 ? current.ResetRadarCards : homepage.ResetRadarCards,
@@ -243,9 +328,14 @@ internal sealed class RadarService : IAsyncDisposable
     {
         SchemaVersion = data.SchemaVersion, CheckedAt = data.CheckedAt, RadarStatus = data.RadarStatus,
         RecommendedAction = data.RecommendedAction, IqDate = data.IqDate, IqScore = data.IqScore, IqStatus = data.IqStatus,
-        ModelLabel = data.ModelLabel, Passed = data.Passed, ValidTasks = data.ValidTasks, WallTime = data.WallTime,
-        CostUsd = data.CostUsd, CacheHitRate = data.CacheHitRate, CommunityRating = data.CommunityRating,
+        ModelLabel = data.ModelLabel, ModelName = data.ModelName, ReasoningEffort = data.ReasoningEffort,
+        Passed = data.Passed, ValidTasks = data.ValidTasks, WallTime = data.WallTime,
+        CostUsd = data.CostUsd, AverageCostUsd = data.AverageCostUsd,
+        AverageTaskMinutes = data.AverageTaskMinutes,
+        CacheHitRate = data.CacheHitRate, CommunityRating = data.CommunityRating,
         CommunityRatingCount = data.CommunityRatingCount, Comparisons = data.Comparisons,
+        IqDataSourceUrl = data.IqDataSourceUrl, IqValidCells = data.IqValidCells,
+        IqSourceUpdatedAt = data.IqSourceUpdatedAt, RadarInsights = data.RadarInsights,
         WindowOpen = data.WindowOpen, WindowId = data.WindowId, WindowStatus = data.WindowStatus, WindowTitle = data.WindowTitle,
         WindowSummary = data.WindowSummary, WindowHuman = data.WindowHuman, WindowScope = data.WindowScope,
         WindowOpenedAt = data.WindowOpenedAt, WindowClosedAt = data.WindowClosedAt, WindowSourceUrl = data.WindowSourceUrl,
@@ -266,6 +356,7 @@ internal sealed class RadarService : IAsyncDisposable
         WeeklyUsedPercent = quota.WeeklyUsed, ShortUsedPercent = quota.ShortUsed,
         WeeklyWindowMinutes = quota.WeeklyDurationMinutes, ShortWindowMinutes = quota.ShortDurationMinutes,
         WeeklyResetsAt = quota.WeeklyReset, ShortResetsAt = quota.ShortReset,
+        QuotaObservedAt = DateTimeOffset.Now,
         LimitReached = quota.Blocked, PlanType = quota.PlanType, CreditsBalance = quota.CreditsBalance
     };
 
@@ -302,7 +393,8 @@ internal sealed class RadarService : IAsyncDisposable
                     var id = item.String("id");
                     return new ResetCredit(item.String("title") ?? item.String("reset_type") ?? "Full reset (Weekly + 5h)",
                         item.String("status") ?? "unknown", RadarJson.Date(item.String("granted_at")),
-                        RadarJson.Date(item.String("expires_at")), id is { Length: > 6 } ? id[^6..] : id,
+                        RadarJson.Date(item.String("expires_at")),
+                        string.IsNullOrWhiteSpace(id) ? null : ResetCreditPrivacy.Fingerprint(id),
                         item.String("reset_type"), RadarJson.Date(item.String("redeem_started_at")), RadarJson.Date(item.String("redeemed_at")));
                 }).OrderByDescending(credit => credit.IsAvailable).ThenBy(credit => credit.ExpiresAt ?? DateTimeOffset.MaxValue).ToArray();
                 return new ResetCreditFetchResult(credits, result.RootElement.Int32("available_count") ?? credits.Count(credit => credit.IsAvailable),
@@ -318,7 +410,13 @@ internal sealed class RadarService : IAsyncDisposable
         value.String("expected_window"), value.String("reasoning_summary", "summary"), RadarJson.Date(value.String("updated_at")));
     private static ModelComparison ParseModel(JsonElement value, string label) => new(label,
         value.Number("iq_score", "score"), value.String("status"), value.Int32("passed"), value.Int32("valid_tasks", "tasks"),
-        null, null, value.String("wall_time_human") ?? Minutes(value.Int32("wall_seconds")), value.Number("cost_usd"), CacheRate(value));
+        null, null, value.String("wall_time_human") ?? Minutes(value.Int32("wall_seconds")),
+        value.Number("cost_usd"), CacheRate(value), value.String("model"), value.String("reasoning_effort"),
+        value.Number("average_cost_usd"),
+        value.Number("average_task_seconds") is double seconds
+            ? seconds / 60
+            : ParseMinutes(value.String("average_task_time_human")),
+        value.String("date"));
     private static string? ModelName(JsonElement value)
     {
         var model = value.String("model"); var effort = value.String("reasoning_effort");
@@ -332,6 +430,13 @@ internal sealed class RadarService : IAsyncDisposable
     private static string? Minutes(int? seconds) => seconds is int value
         ? $"{Math.Max(1, (int)Math.Round(value / 60d, MidpointRounding.AwayFromZero))} min"
         : null;
+    private static double? ParseMinutes(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var match = System.Text.RegularExpressions.Regex.Match(value, @"([0-9]+(?:\.[0-9]+)?)");
+        return match.Success && double.TryParse(match.Value, NumberStyles.Float,
+            CultureInfo.InvariantCulture, out var minutes) ? minutes : null;
+    }
     private static string? ResetText(string? title, IEnumerable<ResetJudgementCard> cards, IEnumerable<string> reasons)
     {
         var lines = cards.Select(card => string.Join(" · ", new[] { card.Label, card.Level, card.Summary }.Where(x => !string.IsNullOrWhiteSpace(x))))
@@ -368,7 +473,12 @@ internal sealed class RadarService : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         try { await _appServer.DisposeAsync().ConfigureAwait(false); }
-        finally { _http.Dispose(); }
+        finally
+        {
+            _insightsGate.Dispose();
+            _insightsHttp.Dispose();
+            _http.Dispose();
+        }
     }
 }
 
@@ -382,13 +492,20 @@ internal sealed record PublicRadarData
     public double? IqScore { get; init; }
     public string? IqStatus { get; init; }
     public string? ModelLabel { get; init; }
+    public string? ModelName { get; init; }
+    public string? ReasoningEffort { get; init; }
     public int? Passed { get; init; }
     public int? ValidTasks { get; init; }
     public string? WallTime { get; init; }
     public double? CostUsd { get; init; }
+    public double? AverageCostUsd { get; init; }
+    public double? AverageTaskMinutes { get; init; }
     public string? CacheHitRate { get; init; }
     public double? CommunityRating { get; init; }
     public int? CommunityRatingCount { get; init; }
+    public string? IqDataSourceUrl { get; init; }
+    public int? IqValidCells { get; init; }
+    public DateTimeOffset? IqSourceUpdatedAt { get; init; }
     public bool WindowOpen { get; init; }
     public string? WindowId { get; init; }
     public string? WindowStatus { get; init; }
@@ -420,6 +537,7 @@ internal sealed record PublicRadarData
     public long? QuotaRadarTotalTokens { get; init; }
     public double? QuotaRadarSevenDayTrendDelta { get; init; }
     public IReadOnlyList<ModelComparison> Comparisons { get; init; } = [];
+    public RadarInsightsEnvelope? RadarInsights { get; init; }
 }
 
 internal sealed record ModelRatingInfo(string? Id, string? Label, string? Group, double? Average, int? Count);

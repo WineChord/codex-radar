@@ -81,8 +81,8 @@ $ReleaseOutput = Join-Path $ArtifactsRoot "release"
 $SelfContained = if ($FrameworkDependent) { "false" } else { "true" }
 $Architecture = if ($Runtime -eq "win-arm64") { "arm64" } else { "x64" }
 
+[xml]$projectXml = [IO.File]::ReadAllText($Project)
 if (-not $Version) {
-    [xml]$projectXml = [IO.File]::ReadAllText($Project)
     $Version = [string]($projectXml.Project.PropertyGroup.Version | Select-Object -First 1)
 }
 if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
@@ -129,7 +129,14 @@ if ($FrameworkDependent) {
 # runtime-specific MSBuild copy under this project so packaging does not require
 # two full copies of the runtime on space-constrained Windows machines.
 $ProjectDirectory = Split-Path $Project -Parent
-$RuntimeIntermediate = Join-Path $ProjectDirectory "bin\Release\net8.0-windows\$Runtime"
+$TargetFramework = [string](
+    $projectXml.Project.PropertyGroup.TargetFramework |
+        Select-Object -First 1
+)
+if ([string]::IsNullOrWhiteSpace($TargetFramework)) {
+    throw "The Windows project does not declare a TargetFramework."
+}
+$RuntimeIntermediate = Join-Path $ProjectDirectory "bin\Release\$TargetFramework\$Runtime"
 Assert-ChildPath -Parent $ProjectDirectory -Child $RuntimeIntermediate
 if (Test-Path -LiteralPath $RuntimeIntermediate) {
     Remove-Item -LiteralPath $RuntimeIntermediate -Recurse -Force

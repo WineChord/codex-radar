@@ -1,10 +1,16 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace CodexRadar.Windows;
 
 internal sealed class DashboardForm : Form
 {
+    private static readonly JsonSerializerOptions ContentSignatureJson = new()
+    {
+        NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
+    };
     private const string RadarUrl = "https://codexradar.com/";
     private const string CodexWebUrl = "https://chatgpt.com/codex";
     private const string RepositoryUrl = "https://github.com/WineChord/codex-radar";
@@ -19,7 +25,7 @@ internal sealed class DashboardForm : Form
         "is expired or the Authorization header is missing. Do not print access_token, refresh_token, cookies, or full unique IDs. " +
         "Show only each reset credit issue time and expiry time, converted to local time.";
 
-    private readonly Panel _header = new() { Dock = DockStyle.Top, Height = 92, Padding = new Padding(18, 13, 18, 10) };
+    private readonly Panel _header = new() { Name = "dashboardHeader", Dock = DockStyle.Top, Height = 92, Padding = new Padding(18, 13, 18, 10) };
     private readonly Label _title = new() { AutoSize = true, ForeColor = Color.White };
     private readonly Label _detail = new() { AutoSize = true, ForeColor = Color.White };
     private readonly Label _summary = new() { AutoSize = true, ForeColor = Color.White };
@@ -33,31 +39,35 @@ internal sealed class DashboardForm : Form
         Margin = Padding.Empty,
         Padding = Padding.Empty
     };
-    private readonly FlowLayoutPanel _content = new()
+    private readonly BufferedPanel _contentHost = new()
     {
+        Name = "dashboardContentHost",
         Dock = DockStyle.Fill,
-        AutoScroll = true,
-        FlowDirection = FlowDirection.TopDown,
-        WrapContents = false,
-        Padding = new Padding(12, 12, 12, 8),
         BackColor = Color.FromArgb(244, 246, 248)
     };
+    private BufferedFlowLayoutPanel _content = CreateContentPanel();
     private readonly TableLayoutPanel _footer = new()
     {
+        Name = "dashboardFooter",
         Dock = DockStyle.Bottom,
         Height = 60,
         ColumnCount = 6,
         RowCount = 1,
-        Padding = new Padding(8, 8, 8, 8),
+        Padding = new Padding(8, 8, 8, 10),
         BackColor = Color.FromArgb(248, 249, 251),
         GrowStyle = TableLayoutPanelGrowStyle.FixedSize
     };
 
     private AppSettings _settings;
     private DashboardSnapshot _snapshot = new();
+    private QuotaHistoryTimeline _quotaHistory = new();
+    private DateTimeOffset _quotaHistoryEndingAt =
+        DateTimeOffset.Now;
+    private bool _quotaHistoryStorageUnavailable;
     private AppUpdateStatus _updateStatus = new(AppUpdatePhase.Idle);
     private bool _resetLoading;
     private bool _allowClose;
+    private bool _customizesLayout;
     private DashboardTextSize? _appliedTextSize;
     private StatusBarHorizontalPadding? _appliedPadding;
     private StatusBarFontScale? _appliedFontScale;
@@ -68,12 +78,19 @@ internal sealed class DashboardForm : Form
     private bool _contentRendered;
     private bool _renderPending = true;
     private bool _renderScheduled;
+    private string? _renderedContentSignature;
+    private string? _pendingContentSignature;
+    internal Exception? LastRenderFailure { get; private set; }
 
     public event EventHandler? RefreshRequested;
     public event EventHandler? ResetCreditsRequested;
     public event EventHandler? SettingsRequested;
     public event EventHandler? CheckUpdatesRequested;
     public event EventHandler? DismissSpeedRequested;
+    public event EventHandler? SettingsChanged;
+    public event EventHandler? ProtectionEnableRequested;
+    public event EventHandler? ProtectionDisableRequested;
+    public event EventHandler? ProtectionPreviewRequested;
     public event EventHandler? QuitRequested;
 
     public DashboardForm(AppSettings settings)
@@ -94,7 +111,8 @@ internal sealed class DashboardForm : Form
 
         BuildHeader();
         BuildFooter();
-        Controls.Add(_content);
+        _contentHost.Controls.Add(_content);
+        Controls.Add(_contentHost);
         Controls.Add(_header);
         Controls.Add(_footer);
 
@@ -124,13 +142,29 @@ internal sealed class DashboardForm : Form
         DashboardSnapshot snapshot,
         AppSettings settings,
         AppUpdateStatus updateStatus,
-        bool resetLoading)
+        bool resetLoading,
+        QuotaHistoryTimeline? quotaHistory = null,
+        DateTimeOffset? quotaHistoryEndingAt = null,
+        bool? quotaHistoryStorageUnavailable = null)
     {
         if (IsDisposed || Disposing) return;
         if (InvokeRequired)
         {
             if (!IsHandleCreated) return;
-            try { BeginInvoke(() => SetState(snapshot, settings, updateStatus, resetLoading)); } catch (InvalidOperationException) { }
+            try
+            {
+                BeginInvoke(() => SetState(
+                    snapshot,
+                    settings,
+                    updateStatus,
+                    resetLoading,
+                    quotaHistory,
+                    quotaHistoryEndingAt,
+                    quotaHistoryStorageUnavailable));
+            }
+            catch (InvalidOperationException)
+            {
+            }
             return;
         }
 
@@ -138,10 +172,29 @@ internal sealed class DashboardForm : Form
         _settings = settings;
         _updateStatus = updateStatus;
         _resetLoading = resetLoading;
+        if (quotaHistory is not null)
+            _quotaHistory = quotaHistory;
+        if (quotaHistoryEndingAt is { } historyEndingAt)
+            _quotaHistoryEndingAt = historyEndingAt;
+        if (quotaHistoryStorageUnavailable is { } storageUnavailable)
+            _quotaHistoryStorageUnavailable = storageUnavailable;
         ApplyTextSize();
-        _renderPending = true;
+        _pendingContentSignature = BuildContentSignature(
+            snapshot,
+            settings,
+            updateStatus,
+            resetLoading,
+            quotaHistory: _quotaHistory,
+            quotaHistoryEndingAt:
+                _quotaHistoryEndingAt,
+            quotaHistoryStorageUnavailable:
+                _quotaHistoryStorageUnavailable,
+            customizesLayout:
+                _customizesLayout);
+        _renderPending = !_contentRendered
+                         || !string.Equals(_renderedContentSignature, _pendingContentSignature, StringComparison.Ordinal);
         RenderChrome();
-        if (_contentRendered && IsHandleCreated && Visible) ScheduleRender();
+        if (IsHandleCreated && Visible) ScheduleRender();
     }
 
     public void SetSnapshot(DashboardSnapshot snapshot, bool chinese)
@@ -301,6 +354,7 @@ internal sealed class DashboardForm : Form
 
     private void BuildFooter()
     {
+        _footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
         for (var i = 0; i < _footer.ColumnCount; i++)
             _footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / _footer.ColumnCount));
 
@@ -310,7 +364,12 @@ internal sealed class DashboardForm : Form
         AddFooterButton("Radar", "radar", 1, (_, _) => Open(RadarUrl));
         AddFooterButton("Codex", "codex", 2, (_, _) => OpenCodex());
         AddFooterButton("GitHub", "github", 3, (_, _) => Open(RepositoryUrl));
-        AddFooterButton("设置", "settings", 4, (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty));
+        AddFooterButton(
+            "布局",
+            "layout",
+            4,
+            (_, _) => SetLayoutEditorVisible(
+                !_customizesLayout));
         AddFooterButton("退出", "quit", 5, (_, _) => QuitRequested?.Invoke(this, EventArgs.Empty));
         LayoutFooterButtons();
     }
@@ -323,7 +382,7 @@ internal sealed class DashboardForm : Form
             Name = name,
             Dock = DockStyle.Fill,
             ForeColor = Color.FromArgb(32, 33, 36),
-            Margin = new Padding(3, 2, 3, 2),
+            Margin = new Padding(3),
             TabStop = true,
             TextAlign = ContentAlignment.MiddleCenter,
             UseMnemonic = false,
@@ -409,48 +468,269 @@ internal sealed class DashboardForm : Form
         _header.Padding = ScaleLogical(new Padding(headerSidePadding, 13, headerSidePadding, 10));
         _updated.Font = new Font("Segoe UI", Math.Max(8f, metrics.Body - 1.2f));
         _header.Height = ScaleLogical(_settings.TextSize == DashboardTextSize.ExtraLarge ? 106 : 92);
-        _footer.Height = ScaleLogical(_settings.TextSize == DashboardTextSize.ExtraLarge ? 68 : 60);
+        _footer.Height = ScaleLogical(_settings.TextSize == DashboardTextSize.ExtraLarge ? 72 : 64);
         var nonClientWidth = Math.Max(0, Width - ClientSize.Width);
         MinimumSize = new Size(Math.Max(MinimumSize.Width, FooterMinimumClientWidth() + nonClientWidth), MinimumSize.Height);
         LayoutFooterButtons();
         LayoutHeader();
     }
 
+    private static BufferedFlowLayoutPanel CreateContentPanel() => new()
+    {
+        Dock = DockStyle.Fill,
+        AutoScroll = true,
+        FlowDirection = FlowDirection.TopDown,
+        WrapContents = false,
+        Padding = new Padding(12, 12, 12, 8),
+        BackColor = Color.FromArgb(244, 246, 248)
+    };
+
+    internal static string BuildContentSignature(
+        DashboardSnapshot snapshot,
+        AppSettings settings,
+        AppUpdateStatus updateStatus,
+        bool resetLoading,
+        DateTimeOffset? now = null,
+        QuotaHistoryTimeline? quotaHistory = null,
+        DateTimeOffset? quotaHistoryEndingAt = null,
+        bool quotaHistoryStorageUnavailable = false,
+        bool customizesLayout = false)
+    {
+        var pacing = snapshot.QuotaPacing;
+        var stableSnapshot = snapshot with
+        {
+            RefreshedAt = DateTimeOffset.UnixEpoch,
+            QuotaObservedAt = DateTimeOffset.UnixEpoch,
+            // Pacing is calculated continuously. Only its rounded, rendered
+            // values should trigger a card-tree replacement.
+            QuotaPacing = null
+        };
+        var current = now ?? DateTimeOffset.Now;
+        var rendersQuotaHistory =
+            !customizesLayout
+            && settings.IsDashboardSectionVisible(
+                DashboardSection.Quota)
+            && settings.IsDashboardSectionExpanded(
+                DashboardSection.Quota)
+            && settings.IsDashboardDisclosureVisible(
+                DashboardDisclosure.QuotaHistory)
+            && settings.IsDashboardDisclosureExpanded(
+                DashboardDisclosure.QuotaHistory);
+        return JsonSerializer.Serialize(new
+        {
+            Snapshot = stableSnapshot,
+            Pacing = pacing is null ? null : new
+            {
+                pacing.Strategy,
+                pacing.RoundedCurrentUsed,
+                pacing.RoundedTargetUsed,
+                pacing.RoundedCurrentRemaining,
+                pacing.RoundedTargetRemaining,
+                pacing.RoundedRemainingDelta,
+                pacing.RoundedElapsed,
+                pacing.Status
+            },
+            Settings = new
+            {
+                settings.Chinese,
+                settings.TextSize,
+                settings.StatusDisplayMode,
+                settings.PreciseIq,
+                settings.IqDisplayMode,
+                settings.ShowPercentSymbol,
+                settings.Separator,
+                settings.HorizontalPadding,
+                settings.FontScale,
+                DashboardSectionOrder = settings.DashboardSectionOrder.ToArray(),
+                DashboardSectionExpansion = settings.DashboardSectionExpansion
+                    .OrderBy(item => item.Key)
+                    .ToArray(),
+                DashboardSectionVisibility =
+                    settings.DashboardSectionVisibility
+                        .OrderBy(item => item.Key)
+                        .ToArray(),
+                DashboardDisclosureVisibility =
+                    settings.DashboardDisclosureVisibility
+                        .OrderBy(item => item.Key)
+                        .ToArray(),
+                settings.QuotaHistoryExpanded,
+                settings.QuotaHistoryRange,
+                settings.ModelIqDetailsExpanded,
+                settings.RadarInsightsDetailsExpanded,
+                settings.LayoutDiscoveryTipDismissed,
+                settings.PacingStrategy,
+                settings.UseChinaHolidays,
+                SelectedStatusMetrics = settings.SelectedStatusMetrics.ToArray(),
+                settings.PredictionNotifications,
+                settings.IqNotifications,
+                settings.NotificationSound,
+                settings.AutomaticUpdates,
+                settings.AutoResetCreditCheck,
+                settings.ResetCreditProtectionEnabled,
+                settings.Preview,
+                settings.DismissedSpeedAlertKey
+            },
+            Update = new
+            {
+                updateStatus.Phase,
+                updateStatus.Version,
+                updateStatus.Message,
+                ReleaseUrl = updateStatus.ReleaseUrl?.AbsoluteUri
+            },
+            ResetLoading = resetLoading,
+            CustomizesLayout = customizesLayout,
+            QuotaHistory = quotaHistory is null
+                           || !rendersQuotaHistory
+                ? null
+                : new
+                {
+                    quotaHistory.Samples.Count,
+                    First = quotaHistory.Samples
+                        .FirstOrDefault()?.Timestamp,
+                    Last = quotaHistory.Samples
+                        .LastOrDefault()?.Timestamp,
+                    quotaHistoryStorageUnavailable,
+                    EndingAt = quotaHistoryEndingAt?
+                        .ToUnixTimeSeconds()
+                        / 60
+                },
+            ResetCreditTime = snapshot.ResetCredits.Select(credit => ResetCreditTemporalKey(credit, current)).ToArray()
+        }, ContentSignatureJson);
+    }
+
+    private static string ResetCreditTemporalKey(ResetCredit credit, DateTimeOffset now)
+    {
+        var normalized = credit.Status?.ToLowerInvariant() ?? "";
+        if (credit.RedeemedAt is not null || normalized.Contains("redeem", StringComparison.Ordinal))
+            return "used";
+        if (credit.ExpiresAt is not { } expiry) return "no-expiry";
+        var span = expiry - now;
+        if (span <= TimeSpan.Zero) return "expired";
+        var soon = span < TimeSpan.FromDays(3) ? "soon" : "normal";
+        if (span.TotalDays >= 1) return $"{soon}:d:{(int)span.TotalDays}:{span.Hours}";
+        if (span.TotalHours >= 1) return $"{soon}:h:{(int)span.TotalHours}:{span.Minutes}";
+        return $"{soon}:m:{Math.Max(1, span.Minutes)}";
+    }
+
     private void Render()
     {
-        var scrollPosition = new Point(-_content.AutoScrollPosition.X, -_content.AutoScrollPosition.Y);
-        SuspendLayout();
-        _content.SuspendLayout();
+        if (!_renderPending) return;
+
+        var renderedSignature = _pendingContentSignature
+                                ?? BuildContentSignature(
+                                    _snapshot,
+                                    _settings,
+                                    _updateStatus,
+                                    _resetLoading,
+                                    quotaHistory:
+                                        _quotaHistory,
+                                     quotaHistoryEndingAt:
+                                         _quotaHistoryEndingAt,
+                                     quotaHistoryStorageUnavailable:
+                                         _quotaHistoryStorageUnavailable,
+                                     customizesLayout:
+                                         _customizesLayout);
+        var previousContent = _content;
+        var scrollPosition = new Point(
+            -previousContent.AutoScrollPosition.X,
+            -previousContent.AutoScrollPosition.Y);
+        var candidate = CreateContentPanel();
+        candidate.Bounds = _contentHost.ClientRectangle;
+        candidate.Visible = false;
+        candidate.SuspendLayout();
+        _content = candidate;
+        var swapCompleted = false;
+
         try
         {
-            while (_content.Controls.Count > 0) _content.Controls[0].Dispose();
-
+            LastRenderFailure = null;
             RenderChrome();
 
             if (ShouldEmphasizeSpeed()) AddSpeedBanner();
-            AddStatusLegend();
-            AddAnnouncement();
-            AddQuotaCard();
-            AddPacingCard();
-            AddResetJudgementCard();
-            AddCommunityAndCreditsCard();
-            AddPublicQuotaRadarCard();
-            AddRadarStatusCard();
-            AddPredictionCard();
-            AddIqCard();
             AddErrorsCard();
-            AddSettingsCard();
-            AddUpdateCard();
+            if (_customizesLayout)
+            {
+                AddAttentionSectionForLayoutEditor(
+                    DashboardSection.ResetCredits);
+                AddAttentionSectionForLayoutEditor(
+                    DashboardSection.Updates);
+                AddLayoutEditor();
+            }
+            else
+            {
+                foreach (var section in DashboardLayout.NormalizeOrder(
+                             _settings.DashboardSectionOrder))
+                    AddDashboardSection(section);
+            }
+            if (!_customizesLayout
+                && !_settings.LayoutDiscoveryTipDismissed)
+                AddLayoutDiscoveryTip();
 
             ResizeCards();
+            candidate.ResumeLayout(true);
+            candidate.PerformLayout();
+
+            // Keep the live tree intact until the replacement has been fully
+            // constructed. The UI thread cannot paint between these synchronous
+            // operations, so the user sees either the old complete tree or the
+            // new complete tree, never an empty intermediate panel.
+            _contentHost.SuspendLayout();
+            try
+            {
+                _contentHost.Controls.Add(candidate);
+                candidate.Dock = DockStyle.Fill;
+                candidate.Visible = true;
+                candidate.BringToFront();
+                previousContent.Visible = false;
+                _contentHost.Controls.Remove(previousContent);
+                swapCompleted = true;
+            }
+            finally
+            {
+                _contentHost.ResumeLayout(true);
+            }
+
+            candidate.AutoScrollPosition = scrollPosition;
+            previousContent.Dispose();
             _contentRendered = true;
-            _renderPending = false;
+            _renderedContentSignature = renderedSignature;
+            _renderPending = !string.Equals(
+                _renderedContentSignature, _pendingContentSignature, StringComparison.Ordinal);
+            _contentHost.Invalidate(true);
         }
-        finally
+        catch (Exception ex)
         {
-            _content.ResumeLayout(true);
-            ResumeLayout(true);
-            _content.AutoScrollPosition = scrollPosition;
+            LastRenderFailure = ex;
+            Trace.WriteLine($"Dashboard render retained the previous content after an error: {ex}");
+            if (swapCompleted)
+            {
+                _content = candidate;
+                candidate.Visible = true;
+                _contentRendered = true;
+                _renderedContentSignature = renderedSignature;
+                _renderPending = !string.Equals(
+                    _renderedContentSignature, _pendingContentSignature, StringComparison.Ordinal);
+                if (!previousContent.IsDisposed) previousContent.Dispose();
+                return;
+            }
+            if (!candidate.IsDisposed)
+            {
+                try { candidate.ResumeLayout(false); } catch { }
+                if (candidate.Parent is not null) candidate.Parent.Controls.Remove(candidate);
+                candidate.Dispose();
+            }
+            _content = previousContent;
+            if (!previousContent.IsDisposed)
+            {
+                if (previousContent.Parent is null)
+                {
+                    _contentHost.Controls.Add(previousContent);
+                    previousContent.Dock = DockStyle.Fill;
+                    previousContent.BringToFront();
+                }
+                previousContent.Visible = true;
+            }
+            _renderPending = true;
         }
     }
 
@@ -462,7 +742,11 @@ internal sealed class DashboardForm : Form
         _summary.Text = _snapshot.CompactTitle(_settings);
         _updated.Text = UpdatedText();
         SetFooterText("refresh", T("刷新", "Refresh"));
-        SetFooterText("settings", T("设置", "Settings"));
+        SetFooterText(
+            "layout",
+            _customizesLayout
+                ? T("完成", "Done")
+                : T("布局", "Layout"));
         SetFooterText("quit", T("退出", "Quit"));
         LayoutFooterButtons();
         LayoutHeader();
@@ -497,6 +781,185 @@ internal sealed class DashboardForm : Form
             _renderScheduled = false;
         }
     }
+
+    private void AddDashboardSection(DashboardSection section)
+    {
+        if (!DashboardSectionHasContent(section)) return;
+        var resolution = DashboardLayout.Resolve(
+            section,
+            _settings.IsDashboardSectionVisible(section),
+            _settings.IsDashboardSectionExpanded(section),
+            _snapshot.ResetCreditProtection,
+            _updateStatus.Phase == AppUpdatePhase.Failed);
+        if (!resolution.IsVisible)
+            return;
+        if (!resolution.IsExpanded)
+        {
+            AddCollapsedDashboardSection(section);
+            return;
+        }
+
+        var firstNewControl = _content.Controls.Count;
+        switch (section)
+        {
+            case DashboardSection.Quota:
+                AddQuotaCard();
+                break;
+            case DashboardSection.ModelIq:
+                AddIqCard();
+                break;
+            case DashboardSection.ResetCredits:
+                AddCommunityAndCreditsCard();
+                break;
+            case DashboardSection.UsagePace:
+                AddPacingCard();
+                break;
+            case DashboardSection.Insights:
+                AddRadarInsightsCard();
+                break;
+            case DashboardSection.RadarDetails:
+                AddAnnouncement();
+                AddResetJudgementCard();
+                AddPublicQuotaRadarCard();
+                AddRadarStatusCard();
+                AddPredictionCard();
+                break;
+            case DashboardSection.TaskbarGuide:
+                AddStatusLegend();
+                break;
+            case DashboardSection.DisplayAndAlerts:
+                AddSettingsCard();
+                break;
+            case DashboardSection.Updates:
+                AddUpdateCard();
+                break;
+            case DashboardSection.Preview:
+                AddPreviewCard();
+                break;
+        }
+        if (resolution.CanCollapse && _content.Controls.Count > firstNewControl
+                            && _content.Controls[_content.Controls.Count - 1] is Control lastCard
+                            && lastCard.Tag is TableLayoutPanel lastBody)
+        {
+            AddButtonRow(lastBody, (T("收起此模块", "Collapse section"), () =>
+            {
+                _settings.SetDashboardSectionExpanded(section, false);
+                SettingsChanged?.Invoke(this, EventArgs.Empty);
+            }));
+        }
+    }
+
+    private void AddAttentionSectionForLayoutEditor(
+        DashboardSection section)
+    {
+        var resolution = DashboardLayout.Resolve(
+            section,
+            preferredVisible: false,
+            preferredExpanded: false,
+            _snapshot.ResetCreditProtection,
+            _updateStatus.Phase == AppUpdatePhase.Failed);
+        if (resolution.IsVisible)
+            AddDashboardSection(section);
+    }
+
+    private bool DashboardSectionHasContent(DashboardSection section) => section switch
+    {
+        DashboardSection.ModelIq => _snapshot.IqScore is not null || _snapshot.Comparisons.Count > 0,
+        DashboardSection.Insights => _snapshot.RadarInsights?.Recommendations
+                                         .Any(group => group.ValidItems.Count > 0) == true
+                                     || _snapshot.RadarInsights?.DegradationAlerts.ValidItems.Count > 0,
+        DashboardSection.RadarDetails => !string.IsNullOrWhiteSpace(_snapshot.Announcement)
+                                         || _snapshot.ResetRadarCards.Count > 0
+                                         || !string.IsNullOrWhiteSpace(_snapshot.ResetRadar)
+                                         || _snapshot.QuotaRadar.Count > 0
+                                         || !string.IsNullOrWhiteSpace(_snapshot.RadarStatus)
+                                         || _snapshot.Prediction is not null,
+        _ => true
+    };
+
+    private void AddCollapsedDashboardSection(DashboardSection section)
+    {
+        var panel = CreateCard(DashboardSectionLabel(section), Palette.Gray,
+            Color.FromArgb(249, 250, 251));
+        var body = Body(panel);
+        AddKeyValue(body, T("摘要", "Summary"), DashboardSectionSummary(section));
+        AddButtonRow(body, (T("展开", "Expand"), () =>
+        {
+            _settings.SetDashboardSectionExpanded(section, true);
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
+        }));
+        AddPanel(panel);
+    }
+
+    private string DashboardSectionLabel(DashboardSection section) => section switch
+    {
+        DashboardSection.Quota => T("Codex 额度", "Codex Quota"),
+        DashboardSection.ModelIq => "Codex IQ",
+        DashboardSection.ResetCredits => T("重置卡与自动使用", "Reset credits & auto-use"),
+        DashboardSection.UsagePace => T("用量节奏", "Usage Pace"),
+        DashboardSection.Insights => T("CodexRadar 智能洞察", "CodexRadar Insights"),
+        DashboardSection.RadarDetails => T("更多 CodexRadar 信息", "More from CodexRadar"),
+        DashboardSection.TaskbarGuide => T("状态栏说明", "Taskbar guide"),
+        DashboardSection.DisplayAndAlerts => T("显示与提醒", "Display & alerts"),
+        DashboardSection.Updates => T("版本更新", "Updates"),
+        DashboardSection.Preview => T("调试预览", "Preview"),
+        _ => section.ToString()
+    };
+
+    private string LayoutEditorLabel(
+        DashboardSection section) =>
+        !_settings.Chinese
+            ? section switch
+            {
+                DashboardSection.ResetCredits =>
+                    "Reset credits",
+                DashboardSection.Insights =>
+                    "Insights",
+                DashboardSection.RadarDetails =>
+                    "Radar details",
+                _ => DashboardSectionLabel(section)
+            }
+            : DashboardSectionLabel(section);
+
+    private string DisclosureEditorLabel(
+        DashboardDisclosure disclosure) => disclosure switch
+    {
+        DashboardDisclosure.QuotaHistory =>
+            T("额度历史", "Quota history"),
+        DashboardDisclosure.ModelIqDetails =>
+            T("全部模型 IQ", "All model IQ"),
+        DashboardDisclosure.RadarInsightsDetails =>
+            T("场景推荐与降智预警", "Tips & alerts"),
+        _ => disclosure.ToString()
+    };
+
+    private string DashboardSectionSummary(DashboardSection section) => section switch
+    {
+        DashboardSection.Quota =>
+            $"{T("周额度", "Weekly")} {Percent(_snapshot.WeeklyRemaining)}"
+            + (_snapshot.ShortRemaining is int ? $"  ·  5h {Percent(_snapshot.ShortRemaining)}" : ""),
+        DashboardSection.ModelIq =>
+            $"IQ {(_snapshot.IqScore is double iq ? iq.ToString("0.0") : "--")}"
+            + $"  ·  {RadarJson.QualityLabel(_snapshot.IqScore, _snapshot.IqStatus, _settings.Chinese)}",
+        DashboardSection.ResetCredits =>
+            $"{T("可用", "Available")} {_snapshot.AvailableResetCredits?.ToString() ?? "--"}",
+        DashboardSection.UsagePace => _snapshot.QuotaPacing is { } pace
+            ? $"{T("建议剩余", "Target left")} {pace.RoundedTargetRemaining}%"
+            : T("等待周额度 reset 时间", "Waiting for weekly reset timing"),
+        DashboardSection.Insights =>
+            $"{_snapshot.RadarInsights?.Recommendations.Count ?? 0} {T("组推荐", "recommendation groups")}"
+            + $"  ·  {_snapshot.RadarInsights?.DegradationAlerts.ValidItems.Count ?? 0} {T("条预警", "alerts")}",
+        DashboardSection.RadarDetails => _snapshot.AnnouncementLabel
+                                         ?? _snapshot.ResetRadarTitle
+                                         ?? T("公开雷达明细", "Public radar details"),
+        DashboardSection.TaskbarGuide => _snapshot.CompactTitle(_settings),
+        DashboardSection.DisplayAndAlerts => _settings.StatusDisplayMode == StatusDisplayMode.TaskbarText
+            ? T("任务栏文字", "Taskbar text")
+            : T("通知区域图标", "Notification icon"),
+        DashboardSection.Updates => $"{AppUpdateService.CurrentVersion}  ·  {UpdateStatusText()}",
+        DashboardSection.Preview => _settings.Preview.ToString(),
+        _ => "--"
+    };
 
     private void AddSpeedBanner()
     {
@@ -561,10 +1024,100 @@ internal sealed class DashboardForm : Form
         if (!string.IsNullOrWhiteSpace(_snapshot.PlanType)) details.Add($"{T("套餐", "Plan")} {_snapshot.PlanType}");
         if (!string.IsNullOrWhiteSpace(_snapshot.CreditsBalance)) details.Add($"{T("余额", "Credits")} {_snapshot.CreditsBalance}");
         if (details.Count > 0) AddText(body, string.Join("  ·  ", details), Palette.Secondary);
+        if (_settings.IsDashboardDisclosureVisible(
+                DashboardDisclosure.QuotaHistory))
+            AddQuotaHistory(body);
         if (_snapshot.LimitReached)
             AddCallout(body, T("本机 Codex 返回限额状态。", "Local Codex reports a rate limit."), Palette.Red, Palette.RedPale);
         AddPanel(panel);
     }
+
+    private void AddQuotaHistory(TableLayoutPanel body)
+    {
+        AddKeyValue(
+            body,
+            T("额度历史", "Quota history"),
+            QuotaHistoryRangeLabel(
+                _settings.QuotaHistoryRange));
+        if (!_settings.IsDashboardDisclosureExpanded(
+                DashboardDisclosure.QuotaHistory))
+        {
+            AddButtonRow(
+                body,
+                (T("展开额度历史", "Show quota history"), () =>
+                {
+                    _settings.SetDashboardDisclosureExpanded(
+                        DashboardDisclosure.QuotaHistory,
+                        true);
+                    SettingsChanged?.Invoke(
+                        this,
+                        EventArgs.Empty);
+                }));
+            return;
+        }
+
+        AddButtonRow(
+            body,
+            (T("24 小时", "24 hours"), () =>
+                SetQuotaHistoryRange(
+                    QuotaHistoryRange.Hours24)),
+            (T("7 天", "7 days"), () =>
+                SetQuotaHistoryRange(
+                    QuotaHistoryRange.Days7)),
+            (T("30 天", "30 days"), () =>
+                SetQuotaHistoryRange(
+                    QuotaHistoryRange.Days30)),
+            (T("收起", "Collapse"), () =>
+            {
+                _settings.SetDashboardDisclosureExpanded(
+                    DashboardDisclosure.QuotaHistory,
+                    false);
+                SettingsChanged?.Invoke(
+                    this,
+                    EventArgs.Empty);
+            }));
+
+        var timeline = _settings.Preview
+                       == DashboardPreview.Live
+            ? _quotaHistory
+            : QuotaHistoryTimeline.CreatePreview(
+                _quotaHistoryEndingAt);
+        var chart = new QuotaHistoryChartControl(
+            timeline,
+            _settings.QuotaHistoryRange,
+            _quotaHistoryEndingAt,
+            _settings.Chinese,
+            _quotaHistoryStorageUnavailable
+            && _settings.Preview == DashboardPreview.Live)
+        {
+            Height = ScaleDynamic(230),
+            Font = new Font(
+                "Segoe UI",
+                Font.Size)
+        };
+        body.Controls.Add(chart);
+    }
+
+    private void SetQuotaHistoryRange(
+        QuotaHistoryRange range)
+    {
+        if (_settings.QuotaHistoryRange == range)
+            return;
+        _settings.QuotaHistoryRange = range;
+        SettingsChanged?.Invoke(
+            this,
+            EventArgs.Empty);
+    }
+
+    private string QuotaHistoryRangeLabel(
+        QuotaHistoryRange range) => range switch
+    {
+        QuotaHistoryRange.Hours24 =>
+            T("24 小时", "24 hours"),
+        QuotaHistoryRange.Days7 =>
+            T("7 天", "7 days"),
+        _ => T("30 天", "30 days")
+    };
 
     private void AddPacingCard()
     {
@@ -629,6 +1182,18 @@ internal sealed class DashboardForm : Form
         AddText(body, T(
             "默认低频自动刷新 reset credits；只读取本机 Codex 登录态，不保存 token，只缓存脱敏结果。",
             "Low-frequency refresh reads local Codex auth, never stores tokens, and caches only sanitized results."), Palette.Secondary);
+        AddCallout(
+            body,
+            ResetCreditProtectionStatusText(
+                _snapshot.ResetCreditProtection),
+            ResetCreditProtectionStatusColor(
+                _snapshot.ResetCreditProtection),
+            ColorBlend(ResetCreditProtectionStatusColor(
+                _snapshot.ResetCreditProtection)));
+        AddText(body, T(
+            "“到期前自动使用”默认关闭。启用时只授权当前完整卡集合；目标卡到期前 30 分钟才会尝试，账号、卡集合、系统时钟或授权变化都会安全停用。",
+            "Expiry auto-use is off by default. Enabling authorizes only the current complete card set; it acts 30 minutes before expiry and fails closed on account, card-set, clock, or authorization changes."),
+            Palette.Secondary);
 
         if (_resetLoading)
         {
@@ -676,6 +1241,28 @@ internal sealed class DashboardForm : Form
                 () => ResetCreditsRequested?.Invoke(this, EventArgs.Empty)),
             (T("复制安全 Prompt", "Copy safe Prompt"), () => CopyPrompt(T(SafeResetCreditPromptZh, SafeResetCreditPromptEn))),
             ("Codex", OpenCodex));
+        if (_settings.ResetCreditProtectionEnabled)
+        {
+            AddButtonRow(
+                body,
+                (T("关闭自动使用", "Turn off auto-use"),
+                    () => ProtectionDisableRequested?.Invoke(
+                        this, EventArgs.Empty)),
+                (T("重新检查计划", "Recheck plan"),
+                    () => ProtectionPreviewRequested?.Invoke(
+                        this, EventArgs.Empty)));
+        }
+        else
+        {
+            AddButtonRow(
+                body,
+                (T("启用到期前自动使用", "Enable expiry auto-use"),
+                    () => ProtectionEnableRequested?.Invoke(
+                        this, EventArgs.Empty)),
+                (T("只读检查计划", "Read-only plan"),
+                    () => ProtectionPreviewRequested?.Invoke(
+                        this, EventArgs.Empty)));
+        }
         AddText(body, T(
             $"自动查询：{(_settings.AutoResetCreditCheck ? "已开启" : "已关闭")} · 缓存超过 6 小时后刷新，失败不影响状态栏。",
             $"Auto check: {(_settings.AutoResetCreditCheck ? "on" : "off")} · refreshes after 6 hours; failures do not affect the taskbar."), Palette.Secondary);
@@ -705,6 +1292,9 @@ internal sealed class DashboardForm : Form
         {
             string.IsNullOrWhiteSpace(credit.Title) ? null : credit.Title,
             string.IsNullOrWhiteSpace(credit.ResetType) ? null : credit.ResetType,
+            ResetCreditPrivacy.IsValidFingerprint(credit.Fingerprint)
+                ? $"{T("指纹", "Fingerprint")} {ResetCreditPrivacy.DisplayFingerprint(credit.Fingerprint)}"
+                : null,
             credit.RedeemStartedAt is { } start ? $"{T("兑换开始", "Redeem started")} {FormatDateTime(start)}" : null,
             credit.RedeemedAt is { } redeemed ? $"{T("已兑换", "Redeemed")} {FormatDateTime(redeemed)}" : null
         }.Where(value => !string.IsNullOrWhiteSpace(value));
@@ -790,10 +1380,43 @@ internal sealed class DashboardForm : Form
         var body = Body(panel);
         var latest = new ModelComparison(
             _snapshot.ModelLabel ?? "Codex", _snapshot.IqScore, _snapshot.IqStatus, _snapshot.Passed, _snapshot.ValidTasks,
-            _snapshot.CommunityRating, _snapshot.CommunityRatingCount, _snapshot.WallTime, _snapshot.CostUsd, _snapshot.CacheHitRate);
+            _snapshot.CommunityRating, _snapshot.CommunityRatingCount, _snapshot.WallTime, _snapshot.CostUsd,
+            _snapshot.CacheHitRate, _snapshot.ModelName, _snapshot.ReasoningEffort,
+            _snapshot.AverageCostUsd, _snapshot.AverageTaskMinutes, _snapshot.IqDate);
         if (_snapshot.IqScore is not null) AddModelIq(body, latest, true);
-        foreach (var comparison in _snapshot.Comparisons) AddModelIq(body, comparison, false);
-        if (!string.IsNullOrWhiteSpace(_snapshot.IqDate)) AddText(body, _snapshot.IqDate!, Palette.Secondary);
+        var modelDetailsVisible =
+            _settings.IsDashboardDisclosureVisible(
+                DashboardDisclosure.ModelIqDetails);
+        if (modelDetailsVisible
+            && _settings.IsDashboardDisclosureExpanded(
+                DashboardDisclosure.ModelIqDetails))
+            foreach (var comparison in _snapshot.Comparisons)
+                AddModelIq(body, comparison, false);
+        if (modelDetailsVisible
+            && _snapshot.Comparisons.Count > 0)
+            AddButtonRow(body, (_settings.IsDashboardDisclosureExpanded(
+                    DashboardDisclosure.ModelIqDetails)
+                    ? T("收起全部模型 IQ", "Hide all model IQ")
+                    : T($"全部模型 IQ（{_snapshot.Comparisons.Count + 1}）",
+                        $"All model IQ ({_snapshot.Comparisons.Count + 1})"),
+                () =>
+                {
+                    _settings.SetDashboardDisclosureExpanded(
+                        DashboardDisclosure.ModelIqDetails,
+                        !_settings.IsDashboardDisclosureExpanded(
+                            DashboardDisclosure.ModelIqDetails));
+                    SettingsChanged?.Invoke(this, EventArgs.Empty);
+                }));
+        var sourceFacts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_snapshot.IqDate)) sourceFacts.Add(_snapshot.IqDate!);
+        if (_snapshot.IqValidCells is int validCells)
+            sourceFacts.Add($"{validCells:N0} {T("有效任务", "valid tasks")}");
+        if (_snapshot.IqSourceUpdatedAt is { } sourceUpdated)
+            sourceFacts.Add($"{T("数据更新", "Source updated")} {FormatDateTime(sourceUpdated)}");
+        if (sourceFacts.Count > 0) AddText(body, string.Join("  ·  ", sourceFacts), Palette.Secondary);
+        if (!string.IsNullOrWhiteSpace(_snapshot.IqDataSourceUrl))
+            AddButtonRow(body, (T("打开分布式数据源", "Open distributed source"),
+                () => Open(_snapshot.IqDataSourceUrl!)));
         AddPanel(panel);
     }
 
@@ -807,14 +1430,119 @@ internal sealed class DashboardForm : Form
         if (!string.IsNullOrWhiteSpace(model.Status)) metrics.Add($"{T("状态", "Status")} {model.Status}");
         if (model.Rating is double rating)
             metrics.Add($"{T("体感", "Rating")} {rating:0.0}/10{(model.RatingCount is int count ? $" · {count} {T("票", "votes")}" : "")}");
-        if (!string.IsNullOrWhiteSpace(model.WallTime)) metrics.Add($"{T("耗时", "Time")} {model.WallTime}");
-        if (model.CostUsd is double cost) metrics.Add($"{T("费用", "Cost")} ${cost:0.00}");
+        if (model.AverageMinutes is double averageMinutes)
+            metrics.Add($"{T("平均耗时", "Avg time")} {Math.Max(1, (int)Math.Round(averageMinutes))} min");
+        else if (!string.IsNullOrWhiteSpace(model.WallTime))
+            metrics.Add($"{T("耗时", "Time")} {model.WallTime}");
+        if (model.AverageCostUsd is double averageCost)
+            metrics.Add($"{T("平均费用", "Avg cost")} ${averageCost:0.00}");
+        else if (model.CostUsd is double cost)
+            metrics.Add($"{T("费用", "Cost")} ${cost:0.00}");
         if (!string.IsNullOrWhiteSpace(model.CacheHitRate)) metrics.Add($"Cache {model.CacheHitRate}");
         var text = title + (metrics.Count == 0 ? "" : Environment.NewLine + string.Join("  ·  ", metrics));
         AddCallout(body, text, color, primary ? ColorBlend(color) : Color.FromArgb(249, 250, 251));
 
         static string passedOrDash(int? value) => value?.ToString() ?? "--";
     }
+
+    private void AddRadarInsightsCard()
+    {
+        var groups = _snapshot.RadarInsights?.Recommendations
+            .Where(group => group.ValidItems.Count > 0).ToArray() ?? [];
+        var alerts = _snapshot.RadarInsights?.DegradationAlerts.ValidItems ?? [];
+        if (groups.Length == 0 && alerts.Count == 0) return;
+
+        var panel = CreateCard(T("CodexRadar 智能洞察", "CodexRadar Insights"),
+            alerts.Count > 0 ? Palette.Orange : Palette.Purple);
+        var body = Body(panel);
+        var preferred = groups.FirstOrDefault(group =>
+                            NormalizeInsightKey(group.Key) == "daily-development")
+                        ?? groups.FirstOrDefault();
+        var pick = preferred?.ValidItems.FirstOrDefault();
+        var strongestAlert = alerts.OrderByDescending(alert => alert.LargestDrop).FirstOrDefault();
+        AddTileRow(body,
+        [
+            (T("场景推荐", "Scenario pick"),
+                pick is null ? "--" : $"{pick.Model} {pick.Effort}",
+                Palette.Purple),
+            ("IQ", pick?.Iq is double iq ? iq.ToString("0.0") : "--",
+                IqColor(pick?.Iq, null)),
+            (T("降智预警", "Degradation"),
+                strongestAlert is null ? T("无", "none") : $"-{strongestAlert.LargestDrop:0.0}",
+                strongestAlert is null ? Palette.Green : Palette.Orange)
+        ]);
+
+        var insightDetailsVisible =
+            _settings.IsDashboardDisclosureVisible(
+                DashboardDisclosure.RadarInsightsDetails);
+        if (insightDetailsVisible
+            && _settings.IsDashboardDisclosureExpanded(
+                DashboardDisclosure.RadarInsightsDetails))
+        {
+            foreach (var group in groups)
+            {
+                var heading = group.Title ?? group.Key ?? T("推荐", "Recommendation");
+                var rule = string.IsNullOrWhiteSpace(group.Rule) ? "" : $"  ·  {group.Rule}";
+                AddText(body, heading + rule, Palette.Purple, true);
+                foreach (var item in group.ValidItems)
+                {
+                    var facts = new List<string>
+                    {
+                        $"{item.Model} {item.Effort}",
+                        $"IQ {item.Iq:0.0}"
+                    };
+                    if (item.AverageCostUsd is double cost)
+                        facts.Add($"{T("均费", "avg")} ${cost:0.00}");
+                    if (item.AverageDurationMinutes is double minutes)
+                        facts.Add($"{Math.Max(1, (int)Math.Round(minutes))} min");
+                    AddBullet(body, string.Join("  ·  ", facts));
+                }
+            }
+
+            if (alerts.Count > 0)
+            {
+                AddText(body, T("降智预警", "Degradation alerts"), Palette.Orange, true);
+                foreach (var alert in alerts.OrderByDescending(item => item.LargestDrop))
+                {
+                    var windows = new List<string>();
+                    if (alert.From24HourHighIq is double day) windows.Add($"24h -{day:0.0}");
+                    if (alert.From48HourHighIq is double twoDays) windows.Add($"48h -{twoDays:0.0}");
+                    AddCallout(body,
+                        $"{alert.Model} {alert.Effort}  ·  IQ {alert.Iq:0.0}" +
+                        (windows.Count == 0 ? "" : Environment.NewLine + string.Join("  ·  ", windows)),
+                        Palette.Orange, Palette.OrangePale);
+                }
+            }
+        }
+        if (insightDetailsVisible)
+            AddButtonRow(body, (_settings.IsDashboardDisclosureExpanded(
+                        DashboardDisclosure.RadarInsightsDetails)
+                    ? T("收起场景推荐与预警", "Hide recommendations and alerts")
+                    : T($"场景推荐与降智预警（{groups.Length + alerts.Count}）",
+                        $"Recommendations and alerts ({groups.Length + alerts.Count})"),
+                () =>
+                {
+                    _settings.SetDashboardDisclosureExpanded(
+                        DashboardDisclosure.RadarInsightsDetails,
+                        !_settings.IsDashboardDisclosureExpanded(
+                            DashboardDisclosure.RadarInsightsDetails));
+                    SettingsChanged?.Invoke(this, EventArgs.Empty);
+                }));
+
+        var updated = _snapshot.RadarInsights?.SourceUpdatedAt
+                      ?? _snapshot.RadarInsights?.GeneratedAt;
+        if (RadarJson.Date(updated) is { } date)
+            AddText(body, $"{T("数据更新", "Source updated")} {FormatDateTime(date)}", Palette.Secondary);
+        AddText(body, T(
+            "此接口独立缓存 10 分钟；失败或时间戳倒退时保留上次有效结果，不进入状态栏或通知。",
+            "This endpoint is cached independently for 10 minutes. Failures or timestamp regressions keep the last valid result and never enter the taskbar title or notifications."),
+            Palette.Secondary);
+        AddPanel(panel);
+    }
+
+    private static string NormalizeInsightKey(string? value) =>
+        System.Text.RegularExpressions.Regex.Replace(
+            value?.Trim().ToLowerInvariant() ?? "", "[^a-z0-9]+", "-").Trim('-');
 
     private void AddErrorsCard()
     {
@@ -826,6 +1554,380 @@ internal sealed class DashboardForm : Form
         AddPanel(panel);
     }
 
+    internal void ShowLayoutEditor() =>
+        SetLayoutEditorVisible(true);
+
+    private void SetLayoutEditorVisible(bool visible)
+    {
+        if (_customizesLayout == visible) return;
+        _customizesLayout = visible;
+        if (visible
+            && !_settings.LayoutDiscoveryTipDismissed)
+        {
+            _settings.LayoutDiscoveryTipDismissed = true;
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
+        }
+        QueueContentRender();
+    }
+
+    private void QueueContentRender()
+    {
+        _pendingContentSignature = BuildContentSignature(
+            _snapshot,
+            _settings,
+            _updateStatus,
+            _resetLoading,
+            quotaHistory: _quotaHistory,
+            quotaHistoryEndingAt: _quotaHistoryEndingAt,
+            quotaHistoryStorageUnavailable:
+                _quotaHistoryStorageUnavailable,
+            customizesLayout: _customizesLayout);
+        _renderPending = !_contentRendered
+                         || !string.Equals(
+                             _renderedContentSignature,
+                             _pendingContentSignature,
+                             StringComparison.Ordinal);
+        RenderChrome();
+        ScheduleRender();
+    }
+
+    private void CommitLayoutChange()
+    {
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+        QueueContentRender();
+    }
+
+    private void AddLayoutEditor()
+    {
+        var panel = CreateCard(
+            T("自定义面板布局", "Customize dashboard layout"),
+            Palette.Blue,
+            Color.White);
+        panel.Name = "layoutEditor";
+        var body = Body(panel);
+        AddText(
+            body,
+            T(
+                "拖动模块或使用箭头调整顺序；在同一行选择是否显示、是否默认展开。",
+                "Drag sections or use arrows to reorder, then choose what appears and opens by default."),
+            Palette.Secondary);
+
+        var order = DashboardLayout.NormalizeOrder(
+            _settings.DashboardSectionOrder);
+        for (var index = 0; index < order.Count; index++)
+        {
+            var section = order[index];
+            var resolution = DashboardLayout.Resolve(
+                section,
+                _settings.IsDashboardSectionVisible(section),
+                _settings.IsDashboardSectionExpanded(section),
+                _snapshot.ResetCreditProtection,
+                _updateStatus.Phase == AppUpdatePhase.Failed);
+            var row = CreateLayoutEditorRow(
+                $"layout-section-{section}",
+                LayoutEditorLabel(section),
+                resolution.IsVisible,
+                resolution.IsExpanded,
+                resolution.CanHide,
+                resolution.CanCollapse,
+                canMoveUp: index > 0,
+                canMoveDown: index < order.Count - 1,
+                nested: false);
+            WireSectionLayoutRow(
+                row,
+                section,
+                index);
+            body.Controls.Add(row);
+
+            foreach (var disclosure in
+                     DashboardLayout.Children(section))
+            {
+                var child = CreateLayoutEditorRow(
+                    $"layout-disclosure-{disclosure}",
+                    DisclosureEditorLabel(disclosure),
+                    _settings.IsDashboardDisclosureVisible(
+                        disclosure),
+                    _settings.IsDashboardDisclosureExpanded(
+                        disclosure),
+                    canHide: true,
+                    canCollapse: true,
+                    canMoveUp: false,
+                    canMoveDown: false,
+                    nested: true);
+                WireDisclosureLayoutRow(
+                    child,
+                    disclosure);
+                body.Controls.Add(child);
+            }
+        }
+
+        AddButtonRow(
+            body,
+            (T("恢复默认布局", "Restore default layout"), () =>
+            {
+                _settings.ResetDashboardLayout();
+                CommitLayoutChange();
+            }));
+        AddText(
+            body,
+            T(
+                "隐藏只影响展示；额度历史记录、提醒和重置卡自动使用会继续。当前结论、紧急提示和连接错误始终显示，需要处理的重置卡或更新会临时置顶。",
+                "Hiding changes only presentation. Quota-history recording, alerts, and reset-credit auto-use continue. Current results, urgent alerts, and connection errors remain visible; reset-credit or update states needing attention temporarily appear first."),
+            Palette.Secondary);
+        AddPanel(panel);
+    }
+
+    private TableLayoutPanel CreateLayoutEditorRow(
+        string name,
+        string label,
+        bool visible,
+        bool expanded,
+        bool canHide,
+        bool canCollapse,
+        bool canMoveUp,
+        bool canMoveDown,
+        bool nested)
+    {
+        var row = new TableLayoutPanel
+        {
+            Name = name,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Top,
+            ColumnCount = 5,
+            RowCount = 1,
+            AllowDrop = !nested,
+            BackColor = nested
+                ? Color.FromArgb(248, 249, 251)
+                : Color.FromArgb(244, 247, 251),
+            Margin = ScaleDynamic(
+                new Padding(0, nested ? 1 : 4, 0, 1)),
+            Padding = ScaleDynamic(
+                new Padding(nested ? 17 : 7, 4, 5, 4)),
+            AccessibleName = nested
+                ? T(
+                    $"布局子项：{label}",
+                    $"Layout item: {label}")
+                : T(
+                    $"布局模块：{label}",
+                    $"Layout section: {label}")
+        };
+        row.ColumnStyles.Add(
+            new ColumnStyle(SizeType.Percent, 100));
+        for (var index = 1; index < 5; index++)
+            row.ColumnStyles.Add(
+                new ColumnStyle(SizeType.AutoSize));
+
+        var title = new Label
+        {
+            Name = "label",
+            Text = nested ? $"↳ {label}" : $"⋮⋮  {label}",
+            AutoEllipsis = true,
+            Dock = DockStyle.Fill,
+            MinimumSize = new Size(
+                ScaleDynamic(80),
+                ScaleDynamic(27)),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Font = new Font(
+                "Segoe UI Semibold",
+                Font.Size,
+                nested
+                    ? FontStyle.Regular
+                    : FontStyle.Bold),
+            ForeColor = Palette.Text,
+            UseMnemonic = false
+        };
+        var show = new CheckBox
+        {
+            Name = "show",
+            Text = T("显示", "Show"),
+            Checked = visible,
+            Enabled = canHide,
+            AutoSize = true,
+            Anchor = AnchorStyles.None,
+            AccessibleName = T(
+                $"显示 {label}",
+                $"Show {label}")
+        };
+        var startOpen = new CheckBox
+        {
+            Name = "startOpen",
+            Text = T("默认展开", "Start open"),
+            Checked = expanded,
+            Enabled = visible && canCollapse,
+            AutoSize = true,
+            Anchor = AnchorStyles.None,
+            AccessibleName = T(
+                $"{label} 默认展开",
+                $"Open {label} by default")
+        };
+        var moveUp = LayoutMoveButton(
+            "moveUp",
+            "↑",
+            canMoveUp,
+            T(
+                $"上移 {label}",
+                $"Move {label} up"));
+        var moveDown = LayoutMoveButton(
+            "moveDown",
+            "↓",
+            canMoveDown,
+            T(
+                $"下移 {label}",
+                $"Move {label} down"));
+        if (nested)
+        {
+            moveUp.Visible = false;
+            moveDown.Visible = false;
+        }
+
+        row.Controls.Add(title, 0, 0);
+        row.Controls.Add(show, 1, 0);
+        row.Controls.Add(startOpen, 2, 0);
+        row.Controls.Add(moveUp, 3, 0);
+        row.Controls.Add(moveDown, 4, 0);
+        return row;
+    }
+
+    private Button LayoutMoveButton(
+        string name,
+        string text,
+        bool enabled,
+        string accessibleName) => new()
+    {
+        Name = name,
+        Text = text,
+        Enabled = enabled,
+        Width = ScaleDynamic(28),
+        Height = ScaleDynamic(27),
+        Margin = ScaleDynamic(new Padding(2, 0, 0, 0)),
+        FlatStyle = FlatStyle.Flat,
+        BackColor = Color.White,
+        ForeColor = Palette.Blue,
+        UseMnemonic = false,
+        AccessibleName = accessibleName
+    };
+
+    private void WireSectionLayoutRow(
+        TableLayoutPanel row,
+        DashboardSection section,
+        int targetIndex)
+    {
+        var show = (CheckBox)row.Controls["show"]!;
+        var startOpen =
+            (CheckBox)row.Controls["startOpen"]!;
+        show.CheckedChanged += (_, _) =>
+        {
+            if (!show.Enabled) return;
+            _settings.SetDashboardSectionVisible(
+                section,
+                show.Checked);
+            startOpen.Enabled = show.Checked;
+            CommitLayoutChange();
+        };
+        startOpen.CheckedChanged += (_, _) =>
+        {
+            if (!startOpen.Enabled) return;
+            _settings.SetDashboardSectionExpanded(
+                section,
+                startOpen.Checked);
+            CommitLayoutChange();
+        };
+        ((Button)row.Controls["moveUp"]!).Click +=
+            (_, _) =>
+            {
+                _settings.MoveDashboardSection(section, -1);
+                CommitLayoutChange();
+            };
+        ((Button)row.Controls["moveDown"]!).Click +=
+            (_, _) =>
+            {
+                _settings.MoveDashboardSection(section, 1);
+                CommitLayoutChange();
+            };
+
+        void BeginDrag(object? sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+                row.DoDragDrop(
+                    section,
+                    DragDropEffects.Move);
+        }
+        row.MouseDown += BeginDrag;
+        row.Controls["label"]!.MouseDown += BeginDrag;
+        row.DragEnter += (_, e) =>
+        {
+            if (e.Data?.GetDataPresent(
+                    typeof(DashboardSection)) == true)
+                e.Effect = DragDropEffects.Move;
+        };
+        row.DragDrop += (_, e) =>
+        {
+            if (e.Data?.GetData(
+                    typeof(DashboardSection))
+                is not DashboardSection dragged)
+                return;
+            _settings.MoveDashboardSectionTo(
+                dragged,
+                targetIndex);
+            CommitLayoutChange();
+        };
+    }
+
+    private void WireDisclosureLayoutRow(
+        TableLayoutPanel row,
+        DashboardDisclosure disclosure)
+    {
+        var show = (CheckBox)row.Controls["show"]!;
+        var startOpen =
+            (CheckBox)row.Controls["startOpen"]!;
+        show.CheckedChanged += (_, _) =>
+        {
+            _settings.SetDashboardDisclosureVisible(
+                disclosure,
+                show.Checked);
+            startOpen.Enabled = show.Checked;
+            CommitLayoutChange();
+        };
+        startOpen.CheckedChanged += (_, _) =>
+        {
+            if (!startOpen.Enabled) return;
+            _settings.SetDashboardDisclosureExpanded(
+                disclosure,
+                startOpen.Checked);
+            CommitLayoutChange();
+        };
+    }
+
+    private void AddLayoutDiscoveryTip()
+    {
+        var panel = CreateCard(
+            T("面板可以按你的习惯排列", "Arrange the dashboard your way"),
+            Palette.Blue,
+            Palette.BluePale);
+        var body = Body(panel);
+        AddText(
+            body,
+            T(
+                "在“布局”中调整模块顺序、显示状态和默认展开；隐藏不会停止额度历史记录、提醒或重置卡自动使用。",
+                "Layout controls section order, visibility, and default expansion. Hiding never stops quota-history recording, alerts, or reset-credit auto-use."),
+            Palette.Secondary);
+        AddButtonRow(
+            body,
+              (T("试试布局", "Try Layout"), () =>
+              {
+                  SetLayoutEditorVisible(true);
+              }),
+            (T("关闭", "Dismiss"), () =>
+            {
+                _settings.LayoutDiscoveryTipDismissed = true;
+                SettingsChanged?.Invoke(
+                    this,
+                    EventArgs.Empty);
+            }));
+        AddPanel(panel);
+    }
+
     private void AddSettingsCard()
     {
         var panel = CreateCard(T("显示与提醒", "Display & Alerts"), Palette.Blue);
@@ -833,7 +1935,11 @@ internal sealed class DashboardForm : Form
         var metrics = _settings.SelectedStatusMetrics.Count == 0
             ? T("周额度", "Weekly")
             : string.Join(" / ", _settings.SelectedStatusMetrics.Select(MetricLabel));
-        AddKeyValue(body, T("状态栏", "Taskbar"), metrics);
+        AddKeyValue(body, T("显示位置", "Location"),
+            _settings.StatusDisplayMode == StatusDisplayMode.TaskbarText
+                ? T("任务栏文字", "Taskbar text")
+                : T("通知区域图标", "Notification icon"));
+        AddKeyValue(body, T("状态摘要", "Status summary"), metrics);
         AddKeyValue(body, T("节奏", "Pacing"), PacingStrategyLabel(_settings.PacingStrategy));
         AddKeyValue(body, T("提醒", "Alerts"), string.Join(" · ", new[]
         {
@@ -867,6 +1973,20 @@ internal sealed class DashboardForm : Form
             (T("检查更新", "Check now"), () => CheckUpdatesRequested?.Invoke(this, EventArgs.Empty)),
             (T("发行说明", "Releases"), () => Open(releaseUrl)),
             ("Prompts", () => Open(AppUpdateService.PromptsUrl)));
+        AddPanel(panel);
+    }
+
+    private void AddPreviewCard()
+    {
+        var panel = CreateCard(T("调试预览", "Preview"), Palette.Purple);
+        var body = Body(panel);
+        AddKeyValue(body, T("当前状态", "Current state"), _settings.Preview.ToString());
+        AddText(body, T(
+            "预览只改变显示，不发送通知、不执行自动使用，也不覆盖实时数据。",
+            "Preview changes display only. It sends no notifications, performs no auto-use, and does not replace live data."),
+            Palette.Secondary);
+        AddButtonRow(body, (T("打开预览设置", "Open preview settings"),
+            () => SettingsRequested?.Invoke(this, EventArgs.Empty)));
         AddPanel(panel);
     }
 
@@ -1322,6 +2442,125 @@ internal sealed class DashboardForm : Form
         };
     }
 
+    private string ResetCreditProtectionStatusText(
+        ResetCreditProtectionStatus status)
+    {
+        var expiry = status.ExpiresAt is { } expiresAt
+            ? $" · {T("过期", "expires")} {FormatDateTime(expiresAt)}"
+            : "";
+        return status.Kind switch
+        {
+            ResetCreditProtectionStatusKind.Enabling =>
+                T("正在核对账号、完整卡集合与本机授权…",
+                    "Verifying account, complete card set, and local authorization…"),
+            ResetCreditProtectionStatusKind.Checking =>
+                T("正在安全检查自动使用计划…",
+                    "Checking the auto-use plan safely…"),
+            ResetCreditProtectionStatusKind.NoCredits =>
+                T("自动使用已开启；当前没有可用重置卡。",
+                    "Auto-use is on; there are no available reset credits."),
+            ResetCreditProtectionStatusKind.PreviewNoCredits =>
+                T("只读检查完成：当前没有可用重置卡。",
+                    "Read-only check complete: no reset credits are available."),
+            ResetCreditProtectionStatusKind.Preview =>
+                $"{T("只读计划", "Read-only plan")} · "
+                + (status.ReadyNow
+                    ? T("现在已进入安全使用窗口", "safe-use window is open now")
+                    : $"{T("计划", "planned")} {FormatDateTime(status.ActionAt)}")
+                + expiry,
+            ResetCreditProtectionStatusKind.Scheduled =>
+                $"{T("自动使用已开启", "Auto-use is on")} · "
+                + $"{T("计划", "planned")} {FormatDateTime(status.ActionAt)}"
+                + expiry,
+            ResetCreditProtectionStatusKind.WaitingForUsage =>
+                T("上次尝试确认未消耗，将在安全窗口内重试。",
+                    "The last attempt was confirmed not consumed; retrying inside the safe window.")
+                + expiry,
+            ResetCreditProtectionStatusKind.Using =>
+                T("正在发送一次受本机授权保护的使用请求…",
+                    "Sending one locally authorized consume request…")
+                + expiry,
+            ResetCreditProtectionStatusKind.Reconciling =>
+                T("存在未决尝试；当前只读核对 Codex 状态，不会切换到其他卡。",
+                    "An attempt is unresolved; Codex is being reconciled read-only without switching cards.")
+                + expiry,
+            ResetCreditProtectionStatusKind.Succeeded =>
+                T("Codex 已确认该重置卡处于已使用状态。",
+                    "Codex confirmed that the reset credit is used.")
+                + expiry,
+            ResetCreditProtectionStatusKind.Missed =>
+                T("卡已过期，但无法确认自动使用是否完成，请检查。",
+                    "The credit expired before auto-use could be confirmed; review it.")
+                + expiry,
+            ResetCreditProtectionStatusKind.Blocked =>
+                ResetCreditProtectionBlockedText(status),
+            _ => T(
+                "到期前自动使用已关闭；“只读检查计划”不会使用任何卡。",
+                "Expiry auto-use is off; Read-only plan never consumes a credit.")
+        };
+    }
+
+    private string ResetCreditProtectionBlockedText(
+        ResetCreditProtectionStatus status) =>
+        status.BlockReason switch
+        {
+            ResetCreditProtectionBlockReason.AccountIdentityUnavailable =>
+                T("无法取得可绑定的 Codex 账号身份，未启用。",
+                    "A bindable Codex account identity is unavailable; auto-use was not enabled."),
+            ResetCreditProtectionBlockReason.AccountChanged =>
+                T("Codex 账号已变化，自动使用已关闭。",
+                    "The Codex account changed; auto-use was turned off."),
+            ResetCreditProtectionBlockReason.DetailsUnavailable =>
+                T("Codex 未返回完整重置卡明细；为安全起见不会自动使用。",
+                    "Codex did not return complete reset-credit details; auto-use is blocked."),
+            ResetCreditProtectionBlockReason.DetailsIncomplete =>
+                T($"卡明细不完整（{status.AvailableDetails}/{status.AvailableCount}）；不会自动使用。",
+                    $"Credit details are incomplete ({status.AvailableDetails}/{status.AvailableCount}); auto-use is blocked."),
+            ResetCreditProtectionBlockReason.NoSupportedExpiringCredits =>
+                T("没有可安全自动使用的 Codex 到期卡。",
+                    "No supported expiring Codex credit can be auto-used safely."),
+            ResetCreditProtectionBlockReason.CodexUnavailable =>
+                T("找不到可用的 Codex app-server。",
+                    "A usable Codex app-server was not found."),
+            ResetCreditProtectionBlockReason.SignedOut =>
+                T("Codex 登录态不可验证，自动使用已关闭。",
+                    "The Codex sign-in cannot be verified; auto-use was turned off."),
+            ResetCreditProtectionBlockReason.UnsupportedCodex =>
+                T("当前 Codex 版本不支持重置卡使用接口。",
+                    "This Codex version does not support the reset-credit consume API."),
+            ResetCreditProtectionBlockReason.AnotherProcess =>
+                T("另一个 Codex Radar 进程正在处理该功能，请稍后重试。",
+                    "Another Codex Radar process is handling this feature; retry shortly."),
+            ResetCreditProtectionBlockReason.JournalUnavailable =>
+                T("本机授权或对账记录不可验证，已安全关闭自动使用。",
+                    "The local authorization or reconciliation record cannot be verified; auto-use was disabled."),
+            ResetCreditProtectionBlockReason.CreditNotAuthorized =>
+                T("当前卡集合已不再等于确认时的集合，授权已撤销。",
+                    "The current card set no longer matches the confirmed set; authorization was revoked."),
+            ResetCreditProtectionBlockReason.ClockChanged =>
+                T("系统时间连续性变化超过 5 秒安全阈值，授权已撤销。",
+                    "Clock continuity changed beyond the 5-second safety threshold; authorization was revoked."),
+            ResetCreditProtectionBlockReason.PreviewMode =>
+                T("调试预览模式禁止破坏性操作。",
+                    "Destructive actions are disabled in preview mode."),
+            _ => T("安全检查失败；没有发送自动使用请求。",
+                "A safety check failed; no auto-use request was sent.")
+        };
+
+    private static Color ResetCreditProtectionStatusColor(
+        ResetCreditProtectionStatus status) => status.Kind switch
+    {
+        ResetCreditProtectionStatusKind.Succeeded
+            or ResetCreditProtectionStatusKind.NoCredits
+            or ResetCreditProtectionStatusKind.Scheduled => Palette.Green,
+        ResetCreditProtectionStatusKind.Missed
+            or ResetCreditProtectionStatusKind.Blocked => Palette.Red,
+        ResetCreditProtectionStatusKind.Using
+            or ResetCreditProtectionStatusKind.Reconciling
+            or ResetCreditProtectionStatusKind.WaitingForUsage => Palette.Orange,
+        _ => Palette.Blue
+    };
+
     private Color HeaderColor()
     {
         if (_snapshot.ActiveSpeedWindow) return Palette.Red;
@@ -1500,6 +2739,26 @@ internal sealed class DashboardForm : Form
         public static readonly Color Purple = Color.FromArgb(91, 65, 153);
         public static readonly Color PurplePale = Color.FromArgb(246, 242, 253);
         public static readonly Color Gray = Color.FromArgb(92, 96, 102);
+    }
+
+    private sealed class BufferedPanel : Panel
+    {
+        public BufferedPanel()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
+                     | ControlStyles.ResizeRedraw, true);
+            DoubleBuffered = true;
+        }
+    }
+
+    private sealed class BufferedFlowLayoutPanel : FlowLayoutPanel
+    {
+        public BufferedFlowLayoutPanel()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
+                     | ControlStyles.ResizeRedraw, true);
+            DoubleBuffered = true;
+        }
     }
 
     private sealed class FluentButton : Button
