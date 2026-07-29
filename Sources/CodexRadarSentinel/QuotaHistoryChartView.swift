@@ -262,7 +262,8 @@ struct QuotaHistoryChartView: View {
             }
         }
         .chartXScale(
-            domain: endingAt.addingTimeInterval(-range.duration)...endingAt
+            domain: endingAt.addingTimeInterval(-range.duration)...endingAt,
+            range: .plotDimension(startPadding: 6, endPadding: 10)
         )
         .chartYScale(domain: 0...100)
         .chartLegend(.hidden)
