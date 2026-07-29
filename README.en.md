@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.59: Arrange the menu around your workflow
+
+- The default hierarchy still keeps the current result, local quota, Codex IQ, reset-credit summary, and usage pace easy to find.
+- Choose `Layout` to drag sections or use the move-up and move-down buttons, then set which sections open by default. Preferences persist when the menu reopens and after an app restart.
+- The current result, urgent alerts, and connection errors remain fixed. Reset-credit or update detail opens temporarily when it needs attention, and the default layout is always one click away.
+
 ### v0.1.58: Pass counts stay on one line
 
 - Values such as `78/112` in `All model IQ` no longer split across lines at larger text sizes, making comparisons easier to scan.
@@ -37,14 +43,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Notices, community notes, and detailed radar sections share one `More from CodexRadar` disclosure. Reset credits, the menu-bar guide, and display settings also use clear collapsed-by-default entries.
 - Critical alerts remain fixed at the top. Reset-credit detail opens automatically for blocked, missed, or unresolved attempts, so only routine state stays out of the way.
 
-### v0.1.56: More resilient live data
-
-- When CodexRadar has no temporary notice, the menu hides the notice section instead of treating a valid empty state as a failure.
-- Notice changes do not interrupt local quota, Model IQ, Reset Radar, Fast Radar, or Insights updates.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.56**: accepts a missing temporary notice as a normal empty state without interrupting other live data.
 - **v0.1.55**: added scenario recommendations and degradation alerts while retaining the last valid result through network or schema failures.
 - **v0.1.54**: prevented normal clock synchronization from disabling reset-credit auto-use and made unresolved attempts reconcile read only first.
 - **v0.1.53**: completed 19 Intelligence Efficiency configurations, clarified overuse wording, and added explicitly enabled, default-off auto-use before reset credits expire.
@@ -212,14 +214,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.58
+./scripts/check_release_readiness.sh 0.1.59
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.58
+./scripts/package_release.sh 0.1.59
 ```
 
 Update the menu-bar and full-menu screenshots:

@@ -25,6 +25,12 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ## News / 最新功能
 
+### v0.1.59：菜单布局按习惯调整
+
+- 默认层级继续优先展示当前结论、本机额度、Codex IQ、重置卡摘要和用量节奏，常用信息无需先翻找设置。
+- 点击底部“布局”即可拖动模块，或使用上移、下移按钮调整顺序，并分别设置默认展开状态；选择会在重新打开菜单和重启应用后保留。
+- 当前结论、紧急提示和连接错误始终固定可见；需要处理的重置卡或更新状态会临时展开，也可以一键恢复默认布局。
+
 ### v0.1.58：多模型通过数保持完整
 
 - “全部模型 IQ”中的 `78/112` 等通过数不再在较大字号下断成两行，横向比较更直接。
@@ -37,14 +43,10 @@ https://github.com/WineChord/codex-radar/releases/latest
 - 公告、社区知识和各类雷达明细统一收进“更多 CodexRadar 信息”，重置卡、状态栏说明和显示设置也采用清晰的默认折叠入口。
 - 关键告警仍固定在顶部；重置卡遇到阻塞、遗漏或未决对账时会自动展开，折叠只减少正常状态下的日常干扰。
 
-### v0.1.56：更稳的在线数据兼容
-
-- CodexRadar 没有临时公告时，菜单会正常隐藏公告区，而不是把有效的空状态当作故障。
-- 公告变化不会影响本机额度、Model IQ、重置雷达、Fast 雷达或智能洞察的更新。
-
 <details>
 <summary><strong>历史版本</strong> — 展开查看更早的产品里程碑</summary>
 
+- **v0.1.56**：兼容没有临时公告的正常空状态，公告变化不再影响其他在线数据更新。
 - **v0.1.55**：加入场景推荐与降智预警，并在网络或数据格式异常时保留上一次有效结果。
 - **v0.1.54**：避免正常系统校时误关重置卡自动使用，并让未决请求优先只读对账。
 - **v0.1.53**：补齐 19 组智力效率数据，改善“超用”表达，并加入默认关闭、需要明确确认的重置卡到期前自动使用。
@@ -212,14 +214,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.58
+./scripts/check_release_readiness.sh 0.1.59
 ```
 
 构建发布包：
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.58
+./scripts/package_release.sh 0.1.59
 ```
 
 更新中英文状态栏与菜单截图：
