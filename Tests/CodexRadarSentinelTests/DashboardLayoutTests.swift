@@ -33,6 +33,14 @@ final class DashboardLayoutTests: XCTestCase {
             DashboardLayout.default.expandedSections,
             [.quota, .modelIQ, .usagePace, .insights]
         )
+        XCTAssertTrue(DashboardLayout.default.hiddenSections.isEmpty)
+        XCTAssertTrue(DashboardLayout.default.hiddenDisclosures.isEmpty)
+        for section in DashboardSection.allCases {
+            XCTAssertTrue(DashboardLayout.default.isVisible(section))
+        }
+        for disclosure in DashboardDisclosure.allCases {
+            XCTAssertTrue(DashboardLayout.default.isVisible(disclosure))
+        }
     }
 
     func testNestedDisclosuresHaveOneRegisteredParentAndSafeDefaults() {
@@ -158,6 +166,8 @@ final class DashboardLayoutTests: XCTestCase {
             ]
         )
         XCTAssertEqual(layout.expandedSections, [.resetCredits])
+        XCTAssertTrue(layout.hiddenSections.isEmpty)
+        XCTAssertTrue(layout.hiddenDisclosures.isEmpty)
     }
 
     func testMalformedStoredLayoutFallsBackToDefaults() throws {
@@ -171,11 +181,71 @@ final class DashboardLayoutTests: XCTestCase {
             ["unexpected": true],
             forKey: DashboardLayout.expandedDefaultsKey
         )
+        context.defaults.set(
+            "unexpected",
+            forKey: DashboardLayout.visibilityDefaultsKey
+        )
+        context.defaults.set(
+            42,
+            forKey: DashboardLayout.disclosureVisibilityDefaultsKey
+        )
 
         XCTAssertEqual(
             DashboardLayout.load(from: context.defaults),
             .default
         )
+    }
+
+    func testVisibilityLoadsExplicitHiddenValuesAndKeepsMissingItemsVisible()
+        throws
+    {
+        let context = try LayoutTestContext()
+        defer { context.cleanup() }
+        context.defaults.set(
+            [
+                DashboardSection.quota.rawValue: false,
+                DashboardSection.updates.rawValue: true,
+                "future-unknown-section": false,
+            ],
+            forKey: DashboardLayout.visibilityDefaultsKey
+        )
+        context.defaults.set(
+            [
+                DashboardDisclosure.quotaHistory.rawValue: false,
+                DashboardDisclosure.modelIQDetails.rawValue: true,
+                "future-unknown-disclosure": false,
+            ],
+            forKey: DashboardLayout.disclosureVisibilityDefaultsKey
+        )
+
+        let layout = DashboardLayout.load(from: context.defaults)
+
+        XCTAssertEqual(layout.hiddenSections, [.quota])
+        XCTAssertEqual(layout.hiddenDisclosures, [.quotaHistory])
+        XCTAssertFalse(layout.isVisible(.quota))
+        XCTAssertTrue(layout.isVisible(.modelIQ))
+        XCTAssertTrue(layout.isVisible(.updates))
+        XCTAssertFalse(layout.isVisible(.quotaHistory))
+        XCTAssertTrue(layout.isVisible(.modelIQDetails))
+        XCTAssertTrue(layout.isVisible(.radarInsightsDetails))
+    }
+
+    func testVisibilityDoesNotChangeSavedExpansionPreference() {
+        var layout = DashboardLayout.default
+        layout.setExpanded(.quota, expanded: false)
+        layout.setVisible(.quota, visible: false)
+        layout.setVisible(.quotaHistory, visible: false)
+
+        XCTAssertFalse(layout.isVisible(.quota))
+        XCTAssertFalse(layout.isVisible(.quotaHistory))
+        XCTAssertFalse(layout.expandedSections.contains(.quota))
+
+        layout.setVisible(.quota, visible: true)
+        layout.setVisible(.quotaHistory, visible: true)
+
+        XCTAssertTrue(layout.isVisible(.quota))
+        XCTAssertTrue(layout.isVisible(.quotaHistory))
+        XCTAssertFalse(layout.expandedSections.contains(.quota))
     }
 
     func testExplicitlyCollapsedLayoutStaysCollapsed() throws {
@@ -319,6 +389,50 @@ final class DashboardLayoutTests: XCTestCase {
             updateResolution,
             .init(isExpanded: true, canCollapse: false)
         )
+
+        let hiddenResetResolution = DashboardSectionVisibilityPolicy.resolve(
+            section: .resetCredits,
+            preferredVisible: false,
+            resetCreditStatus: forcedStatuses[0],
+            hasUnresolvedResetCreditAttempt: false
+        )
+        XCTAssertEqual(
+            hiddenResetResolution,
+            .init(isVisible: true, canHide: false)
+        )
+        let releasedVisibilityResolution =
+            DashboardSectionVisibilityPolicy.resolve(
+                section: .resetCredits,
+                preferredVisible: false,
+                resetCreditStatus: .disabled,
+                hasUnresolvedResetCreditAttempt: false
+            )
+        XCTAssertEqual(
+            releasedVisibilityResolution,
+            .init(isVisible: false, canHide: true)
+        )
+        let unrelatedVisibilityResolution =
+            DashboardSectionVisibilityPolicy.resolve(
+                section: .quota,
+                preferredVisible: false,
+                resetCreditStatus: forcedStatuses[0],
+                hasUnresolvedResetCreditAttempt: true
+            )
+        XCTAssertEqual(
+            unrelatedVisibilityResolution,
+            .init(isVisible: false, canHide: true)
+        )
+        let hiddenUpdateResolution = DashboardSectionVisibilityPolicy.resolve(
+            section: .updates,
+            preferredVisible: false,
+            resetCreditStatus: .disabled,
+            hasUnresolvedResetCreditAttempt: false,
+            requiresUpdateAttention: true
+        )
+        XCTAssertEqual(
+            hiddenUpdateResolution,
+            .init(isVisible: true, canHide: false)
+        )
     }
 
     func testStorePersistsLayoutAndResetDoesNotChangeOtherSettings()
@@ -352,6 +466,16 @@ final class DashboardLayoutTests: XCTestCase {
             .radarInsightsDetails,
             expanded: true
         )
+        firstStore?.setDashboardSection(.quota, visible: false)
+        firstStore?.setDashboardSection(.updates, visible: false)
+        firstStore?.setDashboardDisclosure(
+            .quotaHistory,
+            visible: false
+        )
+        firstStore?.setDashboardDisclosure(
+            .radarInsightsDetails,
+            visible: false
+        )
 
         XCTAssertEqual(firstStore?.dashboardLayout.order.first, .resetCredits)
         firstStore = nil
@@ -377,6 +501,19 @@ final class DashboardLayoutTests: XCTestCase {
                 .radarInsightsDetails
             )
         )
+        XCTAssertFalse(secondStore.isDashboardSectionVisible(.quota))
+        XCTAssertFalse(secondStore.isDashboardSectionVisible(.updates))
+        XCTAssertFalse(
+            secondStore.isDashboardDisclosureVisible(.quotaHistory)
+        )
+        XCTAssertFalse(
+            secondStore.isDashboardDisclosureVisible(
+                .radarInsightsDetails
+            )
+        )
+        XCTAssertTrue(
+            secondStore.isDashboardDisclosureVisible(.modelIQDetails)
+        )
         XCTAssertEqual(secondStore.appLanguage, .en)
         XCTAssertEqual(secondStore.menuTextSize, .extraLarge)
 
@@ -387,6 +524,10 @@ final class DashboardLayoutTests: XCTestCase {
         XCTAssertEqual(secondStore.menuTextSize, .extraLarge)
         XCTAssertFalse(secondStore.automaticUpdatesEnabled)
         XCTAssertFalse(secondStore.resetCreditAutoRefreshEnabled)
+        XCTAssertTrue(secondStore.dashboardLayout.hiddenSections.isEmpty)
+        XCTAssertTrue(
+            secondStore.dashboardLayout.hiddenDisclosures.isEmpty
+        )
 
         let thirdStore = context.makeStore()
         XCTAssertEqual(thirdStore.dashboardLayout, .default)
@@ -409,6 +550,14 @@ final class DashboardLayoutTests: XCTestCase {
                 .radarInsightsDetails
             )
         )
+        for section in DashboardSection.allCases {
+            XCTAssertTrue(thirdStore.isDashboardSectionVisible(section))
+        }
+        for disclosure in DashboardDisclosure.allCases {
+            XCTAssertTrue(
+                thirdStore.isDashboardDisclosureVisible(disclosure)
+            )
+        }
     }
 
     func testLayoutDiscoveryTipDismissalPersistsWithoutChangingLayout()

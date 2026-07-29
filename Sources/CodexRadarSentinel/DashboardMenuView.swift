@@ -121,7 +121,9 @@ struct DashboardMenuView: View {
         VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
             fixedStatusContent
             ForEach(store.dashboardLayout.order) { section in
-                dashboardSection(section)
+                if visibilityResolution(for: section).isVisible {
+                    dashboardSection(section)
+                }
             }
         }
         .padding(.horizontal, Layout.contentPadding)
@@ -184,8 +186,8 @@ struct DashboardMenuView: View {
                 )
                 .font(.system(size: metrics.headerTitle, weight: .semibold))
                 Text(text(
-                    "拖动调整顶层模块顺序；为模块及其可折叠子项设置“默认展开”。",
-                    "Drag to reorder top-level sections. Choose which sections and nested details open by default."
+                    "拖动调整模块顺序；选择模块和子项是否显示、是否默认展开。",
+                    "Reorder sections, then choose what appears and opens by default."
                 ))
                 .font(.system(size: metrics.caption))
                 .foregroundStyle(.secondary)
@@ -209,8 +211,8 @@ struct DashboardMenuView: View {
             }
 
             Text(text(
-                "当前结论、紧急提示和连接错误始终固定显示；需要处理的重置卡或更新状态也会临时展开，不会被布局偏好隐藏。",
-                "The current result, urgent alerts, and connection errors always remain visible. Reset-credit or update states that need attention also open temporarily instead of being hidden by layout preferences."
+                "隐藏只影响菜单展示，不会停止数据记录、提醒或重置卡自动使用。当前结论、紧急提示和连接错误始终显示；需要处理的重置卡或更新状态会临时显示并展开。",
+                "Hiding changes only the menu. Recording, alerts, and reset-credit auto-use continue. The current result, urgent alerts, and connection errors always remain visible; reset-credit or update states that need attention temporarily appear expanded."
             ))
             .font(.system(size: metrics.caption))
             .foregroundStyle(.secondary)
@@ -238,7 +240,9 @@ struct DashboardMenuView: View {
         _ section: DashboardSection,
         index: Int
     ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let isVisible = store.isDashboardSectionVisible(section)
+
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(
@@ -269,20 +273,6 @@ struct DashboardMenuView: View {
                     .minimumScaleFactor(0.72)
 
                 Spacer(minLength: 4)
-
-                Toggle(
-                    text("默认展开", "Open by default"),
-                    isOn: storedExpansionBinding(for: section)
-                )
-                .toggleStyle(.checkbox)
-                .font(.system(
-                    size: metrics.caption,
-                    weight: .medium
-                ))
-                .accessibilityLabel(text(
-                    "\(section.label(language: language)) 默认展开",
-                    "Open \(section.label(language: language)) by default"
-                ))
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.12)) {
@@ -325,6 +315,43 @@ struct DashboardMenuView: View {
                 ))
             }
 
+            HStack(spacing: 14) {
+                Color.clear
+                    .frame(width: 44, height: 1)
+
+                Toggle(
+                    text("显示", "Show"),
+                    isOn: storedVisibilityBinding(for: section)
+                )
+                .toggleStyle(.checkbox)
+                .font(.system(
+                    size: metrics.caption,
+                    weight: .medium
+                ))
+                .accessibilityLabel(text(
+                    "显示 \(section.label(language: language))",
+                    "Show \(section.label(language: language))"
+                ))
+
+                Toggle(
+                    text("默认展开", "Open by default"),
+                    isOn: storedExpansionBinding(for: section)
+                )
+                .toggleStyle(.checkbox)
+                .font(.system(
+                    size: metrics.caption,
+                    weight: .medium
+                ))
+                .disabled(!isVisible)
+                .accessibilityLabel(text(
+                    "\(section.label(language: language)) 默认展开",
+                    "Open \(section.label(language: language)) by default"
+                ))
+
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 6)
+
             ForEach(DashboardDisclosure.children(of: section)) {
                 disclosure in
                 Divider()
@@ -335,8 +362,8 @@ struct DashboardMenuView: View {
             }
         }
         .accessibilityValue(text(
-            "第 \(index + 1) 项",
-            "Position \(index + 1)"
+            "第 \(index + 1) 项，\(isVisible ? "显示" : "隐藏")",
+            "Position \(index + 1), \(isVisible ? "shown" : "hidden")"
         ))
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
@@ -364,34 +391,59 @@ struct DashboardMenuView: View {
     private func layoutEditorDisclosureRow(
         _ disclosure: DashboardDisclosure
     ) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "arrow.turn.down.right")
-                .frame(width: 18)
-                .foregroundStyle(.tertiary)
+        let isVisible = store.isDashboardDisclosureVisible(disclosure)
 
-            Image(systemName: disclosure.systemImage)
-                .frame(width: 18)
-                .foregroundStyle(.secondary)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.turn.down.right")
+                    .frame(width: 18)
+                    .foregroundStyle(.tertiary)
 
-            Text(disclosure.label(language: language))
-                .font(.system(size: metrics.caption, weight: .medium))
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
+                Image(systemName: disclosure.systemImage)
+                    .frame(width: 18)
+                    .foregroundStyle(.secondary)
 
-            Spacer(minLength: 4)
+                Text(disclosure.label(language: language))
+                    .font(.system(size: metrics.caption, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
 
-            Toggle(
-                text("默认展开", "Open by default"),
-                isOn: storedDisclosureExpansionBinding(
-                    for: disclosure
+                Spacer(minLength: 4)
+            }
+
+            HStack(spacing: 14) {
+                Color.clear
+                    .frame(width: 44, height: 1)
+
+                Toggle(
+                    text("显示", "Show"),
+                    isOn: storedDisclosureVisibilityBinding(
+                        for: disclosure
+                    )
                 )
-            )
-            .toggleStyle(.checkbox)
-            .font(.system(size: metrics.caption, weight: .medium))
-            .accessibilityLabel(text(
-                "\(disclosure.label(language: language)) 默认展开",
-                "Open \(disclosure.label(language: language)) by default"
-            ))
+                .toggleStyle(.checkbox)
+                .font(.system(size: metrics.caption, weight: .medium))
+                .accessibilityLabel(text(
+                    "显示 \(disclosure.label(language: language))",
+                    "Show \(disclosure.label(language: language))"
+                ))
+
+                Toggle(
+                    text("默认展开", "Open by default"),
+                    isOn: storedDisclosureExpansionBinding(
+                        for: disclosure
+                    )
+                )
+                .toggleStyle(.checkbox)
+                .font(.system(size: metrics.caption, weight: .medium))
+                .disabled(!isVisible)
+                .accessibilityLabel(text(
+                    "\(disclosure.label(language: language)) 默认展开",
+                    "Open \(disclosure.label(language: language)) by default"
+                ))
+
+                Spacer(minLength: 0)
+            }
         }
         .padding(.leading, 27)
     }
@@ -422,11 +474,8 @@ struct DashboardMenuView: View {
         _ section: DashboardSection,
         to targetIndex: Int
     ) {
-        var preview = DashboardLayout(
-            order: layoutEditorOrder,
-            expandedSections:
-                store.dashboardLayout.expandedSections
-        )
+        var preview = store.dashboardLayout
+        preview.setOrder(layoutEditorOrder)
         preview.move(section, to: targetIndex)
         dashboardSectionDragPreview = preview.order
     }
@@ -458,6 +507,19 @@ struct DashboardMenuView: View {
         )
     }
 
+    private func storedVisibilityBinding(
+        for section: DashboardSection
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                store.isDashboardSectionVisible(section)
+            },
+            set: { visible in
+                store.setDashboardSection(section, visible: visible)
+            }
+        )
+    }
+
     private func renderedExpansionBinding(
         for section: DashboardSection
     ) -> Binding<Bool> {
@@ -485,6 +547,20 @@ struct DashboardMenuView: View {
             section: section,
             preferredExpanded:
                 store.isDashboardSectionExpanded(section),
+            resetCreditStatus: store.resetCreditProtectionStatus,
+            hasUnresolvedResetCreditAttempt:
+                store.hasUnresolvedResetCreditProtectionAttempt,
+            requiresUpdateAttention: updateRequiresAttention
+        )
+    }
+
+    private func visibilityResolution(
+        for section: DashboardSection
+    ) -> DashboardSectionVisibilityPolicy.Resolution {
+        DashboardSectionVisibilityPolicy.resolve(
+            section: section,
+            preferredVisible:
+                store.isDashboardSectionVisible(section),
             resetCreditStatus: store.resetCreditProtectionStatus,
             hasUnresolvedResetCreditAttempt:
                 store.hasUnresolvedResetCreditProtectionAttempt,
@@ -526,6 +602,22 @@ struct DashboardMenuView: View {
                 store.setDashboardDisclosure(
                     disclosure,
                     expanded: expanded
+                )
+            }
+        )
+    }
+
+    private func storedDisclosureVisibilityBinding(
+        for disclosure: DashboardDisclosure
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                store.isDashboardDisclosureVisible(disclosure)
+            },
+            set: { visible in
+                store.setDashboardDisclosure(
+                    disclosure,
+                    visible: visible
                 )
             }
         )
@@ -573,8 +665,8 @@ struct DashboardMenuView: View {
                     Image(systemName: "rectangle.3.group")
                         .foregroundStyle(Color.accentColor)
                     Text(text(
-                        "模块顺序与默认展开都能调整",
-                        "Reorder sections and set defaults"
+                        "排序、显示与默认展开都能调整",
+                        "Reorder, show, or set defaults"
                     ))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -595,8 +687,8 @@ struct DashboardMenuView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(text(
-                "打开布局编辑器，调整模块顺序和默认展开",
-                "Open Layout to reorder sections and set defaults"
+                "打开布局编辑器，调整模块顺序、显示和默认展开",
+                "Open Layout to reorder, show or hide, and set defaults"
             ))
 
             Button {
@@ -767,7 +859,9 @@ struct DashboardMenuView: View {
                         .font(.system(size: metrics.caption))
                         .foregroundStyle(.secondary)
                 }
-                quotaHistorySection
+                if store.isDashboardDisclosureVisible(.quotaHistory) {
+                    quotaHistorySection
+                }
             }
         }
     }
@@ -1715,42 +1809,46 @@ struct DashboardMenuView: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
 
-                    collapsibleSection(
-                        isExpanded:
-                            radarInsightsDetailsExpansionBinding,
-                        systemImage: "list.bullet.rectangle",
-                        title: text("场景推荐与降智预警", "Recommendations and alerts"),
-                        trailing: radarInsightsCountLabel(groups: groups, alerts: alerts)
+                    if store.isDashboardDisclosureVisible(
+                        .radarInsightsDetails
                     ) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if !alerts.isEmpty {
-                                Text(text("降智预警", "Degradation alerts"))
-                                    .font(.system(size: metrics.caption, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-                                VStack(alignment: .leading, spacing: 5) {
-                                    ForEach(
-                                        Array(alerts.enumerated()),
-                                        id: \.offset
-                                    ) { _, alert in
-                                        radarDegradationRow(alert)
+                        collapsibleSection(
+                            isExpanded:
+                                radarInsightsDetailsExpansionBinding,
+                            systemImage: "list.bullet.rectangle",
+                            title: text("场景推荐与降智预警", "Recommendations and alerts"),
+                            trailing: radarInsightsCountLabel(groups: groups, alerts: alerts)
+                        ) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                if !alerts.isEmpty {
+                                    Text(text("降智预警", "Degradation alerts"))
+                                        .font(.system(size: metrics.caption, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        ForEach(
+                                            Array(alerts.enumerated()),
+                                            id: \.offset
+                                        ) { _, alert in
+                                            radarDegradationRow(alert)
+                                        }
                                     }
+                                    .padding(8)
+                                    .background(
+                                        Color.orange.opacity(0.08),
+                                        in: RoundedRectangle(cornerRadius: 8)
+                                    )
                                 }
-                                .padding(8)
-                                .background(
-                                    Color.orange.opacity(0.08),
-                                    in: RoundedRectangle(cornerRadius: 8)
-                                )
-                            }
 
-                            if !groups.isEmpty {
-                                Text(text("场景推荐", "Scenario recommendations"))
-                                    .font(.system(size: metrics.caption, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-                                ForEach(
-                                    Array(groups.enumerated()),
-                                    id: \.offset
-                                ) { index, group in
-                                    radarRecommendationCard(group, index: index)
+                                if !groups.isEmpty {
+                                    Text(text("场景推荐", "Scenario recommendations"))
+                                        .font(.system(size: metrics.caption, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                    ForEach(
+                                        Array(groups.enumerated()),
+                                        id: \.offset
+                                    ) { index, group in
+                                        radarRecommendationCard(group, index: index)
+                                    }
                                 }
                             }
                         }
@@ -2267,7 +2365,9 @@ struct DashboardMenuView: View {
                         ))
                     }
                 }
-                if let rows = state.modelIQ?.latestRows, rows.count > 1 {
+                if let rows = state.modelIQ?.latestRows,
+                   rows.count > 1,
+                   store.isDashboardDisclosureVisible(.modelIQDetails) {
                     collapsibleSection(
                         isExpanded: modelIQDetailsExpansionBinding,
                         systemImage: "square.grid.2x2",
@@ -3748,7 +3848,13 @@ struct DashboardMenuView: View {
             )
         }
         if state.recentResetClosed {
-            return text("本机额度见下方 · 来源 CodexRadar", "Local quota below · source CodexRadar")
+            if visibilityResolution(for: .quota).isVisible {
+                return text(
+                    "本机额度见下方 · 来源 CodexRadar",
+                    "Local quota below · source CodexRadar"
+                )
+            }
+            return text("来源 CodexRadar", "Source CodexRadar")
         }
         return text(
             "数据获取 \(DisplayFormatters.compactDateTime(state.lastUpdatedAt))",

@@ -133,6 +133,9 @@ enum DashboardDisclosure: String, CaseIterable, Identifiable {
 struct DashboardLayout: Equatable {
     static let orderDefaultsKey = "dashboardSectionOrderV1"
     static let expandedDefaultsKey = "dashboardSectionExpansionV1"
+    static let visibilityDefaultsKey = "dashboardSectionVisibilityV1"
+    static let disclosureVisibilityDefaultsKey =
+        "dashboardDisclosureVisibilityV1"
 
     static let defaultOrder: [DashboardSection] = [
         .quota,
@@ -161,14 +164,24 @@ struct DashboardLayout: Equatable {
 
     private(set) var order: [DashboardSection]
     private(set) var expandedSections: Set<DashboardSection>
+    private(set) var hiddenSections: Set<DashboardSection>
+    private(set) var hiddenDisclosures: Set<DashboardDisclosure>
 
     init(
         order: [DashboardSection],
-        expandedSections: Set<DashboardSection>
+        expandedSections: Set<DashboardSection>,
+        hiddenSections: Set<DashboardSection> = [],
+        hiddenDisclosures: Set<DashboardDisclosure> = []
     ) {
         self.order = Self.normalizedOrder(order)
         self.expandedSections = expandedSections.intersection(
             Set(DashboardSection.allCases)
+        )
+        self.hiddenSections = hiddenSections.intersection(
+            Set(DashboardSection.allCases)
+        )
+        self.hiddenDisclosures = hiddenDisclosures.intersection(
+            Set(DashboardDisclosure.allCases)
         )
     }
 
@@ -210,9 +223,37 @@ struct DashboardLayout: Equatable {
             expandedSections = defaultExpandedSections
         }
 
+        let hiddenSections: Set<DashboardSection>
+        if let rawVisibility = defaults.dictionary(
+            forKey: visibilityDefaultsKey
+        ) {
+            hiddenSections = Set(
+                DashboardSection.allCases.filter { section in
+                    (rawVisibility[section.rawValue] as? Bool) == false
+                }
+            )
+        } else {
+            hiddenSections = []
+        }
+
+        let hiddenDisclosures: Set<DashboardDisclosure>
+        if let rawVisibility = defaults.dictionary(
+            forKey: disclosureVisibilityDefaultsKey
+        ) {
+            hiddenDisclosures = Set(
+                DashboardDisclosure.allCases.filter { disclosure in
+                    (rawVisibility[disclosure.rawValue] as? Bool) == false
+                }
+            )
+        } else {
+            hiddenDisclosures = []
+        }
+
         return DashboardLayout(
             order: order,
-            expandedSections: expandedSections
+            expandedSections: expandedSections,
+            hiddenSections: hiddenSections,
+            hiddenDisclosures: hiddenDisclosures
         )
     }
 
@@ -225,6 +266,22 @@ struct DashboardLayout: Equatable {
                 }
             ),
             forKey: Self.expandedDefaultsKey
+        )
+        defaults.set(
+            Dictionary(
+                uniqueKeysWithValues: DashboardSection.allCases.map {
+                    ($0.rawValue, !hiddenSections.contains($0))
+                }
+            ),
+            forKey: Self.visibilityDefaultsKey
+        )
+        defaults.set(
+            Dictionary(
+                uniqueKeysWithValues: DashboardDisclosure.allCases.map {
+                    ($0.rawValue, !hiddenDisclosures.contains($0))
+                }
+            ),
+            forKey: Self.disclosureVisibilityDefaultsKey
         )
     }
 
@@ -248,6 +305,36 @@ struct DashboardLayout: Equatable {
             expandedSections.insert(section)
         } else {
             expandedSections.remove(section)
+        }
+    }
+
+    func isVisible(_ section: DashboardSection) -> Bool {
+        !hiddenSections.contains(section)
+    }
+
+    mutating func setVisible(
+        _ section: DashboardSection,
+        visible: Bool
+    ) {
+        if visible {
+            hiddenSections.remove(section)
+        } else {
+            hiddenSections.insert(section)
+        }
+    }
+
+    func isVisible(_ disclosure: DashboardDisclosure) -> Bool {
+        !hiddenDisclosures.contains(disclosure)
+    }
+
+    mutating func setVisible(
+        _ disclosure: DashboardDisclosure,
+        visible: Bool
+    ) {
+        if visible {
+            hiddenDisclosures.remove(disclosure)
+        } else {
+            hiddenDisclosures.insert(disclosure)
         }
     }
 
@@ -340,5 +427,32 @@ enum DashboardSectionExpansionPolicy {
         default:
             return false
         }
+    }
+}
+
+enum DashboardSectionVisibilityPolicy {
+    struct Resolution: Equatable {
+        let isVisible: Bool
+        let canHide: Bool
+    }
+
+    static func resolve(
+        section: DashboardSection,
+        preferredVisible: Bool,
+        resetCreditStatus: ResetCreditProtectionStatus,
+        hasUnresolvedResetCreditAttempt: Bool,
+        requiresUpdateAttention: Bool = false
+    ) -> Resolution {
+        let forced = DashboardSectionExpansionPolicy.forcesExpansion(
+            of: section,
+            resetCreditStatus: resetCreditStatus,
+            hasUnresolvedResetCreditAttempt:
+                hasUnresolvedResetCreditAttempt,
+            requiresUpdateAttention: requiresUpdateAttention
+        )
+        return Resolution(
+            isVisible: preferredVisible || forced,
+            canHide: !forced
+        )
     }
 }

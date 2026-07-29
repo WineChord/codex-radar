@@ -79,7 +79,7 @@ See [GitHub Releases](https://github.com/WineChord/codex-radar/releases) for the
 | Reset-credit status | Checks each reset credit at a low frequency and caches only sanitized results. |
 | Auto-use before expiry | Strictly off by default; only an explicit opt-in allows an attempt near a target credit's expiry. |
 | Alerts and updates | Notifies for quota, recovery, low IQ, and auto-use results; verifies update assets with SHA256. |
-| Personalization | Supports two interface languages, font sizes, section order, default expansion, menu-bar segments, and display formats. |
+| Personalization | Supports two interface languages, font sizes, section and nested-item order, visibility and default expansion, menu-bar segments, and display formats. |
 
 ## Menu Bar Meaning
 
@@ -120,15 +120,15 @@ The default order leads with the current conclusion, local quota, Codex IQ, rese
 
 ### Menu layout
 
-Choose `Layout` in the bottom toolbar to customize top-level sections. Drag a handle or use the move-up and move-down buttons to change the order, then choose which sections are expanded by default. When a section contains collapsible details, they appear indented beneath it—for example, `Quota history` under `Codex Quota` and `All model IQ` under `Codex IQ`—with independent default-open controls. Every preference persists when the menu reopens and after an app restart. `Restore default layout` resets only layout preferences, not language, text size, alerts, or automatic updates.
+Choose `Layout` in the bottom toolbar to customize top-level sections. Drag a handle or use the move-up and move-down buttons to change the order, use `Show` to decide whether each section appears in the menu, then choose which visible sections open by default. Collapsible details appear indented beneath their parent—for example, `Quota history` under `Codex Quota` and `All model IQ` under `Codex IQ`—and can be shown, hidden, or made default-open independently. Every preference persists when the menu reopens and after an app restart. `Restore default layout` shows every section and nested item and resets their order and expansion states without changing language, text size, alerts, or automatic updates.
 
 A compact tip above the bottom toolbar introduces Layout the first time it is shown. Selecting the tip opens the editor directly; choosing `Layout` itself or dismissing the tip prevents it from appearing again.
 
-The current result, urgent alerts, and connection errors are not sortable. Reset-credit or update sections temporarily lock open when they need attention, then return to the user's saved preference after the issue clears.
+Hiding affects only the menu; quota-history recording, alerts, and reset-credit auto-use continue. The current result, urgent alerts, and connection errors are neither sortable nor hideable. Reset-credit or update sections temporarily appear and lock open when they need attention, then return to the user's saved visibility and expansion preferences after the issue clears.
 
 ### Quota history
 
-`Quota history` inside `Codex Quota` is collapsed by default and can be made default-open in `Layout`. It offers 24-hour, 7-day, and 30-day ranges. Hover over the curve, or drag across it, to inspect the nearest remaining balance and its change from the previous sample.
+`Quota history` inside `Codex Quota` is shown but collapsed by default. It can be made default-open or hidden completely in `Layout`. It offers 24-hour, 7-day, and 30-day ranges. Hover over the curve, or drag across it, to inspect the nearest remaining balance and its change from the previous sample. Hiding the chart does not stop local sampling.
 
 The app records real points only after local weekly quota loads successfully. While it stays running, it retains a heartbeat at least every five minutes and immediately keeps meaningful balance or reset-time changes. Lines do not bridge long data gaps. Reliable upward jumps are labeled only as `Observed reset`; the app does not guess whether a periodic reset, reset credit, or another server-side correction caused them.
 

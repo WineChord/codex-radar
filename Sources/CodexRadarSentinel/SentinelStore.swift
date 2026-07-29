@@ -782,6 +782,10 @@ final class SentinelStore: NSObject, ObservableObject {
         dashboardLayout.expandedSections.contains(section)
     }
 
+    func isDashboardSectionVisible(_ section: DashboardSection) -> Bool {
+        dashboardLayout.isVisible(section)
+    }
+
     func dismissLayoutDiscoveryTip() {
         guard !layoutDiscoveryTipDismissed else {
             return
@@ -801,6 +805,18 @@ final class SentinelStore: NSObject, ObservableObject {
         dashboardLayout = next
     }
 
+    func setDashboardSection(
+        _ section: DashboardSection,
+        visible: Bool
+    ) {
+        var next = dashboardLayout
+        next.setVisible(section, visible: visible)
+        guard next != dashboardLayout else {
+            return
+        }
+        dashboardLayout = next
+    }
+
     func isDashboardDisclosureExpanded(
         _ disclosure: DashboardDisclosure
     ) -> Bool {
@@ -812,6 +828,12 @@ final class SentinelStore: NSObject, ObservableObject {
         case .radarInsightsDetails:
             return radarInsightsDetailsExpanded
         }
+    }
+
+    func isDashboardDisclosureVisible(
+        _ disclosure: DashboardDisclosure
+    ) -> Bool {
+        dashboardLayout.isVisible(disclosure)
     }
 
     func setDashboardDisclosure(
@@ -826,6 +848,18 @@ final class SentinelStore: NSObject, ObservableObject {
         case .radarInsightsDetails:
             radarInsightsDetailsExpanded = expanded
         }
+    }
+
+    func setDashboardDisclosure(
+        _ disclosure: DashboardDisclosure,
+        visible: Bool
+    ) {
+        var next = dashboardLayout
+        next.setVisible(disclosure, visible: visible)
+        guard next != dashboardLayout else {
+            return
+        }
+        dashboardLayout = next
     }
 
     func moveDashboardSection(
