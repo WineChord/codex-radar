@@ -82,6 +82,35 @@ final class DashboardLayoutTests: XCTestCase {
         )
     }
 
+    func testLayoutEditorUsesCompactEnglishLabelsWithoutChangingMenuLabels() {
+        XCTAssertEqual(
+            DashboardSection.insights.layoutEditorLabel(language: .en),
+            "Insights"
+        )
+        XCTAssertEqual(
+            DashboardSection.radarDetails.layoutEditorLabel(language: .en),
+            "Radar details"
+        )
+        XCTAssertEqual(
+            DashboardSection.insights.label(language: .en),
+            "CodexRadar Insights"
+        )
+        XCTAssertEqual(
+            DashboardSection.radarDetails.label(language: .en),
+            "More from CodexRadar"
+        )
+        XCTAssertEqual(
+            DashboardDisclosure.radarInsightsDetails.layoutEditorLabel(
+                language: .en
+            ),
+            "Tips & alerts"
+        )
+        XCTAssertEqual(
+            DashboardDisclosure.radarInsightsDetails.label(language: .en),
+            "Recommendations & alerts"
+        )
+    }
+
     func testMovingSectionsHandlesBothDirectionsAndBoundaries() {
         var layout = DashboardLayout.default
 

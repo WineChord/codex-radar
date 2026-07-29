@@ -67,8 +67,17 @@ enum DashboardSection: String, CaseIterable, Identifiable {
     }
 
     func layoutEditorLabel(language: AppLanguage) -> String {
-        if self == .resetCredits, language == .en {
-            return "Reset credits"
+        if language == .en {
+            switch self {
+            case .resetCredits:
+                return "Reset credits"
+            case .insights:
+                return "Insights"
+            case .radarDetails:
+                return "Radar details"
+            default:
+                break
+            }
         }
         return label(language: language)
     }
@@ -121,6 +130,13 @@ enum DashboardDisclosure: String, CaseIterable, Identifiable {
                 "Recommendations & alerts"
             )
         }
+    }
+
+    func layoutEditorLabel(language: AppLanguage) -> String {
+        if self == .radarInsightsDetails, language == .en {
+            return "Tips & alerts"
+        }
+        return label(language: language)
     }
 
     static func children(

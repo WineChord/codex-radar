@@ -104,6 +104,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 83 | [`Prompt-Id: 83 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+83%22&type=commits) | 用一次性、可关闭的轻提示提高布局编辑器的可发现性，并将该改进作为 v0.1.61 发布。 |
 | 84 | [`Prompt-Id: 84 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+84%22&type=commits) | 增加可逐点检查、保留重置与断档语义的本机周额度余量历史，并补充隔离逻辑、交互与视觉验证。 |
 | 85 | [`Prompt-Id: 85 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+85%22&type=commits) | 让布局编辑器统一控制模块与子项是否显示，同时保留后台能力、默认折叠和关键状态保护。 |
+| 86 | [`Prompt-Id: 86 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+86%22&type=commits) | 将布局编辑器的显示与默认展开选项收进对应标题行，降低滚动和视觉噪声。 |
 
 ## Prompts
 
@@ -673,4 +674,10 @@ commit 要求是可以点击的链接
 
 ```text
 让布局编辑器统一管理顶层模块和可折叠子项的显示状态。默认全部显示，额度历史默认折叠；隐藏后不占菜单空间，但数据记录、提醒和重置卡自动使用继续运行。需要处理的关键状态可以临时突破隐藏并展开，恢复默认布局时重新显示全部项目。
+```
+
+### 86. 紧凑的单行布局控制
+
+```text
+让布局编辑器更紧凑、安静：模块和子项的“显示”“默认展开”应尽量与各自标题保持在同一行，减少重复留白和滚动距离。完整保留文字标签、禁用状态、拖动与无拖拽排序入口，并验证中英文及全部字号下没有截断或误操作。
 ```

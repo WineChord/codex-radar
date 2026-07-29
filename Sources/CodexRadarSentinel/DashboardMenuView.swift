@@ -243,7 +243,7 @@ struct DashboardMenuView: View {
         let isVisible = store.isDashboardSectionVisible(section)
 
         return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
+            HStack(spacing: 7) {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(
                         size: metrics.section,
@@ -271,8 +271,42 @@ struct DashboardMenuView: View {
                     ))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
+                    .allowsTightening(true)
 
-                Spacer(minLength: 4)
+                Spacer(minLength: 2)
+
+                Toggle(
+                    text("显示", "Show"),
+                    isOn: storedVisibilityBinding(for: section)
+                )
+                .toggleStyle(.checkbox)
+                .font(.system(
+                    size: metrics.caption,
+                    weight: .medium
+                ))
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(2)
+                .accessibilityLabel(text(
+                    "显示 \(section.label(language: language))",
+                    "Show \(section.label(language: language))"
+                ))
+
+                Toggle(
+                    text("默认展开", "Start open"),
+                    isOn: storedExpansionBinding(for: section)
+                )
+                .toggleStyle(.checkbox)
+                .font(.system(
+                    size: metrics.caption,
+                    weight: .medium
+                ))
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(2)
+                .disabled(!isVisible)
+                .accessibilityLabel(text(
+                    "\(section.label(language: language)) 默认展开",
+                    "Open \(section.label(language: language)) by default"
+                ))
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.12)) {
@@ -315,50 +349,13 @@ struct DashboardMenuView: View {
                 ))
             }
 
-            HStack(spacing: 14) {
-                Color.clear
-                    .frame(width: 44, height: 1)
-
-                Toggle(
-                    text("显示", "Show"),
-                    isOn: storedVisibilityBinding(for: section)
-                )
-                .toggleStyle(.checkbox)
-                .font(.system(
-                    size: metrics.caption,
-                    weight: .medium
-                ))
-                .accessibilityLabel(text(
-                    "显示 \(section.label(language: language))",
-                    "Show \(section.label(language: language))"
-                ))
-
-                Toggle(
-                    text("默认展开", "Open by default"),
-                    isOn: storedExpansionBinding(for: section)
-                )
-                .toggleStyle(.checkbox)
-                .font(.system(
-                    size: metrics.caption,
-                    weight: .medium
-                ))
-                .disabled(!isVisible)
-                .accessibilityLabel(text(
-                    "\(section.label(language: language)) 默认展开",
-                    "Open \(section.label(language: language)) by default"
-                ))
-
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 6)
-
             ForEach(DashboardDisclosure.children(of: section)) {
                 disclosure in
                 Divider()
                     .padding(.leading, 35)
-                    .padding(.top, 6)
+                    .padding(.top, 7)
                 layoutEditorDisclosureRow(disclosure)
-                    .padding(.top, 6)
+                    .padding(.top, 7)
             }
         }
         .accessibilityValue(text(
@@ -393,57 +390,53 @@ struct DashboardMenuView: View {
     ) -> some View {
         let isVisible = store.isDashboardDisclosureVisible(disclosure)
 
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.turn.down.right")
-                    .frame(width: 18)
-                    .foregroundStyle(.tertiary)
+        return HStack(spacing: 7) {
+            Image(systemName: "arrow.turn.down.right")
+                .frame(width: 18)
+                .foregroundStyle(.tertiary)
 
-                Image(systemName: disclosure.systemImage)
-                    .frame(width: 18)
-                    .foregroundStyle(.secondary)
+            Image(systemName: disclosure.systemImage)
+                .frame(width: 18)
+                .foregroundStyle(.secondary)
 
-                Text(disclosure.label(language: language))
-                    .font(.system(size: metrics.caption, weight: .medium))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-
-                Spacer(minLength: 4)
-            }
-
-            HStack(spacing: 14) {
-                Color.clear
-                    .frame(width: 44, height: 1)
-
-                Toggle(
-                    text("显示", "Show"),
-                    isOn: storedDisclosureVisibilityBinding(
-                        for: disclosure
-                    )
-                )
-                .toggleStyle(.checkbox)
+            Text(disclosure.layoutEditorLabel(language: language))
                 .font(.system(size: metrics.caption, weight: .medium))
-                .accessibilityLabel(text(
-                    "显示 \(disclosure.label(language: language))",
-                    "Show \(disclosure.label(language: language))"
-                ))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .allowsTightening(true)
 
-                Toggle(
-                    text("默认展开", "Open by default"),
-                    isOn: storedDisclosureExpansionBinding(
-                        for: disclosure
-                    )
+            Spacer(minLength: 2)
+
+            Toggle(
+                text("显示", "Show"),
+                isOn: storedDisclosureVisibilityBinding(
+                    for: disclosure
                 )
-                .toggleStyle(.checkbox)
-                .font(.system(size: metrics.caption, weight: .medium))
-                .disabled(!isVisible)
-                .accessibilityLabel(text(
-                    "\(disclosure.label(language: language)) 默认展开",
-                    "Open \(disclosure.label(language: language)) by default"
-                ))
+            )
+            .toggleStyle(.checkbox)
+            .font(.system(size: metrics.caption, weight: .medium))
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(2)
+            .accessibilityLabel(text(
+                "显示 \(disclosure.label(language: language))",
+                "Show \(disclosure.label(language: language))"
+            ))
 
-                Spacer(minLength: 0)
-            }
+            Toggle(
+                text("默认展开", "Start open"),
+                isOn: storedDisclosureExpansionBinding(
+                    for: disclosure
+                )
+            )
+            .toggleStyle(.checkbox)
+            .font(.system(size: metrics.caption, weight: .medium))
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(2)
+            .disabled(!isVisible)
+            .accessibilityLabel(text(
+                "\(disclosure.label(language: language)) 默认展开",
+                "Open \(disclosure.label(language: language)) by default"
+            ))
         }
         .padding(.leading, 27)
     }
