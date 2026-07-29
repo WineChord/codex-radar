@@ -74,6 +74,55 @@ enum DashboardSection: String, CaseIterable, Identifiable {
     }
 }
 
+enum DashboardDisclosure: String, CaseIterable, Identifiable {
+    case modelIQDetails
+    case radarInsightsDetails
+
+    var id: String {
+        rawValue
+    }
+
+    var parentSection: DashboardSection {
+        switch self {
+        case .modelIQDetails:
+            return .modelIQ
+        case .radarInsightsDetails:
+            return .insights
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .modelIQDetails:
+            return "square.grid.2x2"
+        case .radarInsightsDetails:
+            return "list.bullet.rectangle"
+        }
+    }
+
+    var isExpandedByDefault: Bool {
+        false
+    }
+
+    func label(language: AppLanguage) -> String {
+        switch self {
+        case .modelIQDetails:
+            return language.text("全部模型 IQ", "All model IQ")
+        case .radarInsightsDetails:
+            return language.text(
+                "场景推荐与降智预警",
+                "Recommendations & alerts"
+            )
+        }
+    }
+
+    static func children(
+        of section: DashboardSection
+    ) -> [DashboardDisclosure] {
+        allCases.filter { $0.parentSection == section }
+    }
+}
+
 struct DashboardLayout: Equatable {
     static let orderDefaultsKey = "dashboardSectionOrderV1"
     static let expandedDefaultsKey = "dashboardSectionExpansionV1"

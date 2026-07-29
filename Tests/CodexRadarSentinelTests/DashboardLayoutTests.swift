@@ -35,6 +35,36 @@ final class DashboardLayoutTests: XCTestCase {
         )
     }
 
+    func testNestedDisclosuresHaveOneRegisteredParentAndSafeDefaults() {
+        XCTAssertEqual(
+            DashboardDisclosure.children(of: .modelIQ),
+            [.modelIQDetails]
+        )
+        XCTAssertEqual(
+            DashboardDisclosure.children(of: .insights),
+            [.radarInsightsDetails]
+        )
+        for section in DashboardSection.allCases
+        where section != .modelIQ && section != .insights {
+            XCTAssertTrue(
+                DashboardDisclosure.children(of: section).isEmpty
+            )
+        }
+
+        let registered = DashboardSection.allCases.flatMap {
+            DashboardDisclosure.children(of: $0)
+        }
+        XCTAssertEqual(registered, DashboardDisclosure.allCases)
+        XCTAssertEqual(Set(registered).count, registered.count)
+        XCTAssertFalse(
+            DashboardDisclosure.modelIQDetails.isExpandedByDefault
+        )
+        XCTAssertFalse(
+            DashboardDisclosure.radarInsightsDetails
+                .isExpandedByDefault
+        )
+    }
+
     func testMovingSectionsHandlesBothDirectionsAndBoundaries() {
         var layout = DashboardLayout.default
 
@@ -301,8 +331,14 @@ final class DashboardLayoutTests: XCTestCase {
         firstStore?.setDashboardSectionOrder(reordered)
         firstStore?.setDashboardSection(.resetCredits, expanded: true)
         firstStore?.setDashboardSection(.quota, expanded: false)
-        firstStore?.modelIQDetailsExpanded = true
-        firstStore?.radarInsightsDetailsExpanded = true
+        firstStore?.setDashboardDisclosure(
+            .modelIQDetails,
+            expanded: true
+        )
+        firstStore?.setDashboardDisclosure(
+            .radarInsightsDetails,
+            expanded: true
+        )
 
         XCTAssertEqual(firstStore?.dashboardLayout.order.first, .resetCredits)
         firstStore = nil
@@ -313,8 +349,16 @@ final class DashboardLayoutTests: XCTestCase {
             secondStore.isDashboardSectionExpanded(.resetCredits)
         )
         XCTAssertFalse(secondStore.isDashboardSectionExpanded(.quota))
-        XCTAssertTrue(secondStore.modelIQDetailsExpanded)
-        XCTAssertTrue(secondStore.radarInsightsDetailsExpanded)
+        XCTAssertTrue(
+            secondStore.isDashboardDisclosureExpanded(
+                .modelIQDetails
+            )
+        )
+        XCTAssertTrue(
+            secondStore.isDashboardDisclosureExpanded(
+                .radarInsightsDetails
+            )
+        )
         XCTAssertEqual(secondStore.appLanguage, .en)
         XCTAssertEqual(secondStore.menuTextSize, .extraLarge)
 
@@ -332,8 +376,16 @@ final class DashboardLayoutTests: XCTestCase {
         XCTAssertEqual(thirdStore.menuTextSize, .extraLarge)
         XCTAssertFalse(thirdStore.automaticUpdatesEnabled)
         XCTAssertFalse(thirdStore.resetCreditAutoRefreshEnabled)
-        XCTAssertFalse(thirdStore.modelIQDetailsExpanded)
-        XCTAssertFalse(thirdStore.radarInsightsDetailsExpanded)
+        XCTAssertFalse(
+            thirdStore.isDashboardDisclosureExpanded(
+                .modelIQDetails
+            )
+        )
+        XCTAssertFalse(
+            thirdStore.isDashboardDisclosureExpanded(
+                .radarInsightsDetails
+            )
+        )
     }
 
     func testLegacyPreviewExpansionMigratesOnlyUntilNewPreferenceExists()

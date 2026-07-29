@@ -180,8 +180,8 @@ struct DashboardMenuView: View {
                 )
                 .font(.system(size: metrics.headerTitle, weight: .semibold))
                 Text(text(
-                    "拖动调整顶层模块顺序；勾选“默认展开”可在每次打开菜单时直接显示该项内容。",
-                    "Drag to reorder top-level sections. Choose which sections are expanded when the menu opens."
+                    "拖动调整顶层模块顺序；为模块及其可折叠子项设置“默认展开”。",
+                    "Drag to reorder top-level sections. Choose which sections and nested details open by default."
                 ))
                 .font(.system(size: metrics.caption))
                 .foregroundStyle(.secondary)
@@ -234,75 +234,101 @@ struct DashboardMenuView: View {
         _ section: DashboardSection,
         index: Int
     ) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: metrics.section, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .contentShape(Rectangle())
-                .onDrag {
-                    beginDashboardSectionDrag(section)
-                }
-                .help(text("拖动调整顺序", "Drag to reorder"))
-                .accessibilityLabel(text(
-                    "拖动 \(section.label(language: language)) 调整顺序",
-                    "Drag \(section.label(language: language)) to reorder"
-                ))
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(
+                        size: metrics.section,
+                        weight: .semibold
+                    ))
+                    .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+                    .onDrag {
+                        beginDashboardSectionDrag(section)
+                    }
+                    .help(text("拖动调整顺序", "Drag to reorder"))
+                    .accessibilityLabel(text(
+                        "拖动 \(section.label(language: language)) 调整顺序",
+                        "Drag \(section.label(language: language)) to reorder"
+                    ))
 
-            Image(systemName: section.systemImage)
-                .frame(width: 18)
-                .foregroundStyle(.secondary)
+                Image(systemName: section.systemImage)
+                    .frame(width: 18)
+                    .foregroundStyle(.secondary)
 
-            VStack(alignment: .leading, spacing: 1) {
                 Text(section.layoutEditorLabel(language: language))
-                    .font(.system(size: metrics.label, weight: .medium))
+                    .font(.system(
+                        size: metrics.label,
+                        weight: .medium
+                    ))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-            }
 
-            Spacer(minLength: 4)
+                Spacer(minLength: 4)
 
-            Toggle(
-                text("默认展开", "Open by default"),
-                isOn: storedExpansionBinding(for: section)
-            )
-            .toggleStyle(.checkbox)
-            .font(.system(size: metrics.caption, weight: .medium))
-            .accessibilityLabel(text(
-                "\(section.label(language: language)) 默认展开",
-                "Open \(section.label(language: language)) by default"
-            ))
+                Toggle(
+                    text("默认展开", "Open by default"),
+                    isOn: storedExpansionBinding(for: section)
+                )
+                .toggleStyle(.checkbox)
+                .font(.system(
+                    size: metrics.caption,
+                    weight: .medium
+                ))
+                .accessibilityLabel(text(
+                    "\(section.label(language: language)) 默认展开",
+                    "Open \(section.label(language: language)) by default"
+                ))
 
-            Button {
-                withAnimation(.easeInOut(duration: 0.12)) {
-                    cancelDashboardSectionDrag()
-                    store.moveDashboardSection(section, to: index - 1)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        cancelDashboardSectionDrag()
+                        store.moveDashboardSection(
+                            section,
+                            to: index - 1
+                        )
+                    }
+                } label: {
+                    Image(systemName: "chevron.up")
                 }
-            } label: {
-                Image(systemName: "chevron.up")
-            }
-            .buttonStyle(.plain)
-            .disabled(index == 0)
-            .help(text("上移", "Move up"))
-            .accessibilityLabel(text(
-                "上移 \(section.label(language: language))",
-                "Move \(section.label(language: language)) up"
-            ))
+                .buttonStyle(.plain)
+                .disabled(index == 0)
+                .help(text("上移", "Move up"))
+                .accessibilityLabel(text(
+                    "上移 \(section.label(language: language))",
+                    "Move \(section.label(language: language)) up"
+                ))
 
-            Button {
-                withAnimation(.easeInOut(duration: 0.12)) {
-                    cancelDashboardSectionDrag()
-                    store.moveDashboardSection(section, to: index + 1)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        cancelDashboardSectionDrag()
+                        store.moveDashboardSection(
+                            section,
+                            to: index + 1
+                        )
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
                 }
-            } label: {
-                Image(systemName: "chevron.down")
+                .buttonStyle(.plain)
+                .disabled(
+                    index == store.dashboardLayout.order.count - 1
+                )
+                .help(text("下移", "Move down"))
+                .accessibilityLabel(text(
+                    "下移 \(section.label(language: language))",
+                    "Move \(section.label(language: language)) down"
+                ))
             }
-            .buttonStyle(.plain)
-            .disabled(index == store.dashboardLayout.order.count - 1)
-            .help(text("下移", "Move down"))
-            .accessibilityLabel(text(
-                "下移 \(section.label(language: language))",
-                "Move \(section.label(language: language)) down"
-            ))
+
+            ForEach(DashboardDisclosure.children(of: section)) {
+                disclosure in
+                Divider()
+                    .padding(.leading, 35)
+                    .padding(.top, 6)
+                layoutEditorDisclosureRow(disclosure)
+                    .padding(.top, 6)
+            }
         }
         .accessibilityValue(text(
             "第 \(index + 1) 项",
@@ -329,6 +355,41 @@ struct DashboardMenuView: View {
                 commit: commitDashboardSectionDrag
             )
         )
+    }
+
+    private func layoutEditorDisclosureRow(
+        _ disclosure: DashboardDisclosure
+    ) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.turn.down.right")
+                .frame(width: 18)
+                .foregroundStyle(.tertiary)
+
+            Image(systemName: disclosure.systemImage)
+                .frame(width: 18)
+                .foregroundStyle(.secondary)
+
+            Text(disclosure.label(language: language))
+                .font(.system(size: metrics.caption, weight: .medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Spacer(minLength: 4)
+
+            Toggle(
+                text("默认展开", "Open by default"),
+                isOn: storedDisclosureExpansionBinding(
+                    for: disclosure
+                )
+            )
+            .toggleStyle(.checkbox)
+            .font(.system(size: metrics.caption, weight: .medium))
+            .accessibilityLabel(text(
+                "\(disclosure.label(language: language)) 默认展开",
+                "Open \(disclosure.label(language: language)) by default"
+            ))
+        }
+        .padding(.leading, 27)
     }
 
     private var layoutEditorOrder: [DashboardSection] {
@@ -428,25 +489,50 @@ struct DashboardMenuView: View {
     }
 
     private var modelIQDetailsExpansionBinding: Binding<Bool> {
-        Binding(
-            get: {
-                DashboardVisualTestOverrides.expandsModelIQ
-                    || store.modelIQDetailsExpanded
-            },
-            set: { expanded in
-                store.modelIQDetailsExpanded = expanded
-            }
+        disclosureExpansionBinding(
+            for: .modelIQDetails,
+            forcedExpanded: DashboardVisualTestOverrides.expandsModelIQ
         )
     }
 
     private var radarInsightsDetailsExpansionBinding: Binding<Bool> {
+        disclosureExpansionBinding(
+            for: .radarInsightsDetails,
+            forcedExpanded:
+                DashboardVisualTestOverrides.expandsSecondarySections
+        )
+    }
+
+    private func storedDisclosureExpansionBinding(
+        for disclosure: DashboardDisclosure
+    ) -> Binding<Bool> {
         Binding(
             get: {
-                DashboardVisualTestOverrides.expandsSecondarySections
-                    || store.radarInsightsDetailsExpanded
+                store.isDashboardDisclosureExpanded(disclosure)
             },
             set: { expanded in
-                store.radarInsightsDetailsExpanded = expanded
+                store.setDashboardDisclosure(
+                    disclosure,
+                    expanded: expanded
+                )
+            }
+        )
+    }
+
+    private func disclosureExpansionBinding(
+        for disclosure: DashboardDisclosure,
+        forcedExpanded: Bool
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                forcedExpanded
+                    || store.isDashboardDisclosureExpanded(disclosure)
+            },
+            set: { expanded in
+                store.setDashboardDisclosure(
+                    disclosure,
+                    expanded: expanded
+                )
             }
         )
     }

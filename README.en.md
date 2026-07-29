@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.60: Set defaults for nested details
+
+- The layout editor now lists collapsible details beneath their parent sections, including `All model IQ` and `Recommendations & alerts`, with their own default-open controls.
+- Nested controls and the disclosures in the main menu share the same preference, which persists when the menu reopens and after an app restart.
+- `Restore default layout` resets both levels, and future nested disclosures can use the same consistent hierarchy.
+
 ### v0.1.59: Arrange the menu around your workflow
 
 - The default hierarchy still keeps the current result, local quota, Codex IQ, reset-credit summary, and usage pace easy to find.
@@ -37,15 +43,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - The IQ, Passed, and Rating columns stay on one line across M, L, and XL while preserving room for model names in both interface languages.
 - The SHA256 manifest uses filenames from the download directory, so manual package verification no longer depends on repository paths.
 
-### v0.1.57: Core information first
-
-- The panel now leads with the current conclusion, local quota, Codex IQ, and usage pace. The complete `All model IQ` table expands directly beneath the IQ summary.
-- Notices, community notes, and detailed radar sections share one `More from CodexRadar` disclosure. Reset credits, the menu-bar guide, and display settings also use clear collapsed-by-default entries.
-- Critical alerts remain fixed at the top. Reset-credit detail opens automatically for blocked, missed, or unresolved attempts, so only routine state stays out of the way.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.57**: moved quota and Codex IQ forward, grouped low-frequency information behind clear disclosures, and kept critical alerts visible.
 - **v0.1.56**: accepts a missing temporary notice as a normal empty state without interrupting other live data.
 - **v0.1.55**: added scenario recommendations and degradation alerts while retaining the last valid result through network or schema failures.
 - **v0.1.54**: prevented normal clock synchronization from disabling reset-credit auto-use and made unresolved attempts reconcile read only first.
@@ -117,7 +118,7 @@ The default order leads with the current conclusion, local quota, Codex IQ, rese
 
 ### Menu layout
 
-Choose `Layout` in the bottom toolbar to customize top-level sections. Drag a handle or use the move-up and move-down buttons to change the order, then choose which sections are expanded by default. Preferences persist when the menu reopens and after an app restart. Expansion choices for `All model IQ` and Insights detail persist independently. `Restore default layout` resets only layout preferences, not language, text size, alerts, or automatic updates.
+Choose `Layout` in the bottom toolbar to customize top-level sections. Drag a handle or use the move-up and move-down buttons to change the order, then choose which sections are expanded by default. When a section contains collapsible details, they appear indented beneath it—for example, `All model IQ` under `Codex IQ`—with independent default-open controls. Every preference persists when the menu reopens and after an app restart. `Restore default layout` resets only layout preferences, not language, text size, alerts, or automatic updates.
 
 The current result, urgent alerts, and connection errors are not sortable. Reset-credit or update sections temporarily lock open when they need attention, then return to the user's saved preference after the issue clears.
 
@@ -214,14 +215,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.59
+./scripts/check_release_readiness.sh 0.1.60
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.59
+./scripts/package_release.sh 0.1.60
 ```
 
 Update the menu-bar and full-menu screenshots:

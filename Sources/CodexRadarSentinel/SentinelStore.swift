@@ -475,10 +475,12 @@ final class SentinelStore: NSObject, ObservableObject {
         self.dashboardLayout = dashboardLayout
         self.modelIQDetailsExpanded = defaults.object(
             forKey: DefaultsKey.modelIQDetailsExpanded
-        ) as? Bool ?? false
+        ) as? Bool
+            ?? DashboardDisclosure.modelIQDetails.isExpandedByDefault
         self.radarInsightsDetailsExpanded = defaults.object(
             forKey: DefaultsKey.radarInsightsDetailsExpanded
-        ) as? Bool ?? false
+        ) as? Bool
+            ?? DashboardDisclosure.radarInsightsDetails.isExpandedByDefault
         self.debugPreview = initialPreview
         self.predictionNotificationsEnabled = defaults.object(forKey: DefaultsKey.predictionNotificationsEnabled) as? Bool ?? true
         self.iqNotificationsEnabled = defaults.object(forKey: DefaultsKey.iqNotificationsEnabled) as? Bool ?? true
@@ -719,6 +721,29 @@ final class SentinelStore: NSObject, ObservableObject {
         dashboardLayout = next
     }
 
+    func isDashboardDisclosureExpanded(
+        _ disclosure: DashboardDisclosure
+    ) -> Bool {
+        switch disclosure {
+        case .modelIQDetails:
+            return modelIQDetailsExpanded
+        case .radarInsightsDetails:
+            return radarInsightsDetailsExpanded
+        }
+    }
+
+    func setDashboardDisclosure(
+        _ disclosure: DashboardDisclosure,
+        expanded: Bool
+    ) {
+        switch disclosure {
+        case .modelIQDetails:
+            modelIQDetailsExpanded = expanded
+        case .radarInsightsDetails:
+            radarInsightsDetailsExpanded = expanded
+        }
+    }
+
     func moveDashboardSection(
         _ section: DashboardSection,
         to targetIndex: Int
@@ -742,15 +767,21 @@ final class SentinelStore: NSObject, ObservableObject {
 
     func resetDashboardLayout() {
         guard dashboardLayout != .default
-                || modelIQDetailsExpanded
-                || radarInsightsDetailsExpanded else {
+                || DashboardDisclosure.allCases.contains(where: {
+                    isDashboardDisclosureExpanded($0)
+                        != $0.isExpandedByDefault
+                }) else {
             return
         }
         if dashboardLayout != .default {
             dashboardLayout = .default
         }
-        modelIQDetailsExpanded = false
-        radarInsightsDetailsExpanded = false
+        for disclosure in DashboardDisclosure.allCases {
+            setDashboardDisclosure(
+                disclosure,
+                expanded: disclosure.isExpandedByDefault
+            )
+        }
     }
 
     func resetStatusBarAdvancedOptions() {
@@ -1232,8 +1263,12 @@ final class SentinelStore: NSObject, ObservableObject {
         quotaPacingOptionsExpanded = false
         statusBarAdvancedOptionsExpanded = false
         dashboardLayout = .default
-        modelIQDetailsExpanded = false
-        radarInsightsDetailsExpanded = false
+        for disclosure in DashboardDisclosure.allCases {
+            setDashboardDisclosure(
+                disclosure,
+                expanded: disclosure.isExpandedByDefault
+            )
+        }
         selectedStatusMetrics = Self.defaultStatusMetrics
         debugPreview = .live
         predictionNotificationsEnabled = true

@@ -98,8 +98,9 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 77 | [e067f5e](https://github.com/WineChord/codex-radar/commit/e067f5e6c5a2b424511d2defdd27a8a74c89e314), [`Prompt-Id: 77 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+77%22&type=commits) | 将核心额度与 Codex IQ 前置、低频信息默认折叠，并固化 Issue/PR 的证据化维护流程。 |
 | 78 | [bf6d6c4](https://github.com/WineChord/codex-radar/commit/bf6d6c4b211e3a158ccd57f8cc986db94c1a984f), [`Prompt-Id: 78 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+78%22&type=commits) | 修复全部模型 IQ 表格在较大字号下拆分通过数值的问题，并增加全字号列宽回归检查。 |
 | 79 | [acee3fb](https://github.com/WineChord/codex-radar/commit/acee3fb5a403a99a4b0600090aa88bd056f91218), [`Prompt-Id: 79 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+79%22&type=commits) | 将多模型表格可读性修复作为 v0.1.58 发布，并让下载后的 SHA256 清单可直接校验同目录资产。 |
-| 80 | [`Prompt-Id: 80 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+80%22&type=commits) | 保留核心信息优先的默认层级，并增加可持久化、可恢复且不会隐藏关键状态的菜单布局编辑。 |
-| 81 | [`Prompt-Id: 81 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+81%22&type=commits) | 将菜单布局自定义、持久化展开偏好和关键状态保护作为 v0.1.59 发布。 |
+| 80 | [7ca9744](https://github.com/WineChord/codex-radar/commit/7ca9744566bf9862f9f7d54a67d2c6a1ebf811f1), [ead074c](https://github.com/WineChord/codex-radar/commit/ead074c1e9116a9ea027e7ff7fc1efb7b3b3cf06), [`Prompt-Id: 80 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+80%22&type=commits) | 保留核心信息优先的默认层级，并增加可持久化、可恢复且不会隐藏关键状态的菜单布局编辑。 |
+| 81 | [be8c043](https://github.com/WineChord/codex-radar/commit/be8c043958cd1f7a7f59440faffe745c3318fbd5), [`Prompt-Id: 81 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+81%22&type=commits) | 将菜单布局自定义、持久化展开偏好和关键状态保护作为 v0.1.59 发布。 |
+| 82 | [`Prompt-Id: 82 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+82%22&type=commits) | 让布局编辑器统一管理顶层模块和可折叠子项，并将该改进作为 v0.1.60 发布。 |
 
 ## Prompts
 
@@ -645,4 +646,10 @@ commit 要求是可以点击的链接
 
 ```text
 将已完成并通过验证的菜单布局自定义功能发布为新版本，更新版本号、双语说明、截图和可校验的 macOS 安装包。
+```
+
+### 82. 模块内子项的默认展开
+
+```text
+让布局编辑器同时管理顶层模块和模块内的可折叠子项，为“全部模型 IQ”等子项提供清楚的默认展开设置。保留现有偏好，使用可复用的分层方式处理同类子项，并在完整验证后发布新版本。
 ```
