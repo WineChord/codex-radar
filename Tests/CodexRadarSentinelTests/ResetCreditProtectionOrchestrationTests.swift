@@ -45,7 +45,12 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
             appServerClient: appServer,
             resetCreditProtectionLedgerStore: ledgerStore,
             resetCreditProtectionAuthorizationStore: authorizationStore,
-            resetCreditProtectionProcessLockURL: processLockURL
+            resetCreditProtectionProcessLockURL: processLockURL,
+            quotaHistoryStore: QuotaHistoryStore(
+                url: directory.appendingPathComponent(
+                    "quota-history.json"
+                )
+            )
         )
 
         XCTAssertFalse(store.resetCreditProtectionEnabled)
@@ -1979,6 +1984,11 @@ private final class OfflineStoreContext {
             resetCreditProtectionAuthorizationStore: authorizationStore,
             resetCreditProtectionProcessLockURL: processLockURL,
             resetCreditProtectionClock: clock,
+            quotaHistoryStore: QuotaHistoryStore(
+                url: directory.appendingPathComponent(
+                    "quota-history.json"
+                )
+            ),
             resetCreditProtectionDestructiveActionsAllowed:
                 destructiveActionsAllowed
         )

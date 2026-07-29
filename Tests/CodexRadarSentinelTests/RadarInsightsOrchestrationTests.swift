@@ -71,6 +71,11 @@ final class RadarInsightsOrchestrationTests: XCTestCase {
             radarInsightsUptime: {
                 uptime.value
             },
+            quotaHistoryStore: QuotaHistoryStore(
+                url: directory.appendingPathComponent(
+                    "quota-history.json"
+                )
+            ),
             resetCreditProtectionDestructiveActionsAllowed: false
         )
         defer {
@@ -95,6 +100,12 @@ final class RadarInsightsOrchestrationTests: XCTestCase {
         }
         XCTAssertEqual(controller.snapshot().completionCount, 0)
         XCTAssertNil(store.dashboardState.radarInsights)
+        XCTAssertEqual(store.quotaHistory.samples.count, 1)
+        XCTAssertEqual(
+            store.quotaHistory.samples.first?.remainingPercent,
+            85
+        )
+        XCTAssertFalse(store.quotaHistoryStorageUnavailable)
 
         controller.releaseSuspendedRequest()
         try await waitUntil {

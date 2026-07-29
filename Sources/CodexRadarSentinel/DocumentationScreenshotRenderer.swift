@@ -10,6 +10,10 @@ enum DocumentationScreenshotRenderer {
         "CODEX_RADAR_VISUAL_TEST_TEXT_SIZE"
     private static let modelIQEnvironmentKey =
         "CODEX_RADAR_VISUAL_TEST_EXPAND_MODEL_IQ"
+    private static let quotaHistoryEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_EXPAND_QUOTA_HISTORY"
+    private static let quotaHistoryRangeEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_QUOTA_HISTORY_RANGE"
     private static let layoutEditorEnvironmentKey =
         "CODEX_RADAR_VISUAL_TEST_LAYOUT_EDITOR"
     private static let fullLayoutEditorEnvironmentKey =
@@ -93,7 +97,12 @@ enum DocumentationScreenshotRenderer {
                     )
                 ),
             resetCreditProtectionProcessLockURL: isolationDirectory
-                .appendingPathComponent("process.lock")
+                .appendingPathComponent("process.lock"),
+            quotaHistoryStore: QuotaHistoryStore(
+                url: isolationDirectory.appendingPathComponent(
+                    "quota-history.json"
+                )
+            )
         )
         let textSize = ProcessInfo.processInfo.environment[
             textSizeEnvironmentKey
@@ -104,6 +113,11 @@ enum DocumentationScreenshotRenderer {
             language: language,
             textSize: textSize
         )
+        if let historyRange = ProcessInfo.processInfo.environment[
+            quotaHistoryRangeEnvironmentKey
+        ].flatMap(QuotaHistoryRange.init(rawValue:)) {
+            store.quotaHistoryRange = historyRange
+        }
         configureLayoutProfileIfRequested(store)
         if ProcessInfo.processInfo.environment[
             attentionEnvironmentKey
@@ -119,7 +133,11 @@ enum DocumentationScreenshotRenderer {
         ] == "1"
         let usesFixedViewport = ProcessInfo.processInfo.environment[
             modelIQEnvironmentKey
-        ] == "1" || (showsLayoutEditor && !showsFullLayoutEditor)
+        ] == "1"
+            || ProcessInfo.processInfo.environment[
+                quotaHistoryEnvironmentKey
+            ] == "1"
+            || (showsLayoutEditor && !showsFullLayoutEditor)
         let view = DashboardMenuView(
             store: store,
             scrolling: usesFixedViewport,

@@ -217,6 +217,28 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var quotaHistoryRange: QuotaHistoryRange {
+        didSet {
+            defaults.set(
+                quotaHistoryRange.rawValue,
+                forKey: DefaultsKey.quotaHistoryRange
+            )
+        }
+    }
+
+    @Published var quotaHistoryExpanded: Bool {
+        didSet {
+            defaults.set(
+                quotaHistoryExpanded,
+                forKey: DefaultsKey.quotaHistoryExpanded
+            )
+        }
+    }
+
+    @Published private(set) var quotaHistory: QuotaHistoryTimeline
+    @Published private(set) var quotaHistoryStorageUnavailable: Bool
+    @Published private(set) var quotaHistoryDisplayNow: Date
+
     @Published var debugPreview: DashboardPreview = .live {
         didSet {
             if debugPreview != .live {
@@ -324,6 +346,8 @@ final class SentinelStore: NSObject, ObservableObject {
             "modelIQDetailsExpanded"
         static let radarInsightsDetailsExpanded =
             "radarInsightsDetailsExpanded"
+        static let quotaHistoryRange = "quotaHistoryRangeV1"
+        static let quotaHistoryExpanded = "quotaHistoryExpandedV1"
         static let resetCreditSnapshot = "resetCreditSnapshot"
         static let resetCreditAutoRefreshEnabled = "resetCreditAutoRefreshEnabled"
         static let resetCreditProtectionEnabled = "resetCreditProtectionEnabled"
@@ -369,6 +393,8 @@ final class SentinelStore: NSObject, ObservableObject {
     private let resetCreditProtectionClock:
         () -> ResetCreditProtectionClockSample
     private let radarInsightsUptime: () -> TimeInterval
+    private let quotaHistoryStore: QuotaHistoryStore
+    private let quotaHistoryClock: () -> Date
     private var lifecycleObservers: [(NotificationCenter, NSObjectProtocol)] = []
     private var suppressResetCreditAutoRefreshSideEffects = false
     private var emphasizedSpeedAlertKey: String?
@@ -394,6 +420,8 @@ final class SentinelStore: NSObject, ObservableObject {
         radarInsightsUptime: @escaping () -> TimeInterval = {
             ProcessInfo.processInfo.systemUptime
         },
+        quotaHistoryStore: QuotaHistoryStore? = nil,
+        quotaHistoryClock: @escaping () -> Date = Date.init,
         resetCreditProtectionDestructiveActionsAllowed: Bool? = nil
     ) {
         let rawPreview = ProcessInfo.processInfo.environment[
@@ -451,6 +479,23 @@ final class SentinelStore: NSObject, ObservableObject {
             ?? Self.resetCreditProtectionLockURL
         self.resetCreditProtectionClock = resetCreditProtectionClock
         self.radarInsightsUptime = radarInsightsUptime
+        let resolvedQuotaHistoryStore =
+            quotaHistoryStore ?? QuotaHistoryStore()
+        let quotaHistoryNow = quotaHistoryClock()
+        self.quotaHistoryStore = resolvedQuotaHistoryStore
+        self.quotaHistoryClock = quotaHistoryClock
+        self.quotaHistoryDisplayNow = quotaHistoryNow
+        switch resolvedQuotaHistoryStore.load(endingAt: quotaHistoryNow) {
+        case .absent:
+            self.quotaHistory = QuotaHistoryTimeline()
+            self.quotaHistoryStorageUnavailable = false
+        case .loaded(let timeline):
+            self.quotaHistory = timeline
+            self.quotaHistoryStorageUnavailable = false
+        case .corrupt, .unavailable:
+            self.quotaHistory = QuotaHistoryTimeline()
+            self.quotaHistoryStorageUnavailable = true
+        }
         let rawLanguage = defaults.string(forKey: DefaultsKey.appLanguage)
         let resolvedAppLanguage = rawLanguage
             .flatMap(AppLanguage.init(rawValue:)) ?? .zhHans
@@ -495,6 +540,13 @@ final class SentinelStore: NSObject, ObservableObject {
             forKey: DefaultsKey.radarInsightsDetailsExpanded
         ) as? Bool
             ?? DashboardDisclosure.radarInsightsDetails.isExpandedByDefault
+        self.quotaHistoryRange = defaults.string(
+            forKey: DefaultsKey.quotaHistoryRange
+        ).flatMap(QuotaHistoryRange.init(rawValue:)) ?? .hours24
+        self.quotaHistoryExpanded = defaults.object(
+            forKey: DefaultsKey.quotaHistoryExpanded
+        ) as? Bool
+            ?? DashboardDisclosure.quotaHistory.isExpandedByDefault
         self.debugPreview = initialPreview
         self.predictionNotificationsEnabled = defaults.object(forKey: DefaultsKey.predictionNotificationsEnabled) as? Bool ?? true
         self.iqNotificationsEnabled = defaults.object(forKey: DefaultsKey.iqNotificationsEnabled) as? Bool ?? true
@@ -658,6 +710,13 @@ final class SentinelStore: NSObject, ObservableObject {
         DashboardPreviewFactory.state(for: debugPreview, live: state)
     }
 
+    var displayedQuotaHistory: QuotaHistoryTimeline {
+        if debugPreview == .live {
+            return quotaHistory
+        }
+        return Self.previewQuotaHistory(endingAt: quotaHistoryDisplayNow)
+    }
+
     var statusBarDisplayOptions: StatusBarDisplayOptions {
         StatusBarDisplayOptions(
             preciseIQ: statusBarPreciseIQEnabled,
@@ -746,6 +805,8 @@ final class SentinelStore: NSObject, ObservableObject {
         _ disclosure: DashboardDisclosure
     ) -> Bool {
         switch disclosure {
+        case .quotaHistory:
+            return quotaHistoryExpanded
         case .modelIQDetails:
             return modelIQDetailsExpanded
         case .radarInsightsDetails:
@@ -758,6 +819,8 @@ final class SentinelStore: NSObject, ObservableObject {
         expanded: Bool
     ) {
         switch disclosure {
+        case .quotaHistory:
+            quotaHistoryExpanded = expanded
         case .modelIQDetails:
             modelIQDetailsExpanded = expanded
         case .radarInsightsDetails:
@@ -1291,6 +1354,12 @@ final class SentinelStore: NSObject, ObservableObject {
                 expanded: disclosure.isExpandedByDefault
             )
         }
+        quotaHistoryRange = .hours24
+        quotaHistoryDisplayNow = Self.documentationUpdatedAt
+        quotaHistory = Self.previewQuotaHistory(
+            endingAt: quotaHistoryDisplayNow
+        )
+        quotaHistoryStorageUnavailable = false
         selectedStatusMetrics = Self.defaultStatusMetrics
         debugPreview = .live
         predictionNotificationsEnabled = true
@@ -1333,6 +1402,80 @@ final class SentinelStore: NSObject, ObservableObject {
     }
 
     private static let documentationUpdatedAt = Date(timeIntervalSince1970: 1_784_270_280)
+
+    private static func previewQuotaHistory(
+        endingAt end: Date
+    ) -> QuotaHistoryTimeline {
+        let hour: TimeInterval = 60 * 60
+        let day: TimeInterval = 24 * hour
+        let week: TimeInterval = 7 * day
+        let sampleInterval: TimeInterval = 15 * 60
+        let latestReset = end.addingTimeInterval(
+            -(2 * day + 7 * hour)
+        )
+        let start = end.addingTimeInterval(
+            -QuotaHistoryTimeline.retentionDuration
+        )
+        var samples: [QuotaHistorySample] = []
+        var timestamp = start
+
+        while timestamp <= end {
+            let firstGap = timestamp >= end.addingTimeInterval(-3 * day)
+                && timestamp < end.addingTimeInterval(
+                    -(3 * day - 5 * hour)
+                )
+            let secondGap = timestamp >= end.addingTimeInterval(-16 * day)
+                && timestamp < end.addingTimeInterval(
+                    -(16 * day - 14 * hour)
+                )
+            if !firstGap && !secondGap {
+                let cycleNumber = floor(
+                    timestamp.timeIntervalSince(latestReset) / week
+                )
+                let cycleStart = latestReset.addingTimeInterval(
+                    cycleNumber * week
+                )
+                let elapsed = max(
+                    0,
+                    timestamp.timeIntervalSince(cycleStart)
+                )
+                let completedDays = floor(elapsed / day)
+                let cycleHour = (
+                    elapsed - completedDays * day
+                ) / hour
+                let intradayConsumption: Double
+                switch cycleHour {
+                case ..<7:
+                    intradayConsumption = cycleHour * 2.15
+                case ..<12:
+                    intradayConsumption = 15.05
+                        + (cycleHour - 7) * 2.2
+                case ..<18:
+                    intradayConsumption = 26.05
+                        + (cycleHour - 12) * 1.15
+                default:
+                    intradayConsumption = min(
+                        35,
+                        32.95 + (cycleHour - 18) * 0.35
+                    )
+                }
+                let remaining = max(
+                    8,
+                    100 - completedDays * 35
+                        - intradayConsumption
+                )
+                samples.append(
+                    QuotaHistorySample(
+                        timestamp: timestamp,
+                        remainingPercent: remaining,
+                        resetsAt: cycleStart.addingTimeInterval(week)
+                    )
+                )
+            }
+            timestamp = timestamp.addingTimeInterval(sampleInterval)
+        }
+        return QuotaHistoryTimeline(samples: samples)
+    }
 
     private static func documentationRateLimits() -> RateLimitDashboard? {
         let now = Int(Date().timeIntervalSince1970)
@@ -1806,6 +1949,8 @@ final class SentinelStore: NSObject, ObservableObject {
         let previous = state
         var next = previous
         var errors: [String] = []
+        let quotaHistoryNow = quotaHistoryClock()
+        quotaHistoryDisplayNow = quotaHistoryNow
 
         applyCurrent(results.current, to: &next, errors: &errors)
         if case .success(let modelRatings) = results.modelRatings {
@@ -1814,6 +1959,10 @@ final class SentinelStore: NSObject, ObservableObject {
         switch results.rateLimits {
         case .success(let payload):
             next.rateLimits = payload.dashboard
+            recordQuotaHistory(
+                payload.dashboard,
+                at: quotaHistoryNow
+            )
             cacheResetCreditsFromAppServer(payload.response.rateLimitResetCredits)
             scheduleResetCreditProtectionEvaluation()
         case .failure(let error):
@@ -1830,6 +1979,35 @@ final class SentinelStore: NSObject, ObservableObject {
         saveNotificationMemory()
         state = next
         deliver(events)
+    }
+
+    private func recordQuotaHistory(
+        _ dashboard: RateLimitDashboard,
+        at now: Date
+    ) {
+        guard let weekly = dashboard.weeklyBucket else {
+            return
+        }
+        let sample = QuotaHistorySample(
+            timestamp: now,
+            remainingPercent: min(
+                100,
+                max(0, 100 - weekly.usedPercent)
+            ),
+            resetsAt: weekly.resetsAt.map {
+                Date(timeIntervalSince1970: TimeInterval($0))
+            }
+        )
+        do {
+            let result = try quotaHistoryStore.record(
+                sample,
+                endingAt: now
+            )
+            quotaHistory = result.timeline
+            quotaHistoryStorageUnavailable = false
+        } catch {
+            quotaHistoryStorageUnavailable = true
+        }
     }
 
     private func startRadarInsightsRefreshIfNeeded() {

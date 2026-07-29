@@ -102,6 +102,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 81 | [be8c043](https://github.com/WineChord/codex-radar/commit/be8c043958cd1f7a7f59440faffe745c3318fbd5), [`Prompt-Id: 81 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+81%22&type=commits) | 将菜单布局自定义、持久化展开偏好和关键状态保护作为 v0.1.59 发布。 |
 | 82 | [4997235](https://github.com/WineChord/codex-radar/commit/4997235ef34a09a088cacd1ccaaaa93dba3aa77a), [`Prompt-Id: 82 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+82%22&type=commits) | 让布局编辑器统一管理顶层模块和可折叠子项，并将该改进作为 v0.1.60 发布。 |
 | 83 | [`Prompt-Id: 83 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+83%22&type=commits) | 用一次性、可关闭的轻提示提高布局编辑器的可发现性，并将该改进作为 v0.1.61 发布。 |
+| 84 | [`Prompt-Id: 84 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+84%22&type=commits) | 增加可逐点检查、保留重置与断档语义的本机周额度余量历史，并补充隔离逻辑、交互与视觉验证。 |
 
 ## Prompts
 
@@ -659,4 +660,10 @@ commit 要求是可以点击的链接
 
 ```text
 在面板底部为布局编辑器增加一次性、可关闭的轻提示。提示应直接进入布局编辑器；从提示或工具栏进入后不再重复显示，关闭选择需要持久化。保持关键内容优先，并在中英文和全部字号下验证后发布新版本。
+```
+
+### 84. 可交互的周额度余量历史
+
+```text
+为本机周额度增加余量历史：支持 24 小时、7 天和 30 天曲线，可在鼠标悬停或拖动时逐点查看数据，并如实保留重置跳变和采样断档。历史只记录真实观测，不补造此前数据；完成离线逻辑、交互和视觉验证，并提供可安全安装的本机构建。
 ```

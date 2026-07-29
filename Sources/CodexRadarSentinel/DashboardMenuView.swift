@@ -18,6 +18,10 @@ private enum DashboardVisualTestOverrides {
         ProcessInfo.processInfo.environment[
             "CODEX_RADAR_VISUAL_TEST_EXPAND_MODEL_IQ"
         ] == "1"
+    static let expandsQuotaHistory =
+        ProcessInfo.processInfo.environment[
+            "CODEX_RADAR_VISUAL_TEST_EXPAND_QUOTA_HISTORY"
+        ] == "1"
     static let showsLayoutEditor =
         ProcessInfo.processInfo.environment[
             "CODEX_RADAR_VISUAL_TEST_LAYOUT_EDITOR"
@@ -495,6 +499,14 @@ struct DashboardMenuView: View {
         )
     }
 
+    private var quotaHistoryExpansionBinding: Binding<Bool> {
+        disclosureExpansionBinding(
+            for: .quotaHistory,
+            forcedExpanded:
+                DashboardVisualTestOverrides.expandsQuotaHistory
+        )
+    }
+
     private var radarInsightsDetailsExpansionBinding: Binding<Bool> {
         disclosureExpansionBinding(
             for: .radarInsightsDetails,
@@ -755,7 +767,42 @@ struct DashboardMenuView: View {
                         .font(.system(size: metrics.caption))
                         .foregroundStyle(.secondary)
                 }
+                quotaHistorySection
             }
+        }
+    }
+
+    private var quotaHistorySection: some View {
+        collapsibleSection(
+            isExpanded: quotaHistoryExpansionBinding,
+            systemImage: DashboardDisclosure.quotaHistory.systemImage,
+            title: DashboardDisclosure.quotaHistory.label(
+                language: language
+            ),
+            trailing: quotaHistoryRangeLabel(store.quotaHistoryRange)
+        ) {
+            QuotaHistoryChartView(
+                timeline: store.displayedQuotaHistory,
+                range: $store.quotaHistoryRange,
+                endingAt: store.quotaHistoryDisplayNow,
+                language: language,
+                metrics: metrics,
+                storageUnavailable:
+                    store.quotaHistoryStorageUnavailable
+            )
+        }
+    }
+
+    private func quotaHistoryRangeLabel(
+        _ range: QuotaHistoryRange
+    ) -> String {
+        switch range {
+        case .hours24:
+            return text("24 小时", "24 hours")
+        case .days7:
+            return text("7 天", "7 days")
+        case .days30:
+            return text("30 天", "30 days")
         }
     }
 

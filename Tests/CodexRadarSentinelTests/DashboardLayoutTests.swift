@@ -37,6 +37,10 @@ final class DashboardLayoutTests: XCTestCase {
 
     func testNestedDisclosuresHaveOneRegisteredParentAndSafeDefaults() {
         XCTAssertEqual(
+            DashboardDisclosure.children(of: .quota),
+            [.quotaHistory]
+        )
+        XCTAssertEqual(
             DashboardDisclosure.children(of: .modelIQ),
             [.modelIQDetails]
         )
@@ -45,7 +49,9 @@ final class DashboardLayoutTests: XCTestCase {
             [.radarInsightsDetails]
         )
         for section in DashboardSection.allCases
-        where section != .modelIQ && section != .insights {
+        where section != .quota
+            && section != .modelIQ
+            && section != .insights {
             XCTAssertTrue(
                 DashboardDisclosure.children(of: section).isEmpty
             )
@@ -56,6 +62,9 @@ final class DashboardLayoutTests: XCTestCase {
         }
         XCTAssertEqual(registered, DashboardDisclosure.allCases)
         XCTAssertEqual(Set(registered).count, registered.count)
+        XCTAssertFalse(
+            DashboardDisclosure.quotaHistory.isExpandedByDefault
+        )
         XCTAssertFalse(
             DashboardDisclosure.modelIQDetails.isExpandedByDefault
         )
@@ -332,6 +341,10 @@ final class DashboardLayoutTests: XCTestCase {
         firstStore?.setDashboardSection(.resetCredits, expanded: true)
         firstStore?.setDashboardSection(.quota, expanded: false)
         firstStore?.setDashboardDisclosure(
+            .quotaHistory,
+            expanded: true
+        )
+        firstStore?.setDashboardDisclosure(
             .modelIQDetails,
             expanded: true
         )
@@ -349,6 +362,11 @@ final class DashboardLayoutTests: XCTestCase {
             secondStore.isDashboardSectionExpanded(.resetCredits)
         )
         XCTAssertFalse(secondStore.isDashboardSectionExpanded(.quota))
+        XCTAssertTrue(
+            secondStore.isDashboardDisclosureExpanded(
+                .quotaHistory
+            )
+        )
         XCTAssertTrue(
             secondStore.isDashboardDisclosureExpanded(
                 .modelIQDetails
@@ -376,6 +394,11 @@ final class DashboardLayoutTests: XCTestCase {
         XCTAssertEqual(thirdStore.menuTextSize, .extraLarge)
         XCTAssertFalse(thirdStore.automaticUpdatesEnabled)
         XCTAssertFalse(thirdStore.resetCreditAutoRefreshEnabled)
+        XCTAssertFalse(
+            thirdStore.isDashboardDisclosureExpanded(
+                .quotaHistory
+            )
+        )
         XCTAssertFalse(
             thirdStore.isDashboardDisclosureExpanded(
                 .modelIQDetails
@@ -491,6 +514,11 @@ private final class LayoutTestContext {
                 ),
             resetCreditProtectionProcessLockURL: directory
                 .appendingPathComponent("process.lock"),
+            quotaHistoryStore: QuotaHistoryStore(
+                url: directory.appendingPathComponent(
+                    "quota-history.json"
+                )
+            ),
             resetCreditProtectionDestructiveActionsAllowed: false
         )
     }

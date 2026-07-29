@@ -72,6 +72,7 @@ See [GitHub Releases](https://github.com/WineChord/codex-radar/releases) for the
 | Feature | What it does |
 | --- | --- |
 | Local quota | Shows weekly Codex quota and, when explicitly returned, the 5h short window. |
+| Quota history | Keeps local 24-hour, 7-day, and 30-day weekly-quota balance curves with inspectable changes, resets, and data gaps. |
 | Usage pacing | Compares actual remaining quota with a target and says whether usage is ahead, on pace, or behind. |
 | Model IQ | Shows current IQ and quality, plus public multi-model cost, runtime, pass count, and ratings. |
 | Radar signals | Combines Reset Radar, Quota Radar, Fast Radar, scenario recommendations, and degradation alerts. |
@@ -119,11 +120,19 @@ The default order leads with the current conclusion, local quota, Codex IQ, rese
 
 ### Menu layout
 
-Choose `Layout` in the bottom toolbar to customize top-level sections. Drag a handle or use the move-up and move-down buttons to change the order, then choose which sections are expanded by default. When a section contains collapsible details, they appear indented beneath it—for example, `All model IQ` under `Codex IQ`—with independent default-open controls. Every preference persists when the menu reopens and after an app restart. `Restore default layout` resets only layout preferences, not language, text size, alerts, or automatic updates.
+Choose `Layout` in the bottom toolbar to customize top-level sections. Drag a handle or use the move-up and move-down buttons to change the order, then choose which sections are expanded by default. When a section contains collapsible details, they appear indented beneath it—for example, `Quota history` under `Codex Quota` and `All model IQ` under `Codex IQ`—with independent default-open controls. Every preference persists when the menu reopens and after an app restart. `Restore default layout` resets only layout preferences, not language, text size, alerts, or automatic updates.
 
 A compact tip above the bottom toolbar introduces Layout the first time it is shown. Selecting the tip opens the editor directly; choosing `Layout` itself or dismissing the tip prevents it from appearing again.
 
 The current result, urgent alerts, and connection errors are not sortable. Reset-credit or update sections temporarily lock open when they need attention, then return to the user's saved preference after the issue clears.
+
+### Quota history
+
+`Quota history` inside `Codex Quota` is collapsed by default and can be made default-open in `Layout`. It offers 24-hour, 7-day, and 30-day ranges. Hover over the curve, or drag across it, to inspect the nearest remaining balance and its change from the previous sample.
+
+The app records real points only after local weekly quota loads successfully. While it stays running, it retains a heartbeat at least every five minutes and immediately keeps meaningful balance or reset-time changes. Lines do not bridge long data gaps. Reliable upward jumps are labeled only as `Observed reset`; the app does not guess whether a periodic reset, reset credit, or another server-side correction caused them.
+
+History starts accumulating when this version first runs; earlier values are neither fabricated nor backfilled. Up to 31 days remain on the Mac. `Observed use` totals only balance decreases seen in the selected range and is not a replacement for server-side billing or usage analytics.
 
 ### Usage pacing
 
@@ -166,6 +175,7 @@ If verification or installation fails, the current version stays in place and th
 ## Privacy and Security
 
 - Local quota comes from the local Codex app-server and is not uploaded to CodexRadar.
+- Quota history stays on the Mac and contains only sample times, weekly quota remaining percentages, and server reset times for up to 31 days. It stores no account identity, access tokens, or request contents and is never uploaded.
 - Reset-credit expiry checks use the local Codex sign-in state only for the corresponding ChatGPT request. Credentials are not cached, logged, or sent to CodexRadar or GitHub.
 - Local cache stores only credit status, issue time, expiry time, and sanitized identifiers—never access tokens, cookies, email addresses, or full credit IDs.
 - Auto-use before expiry works only after explicit opt-in and binds authorization to the current account and visible credit set. The target, authorization, and clock continuity are rechecked before every write.

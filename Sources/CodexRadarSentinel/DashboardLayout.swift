@@ -75,6 +75,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
 }
 
 enum DashboardDisclosure: String, CaseIterable, Identifiable {
+    case quotaHistory
     case modelIQDetails
     case radarInsightsDetails
 
@@ -84,6 +85,8 @@ enum DashboardDisclosure: String, CaseIterable, Identifiable {
 
     var parentSection: DashboardSection {
         switch self {
+        case .quotaHistory:
+            return .quota
         case .modelIQDetails:
             return .modelIQ
         case .radarInsightsDetails:
@@ -93,6 +96,8 @@ enum DashboardDisclosure: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
+        case .quotaHistory:
+            return "chart.line.uptrend.xyaxis"
         case .modelIQDetails:
             return "square.grid.2x2"
         case .radarInsightsDetails:
@@ -106,6 +111,8 @@ enum DashboardDisclosure: String, CaseIterable, Identifiable {
 
     func label(language: AppLanguage) -> String {
         switch self {
+        case .quotaHistory:
+            return language.text("额度历史", "Quota history")
         case .modelIQDetails:
             return language.text("全部模型 IQ", "All model IQ")
         case .radarInsightsDetails:

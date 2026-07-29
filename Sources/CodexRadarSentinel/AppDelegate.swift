@@ -165,6 +165,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 ),
                 resetCreditProtectionProcessLockURL: isolation.directory
                     .appendingPathComponent("process.lock"),
+                quotaHistoryStore: QuotaHistoryStore(
+                    url: isolation.directory.appendingPathComponent(
+                        "quota-history.json"
+                    )
+                ),
                 resetCreditProtectionDestructiveActionsAllowed: false
             )
         } else {
