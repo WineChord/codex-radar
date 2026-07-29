@@ -32,8 +32,8 @@ CASES = [
 ]
 
 NEWS_CROPS = {
-    "zh": [(0, 1560, 1560, 2820), (0, 9164, 1560, 10534)],
-    "en": [(0, 1550, 1560, 2820), (0, 9660, 1560, 11130)],
+    "zh": [(0, 1560, 1560, 2820)],
+    "en": [(0, 1550, 1560, 2820)],
 }
 
 
@@ -240,6 +240,20 @@ def render_news_screenshots():
         source = ASSET_ROOT / language / "menu-full.png"
         destination = ASSET_ROOT / language / "news-pacing.png"
         image = Image.open(source).convert("RGB")
+        for box in boxes:
+            left, top, right, bottom = box
+            if (
+                left < 0
+                or top < 0
+                or right <= left
+                or bottom <= top
+                or right > image.width
+                or bottom > image.height
+            ):
+                raise RuntimeError(
+                    f"{language} news crop {box} exceeds "
+                    f"{image.width}x{image.height} menu screenshot"
+                )
         parts = [image.crop(box) for box in boxes]
         gap = 28
         output = Image.new(

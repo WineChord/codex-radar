@@ -101,10 +101,11 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 80 | [7ca9744](https://github.com/WineChord/codex-radar/commit/7ca9744566bf9862f9f7d54a67d2c6a1ebf811f1), [ead074c](https://github.com/WineChord/codex-radar/commit/ead074c1e9116a9ea027e7ff7fc1efb7b3b3cf06), [`Prompt-Id: 80 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+80%22&type=commits) | 保留核心信息优先的默认层级，并增加可持久化、可恢复且不会隐藏关键状态的菜单布局编辑。 |
 | 81 | [be8c043](https://github.com/WineChord/codex-radar/commit/be8c043958cd1f7a7f59440faffe745c3318fbd5), [`Prompt-Id: 81 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+81%22&type=commits) | 将菜单布局自定义、持久化展开偏好和关键状态保护作为 v0.1.59 发布。 |
 | 82 | [4997235](https://github.com/WineChord/codex-radar/commit/4997235ef34a09a088cacd1ccaaaa93dba3aa77a), [`Prompt-Id: 82 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+82%22&type=commits) | 让布局编辑器统一管理顶层模块和可折叠子项，并将该改进作为 v0.1.60 发布。 |
-| 83 | [`Prompt-Id: 83 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+83%22&type=commits) | 用一次性、可关闭的轻提示提高布局编辑器的可发现性，并将该改进作为 v0.1.61 发布。 |
-| 84 | [`Prompt-Id: 84 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+84%22&type=commits) | 增加可逐点检查、保留重置与断档语义的本机周额度余量历史，并补充隔离逻辑、交互与视觉验证。 |
-| 85 | [`Prompt-Id: 85 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+85%22&type=commits) | 让布局编辑器统一控制模块与子项是否显示，同时保留后台能力、默认折叠和关键状态保护。 |
-| 86 | [`Prompt-Id: 86 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+86%22&type=commits) | 将布局编辑器的显示与默认展开选项收进对应标题行，降低滚动和视觉噪声。 |
+| 83 | [869337b](https://github.com/WineChord/codex-radar/commit/869337b9a93dfe95cb8aa49eb7d236b5f5cf8c41), [`Prompt-Id: 83 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+83%22&type=commits) | 用一次性、可关闭的轻提示提高布局编辑器的可发现性，并将该改进作为 v0.1.61 发布。 |
+| 84 | [52ce48e](https://github.com/WineChord/codex-radar/commit/52ce48e4f4a593040d0f960f56be9f1e15d533ba), [820a74c](https://github.com/WineChord/codex-radar/commit/820a74c139fc95c13ce89cc1605b59b300a3856e), [`Prompt-Id: 84 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+84%22&type=commits) | 增加可逐点检查、保留重置与断档语义的本机周额度余量历史，并补充隔离逻辑、交互与视觉验证。 |
+| 85 | [288f436](https://github.com/WineChord/codex-radar/commit/288f436a94cc624c38634e42149be6e690c8f886), [`Prompt-Id: 85 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+85%22&type=commits) | 让布局编辑器统一控制模块与子项是否显示，同时保留后台能力、默认折叠和关键状态保护。 |
+| 86 | [528cbe3](https://github.com/WineChord/codex-radar/commit/528cbe3e8ce2bba36794df0b437d47bc06df55af), [`Prompt-Id: 86 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+86%22&type=commits) | 将布局编辑器的显示与默认展开选项收进对应标题行，降低滚动和视觉噪声。 |
+| 87 | [`Prompt-Id: 87 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+87%22&type=commits) | 将额度历史、布局显示控制与紧凑单行编辑器作为 v0.1.62 正式发布。 |
 
 ## Prompts
 
@@ -680,4 +681,10 @@ commit 要求是可以点击的链接
 
 ```text
 让布局编辑器更紧凑、安静：模块和子项的“显示”“默认展开”应尽量与各自标题保持在同一行，减少重复留白和滚动距离。完整保留文字标签、禁用状态、拖动与无拖拽排序入口，并验证中英文及全部字号下没有截断或误操作。
+```
+
+### 87. 发布额度历史与紧凑布局
+
+```text
+将已经通过完整测试和中英文 M/L/XL 视觉验证的额度历史、布局显示控制与紧凑单行编辑器发布为新版本。同步版本号、双语说明、截图和可校验的 macOS 安装包，并从公开 Release 重新下载验证。
 ```

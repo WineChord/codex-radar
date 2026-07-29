@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.62: See quota changes with a calmer Layout
+
+- `Quota history` keeps local 24-hour, 7-day, and 30-day weekly-quota balance curves. Hover or drag to inspect real changes, reset jumps, and data gaps point by point.
+- `Layout` now manages order, visibility, and default expansion for sections and nested items. Hiding changes only the menu: recording and alerts continue, while critical states can still appear temporarily.
+- `Show` and `Start open` stay on the same line as each title, reducing scrolling and repeated whitespace while remaining complete across both interface languages and M, L, and XL.
+
 ### v0.1.61: Make Layout easier to discover
 
 - A compact tip above the bottom toolbar explains that section order and default-open states are customizable. `Try Layout` opens the editor directly.
@@ -37,15 +43,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Nested controls and the disclosures in the main menu share the same preference, which persists when the menu reopens and after an app restart.
 - `Restore default layout` resets both levels, and future nested disclosures can use the same consistent hierarchy.
 
-### v0.1.59: Arrange the menu around your workflow
-
-- The default hierarchy still keeps the current result, local quota, Codex IQ, reset-credit summary, and usage pace easy to find.
-- Choose `Layout` to drag sections or use the move-up and move-down buttons, then set which sections open by default. Preferences persist when the menu reopens and after an app restart.
-- The current result, urgent alerts, and connection errors remain fixed. Reset-credit or update detail opens temporarily when it needs attention, and the default layout is always one click away.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.59**: added persistent menu ordering and default-open preferences while keeping current results, critical alerts, and recovery paths visible.
 - **v0.1.58**: kept multi-model IQ pass counts intact across M, L, and XL and made the SHA256 manifest directly verifiable from the download directory.
 - **v0.1.57**: moved quota and Codex IQ forward, grouped low-frequency information behind clear disclosures, and kept critical alerts visible.
 - **v0.1.56**: accepts a missing temporary notice as a normal empty state without interrupting other live data.
@@ -228,14 +229,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.61
+./scripts/check_release_readiness.sh 0.1.62
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.61
+./scripts/package_release.sh 0.1.62
 ```
 
 Update the menu-bar and full-menu screenshots:
