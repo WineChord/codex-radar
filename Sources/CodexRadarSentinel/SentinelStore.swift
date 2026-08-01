@@ -1760,27 +1760,22 @@ final class SentinelStore: NSObject, ObservableObject {
             "CodexRadar 当前公开重置研判、7d 额度、Fast 实测与分布式社区 Model IQ。",
             "CodexRadar currently publishes reset judgement, 7d quota, Fast benchmarks, and distributed community Model IQ."
         )
-        let resetUpdated = language.text("7月17日14:38研判", "Jul 17 14:38")
-        let resetTitle = language.text("本轮硬重置已落地，进入冷却", "Latest hard reset complete; cooldown")
+        let resetUpdated = language.text(
+            "事件更新 7月29日 13:42",
+            "Event updated Jul 29 13:42"
+        )
+        let resetTitle = language.text("官方源快车", "Official-source fast lane")
         let cardLabel = language.text("发重置卡", "Reset card")
-        let cardLevel = language.text("低 · 本轮不是发卡", "Low · not a card rollout")
+        let cardLevel = language.text("未宣布", "Not announced")
         let cardSummary = language.text(
-            "9M 节点直接把周额度恢复到 100%，并未新增可自行兑换的 banked reset；其后也没有新的官方发卡信号。",
-            "The 9M milestone restored weekly quota directly to 100% without issuing redeemable banked resets; no newer official card signal followed."
+            "本轮是直接重置 — 本轮官方信号指向直接用量重置，不代表新增可储存的 banked reset。",
+            "This round is a direct reset — the official signal points to quota restoration, not a new banked reset."
         )
         let hardResetLabel = language.text("硬重置", "Hard reset")
-        let hardResetLevel = language.text("低 · 9M 重置已落地", "Low · 9M reset complete")
+        let hardResetLevel = language.text("已落地", "Completed")
         let hardResetSummary = language.text(
-            "Tibo 已宣布并完成本轮 Codex 与 ChatGPT Work 周额度硬重置；随后未出现新的重置承诺，下一轮进入冷却。",
-            "Tibo announced and completed this Codex and ChatGPT Work weekly quota hard reset; no newer reset commitment followed, so the next round is in cooldown."
-        )
-        let reasonOne = language.text(
-            "9M 重置的机制是直接恢复周额度到 100%，不是新增可兑换卡；已有多名用户报告额度恢复。",
-            "The 9M reset restored weekly quota directly to 100% instead of issuing redeemable cards; multiple users reported recovery."
-        )
-        let reasonTwo = language.text(
-            "连续两次里程碑重置已经落地，相关服务事故也已解决，短期内再次重置的必要性下降。",
-            "Two milestone resets have landed and related service incidents are resolved, reducing the near-term need for another reset."
+            "官方重置完成 — Tibo 确认本轮直接用量重置已完成；当前没有开启的速蹬窗口。",
+            "Official reset complete — Tibo confirmed that this direct quota reset finished; no speed window is open."
         )
         let communityTitle = language.text("重置卡过期时间自查", "Reset credit expiry check")
         let communityPrompt = language.text(
@@ -1839,10 +1834,7 @@ final class SentinelStore: NSObject, ObservableObject {
               { "label": "\(cardLabel)", "level": "\(cardLevel)", "summary": "\(cardSummary)" },
               { "label": "\(hardResetLabel)", "level": "\(hardResetLevel)", "summary": "\(hardResetSummary)" }
             ],
-            "reasons": [
-              "\(reasonOne)",
-              "\(reasonTwo)"
-            ]
+            "reasons": []
           },
           "community_knowledge": {
             "title": "\(communityTitle)",

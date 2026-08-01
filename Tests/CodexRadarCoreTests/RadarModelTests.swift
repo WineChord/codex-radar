@@ -434,6 +434,30 @@ final class RadarModelTests: XCTestCase {
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("不要打印 access_token") == true)
     }
 
+    func testBuildsResetJudgementFromCurrentHomepageCardMarkup() throws {
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            currentResetJudgementHTML,
+            checkedAt: Date(timeIntervalSince1970: 1_785_438_400)
+        )
+
+        XCTAssertEqual(current.resetJudgement?.updatedLabel, "事件更新 7月29日 13:42")
+        XCTAssertEqual(current.resetJudgement?.title, "官方源快车")
+        XCTAssertEqual(current.resetJudgement?.cards.count, 2)
+        XCTAssertEqual(current.resetJudgement?.cards.first?.label, "发重置卡")
+        XCTAssertEqual(current.resetJudgement?.cards.first?.level, "未宣布")
+        XCTAssertEqual(
+            current.resetJudgement?.cards.first?.summary,
+            "本轮是直接重置 — 本轮官方信号指向直接用量重置，不代表新增可储存的 banked reset。"
+        )
+        XCTAssertEqual(current.resetJudgement?.cards.last?.label, "硬重置")
+        XCTAssertEqual(current.resetJudgement?.cards.last?.level, "已落地")
+        XCTAssertEqual(
+            current.resetJudgement?.cards.last?.summary,
+            "官方重置完成 — 7月29日 12:09，Tibo 确认直接用量重置已完成；当前没有开启的速蹬窗口。"
+        )
+        XCTAssertTrue(current.resetJudgement?.reasons.isEmpty == true)
+    }
+
     func testBuildsDistributedModelIQFromHomepageHTML() throws {
         let html = """
         <html><body>
@@ -733,6 +757,43 @@ private let homepageHTML = """
 <title>6月13日 GPT-5.5 xhigh: IQ指数 87.5, 7/12, 费用 $42.41, 耗时 170分钟, cache命中率 94.5%</title>
 <title>6月14日 GPT-5.4 xhigh: IQ指数 75.0, 6/12, 费用 $21.33, 耗时 206分钟, cache命中率 95.7%</title>
 <title>6月14日 GPT-5.5 xhigh: IQ指数 62.5, 5/12, 费用 $37.59, 耗时 183分钟, cache命中率 94.3%</title>
+</svg>
+</body>
+</html>
+"""
+
+private let currentResetJudgementHTML = """
+<!doctype html>
+<html>
+<body>
+<section class="reset-judgement" aria-label="重置雷达">
+  <div class="reset-judgement-head">
+    <div>
+      <h2>重置雷达 <em>事件更新 7月29日 13:42</em></h2>
+    </div>
+    <strong>官方源快车</strong>
+  </div>
+  <div class="reset-judgement-grid">
+    <article class="reset-judgement-card" data-reset-track="banked_reset" data-reset-track-state="not_announced">
+      <div class="reset-judgement-card-head">
+        <span>发重置卡</span>
+        <em class="reset-judgement-state">未宣布</em>
+      </div>
+      <strong>本轮是直接重置</strong>
+      <p>本轮官方信号指向直接用量重置，不代表新增可储存的 banked reset。</p>
+    </article>
+    <article class="reset-judgement-card" data-reset-track="hard_reset" data-reset-track-state="completed">
+      <div class="reset-judgement-card-head">
+        <span>硬重置</span>
+        <em class="reset-judgement-state">已落地</em>
+      </div>
+      <strong>官方重置完成</strong>
+      <p>7月29日 12:09，Tibo 确认直接用量重置已完成；当前没有开启的速蹬窗口。</p>
+    </article>
+  </div>
+</section>
+<svg>
+  <title>7月29日 GPT-5.6 Sol max: IQ指数 103.1, 77/112, 费用 $9.63, 耗时 33分钟, cache命中率 97.5%</title>
 </svg>
 </body>
 </html>

@@ -25,6 +25,12 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ## News / 最新功能
 
+### v0.1.63：恢复新版重置雷达状态
+
+- 兼容 CodexRadar 最新的重置雷达卡片结构，菜单重新显示“发重置卡”和“硬重置”的当前状态、结论与说明。
+- 新旧网页结构继续同时支持；事件更新时间和雷达来源摘要不会因卡片内部新增状态标签而丢失。
+- 在线契约检查会逐项确认重置雷达卡片的名称、状态和说明，避免以后结构变化时静默隐藏整个模块。
+
 ### v0.1.62：额度变化看得见，布局更清爽
 
 - “额度历史”在本机保留 24 小时、7 天和 30 天周额度余量曲线；悬停或拖动即可逐点查看真实变化、重置跳变和数据断档。
@@ -37,15 +43,10 @@ https://github.com/WineChord/codex-radar/releases/latest
 - 从提示或底部“布局”进入后，提示不会重复出现；也可以直接关闭，选择会在应用重启后保留。
 - 提示只出现一次且不占用顶部空间，当前结论、关键告警和常用数据的优先级保持不变。
 
-### v0.1.60：模块内子项也能预设展开
-
-- 布局编辑器会在所属模块下方列出可折叠子项；现在可以直接设置“全部模型 IQ”和“场景推荐与降智预警”是否默认展开。
-- 子项开关与主菜单中的实际展开状态使用同一份偏好，重新打开菜单和重启应用后都会保留。
-- “恢复默认布局”会同时重置顶层模块与子项；以后新增的同类子项也会沿用一致的分层入口。
-
 <details>
 <summary><strong>历史版本</strong> — 展开查看更早的产品里程碑</summary>
 
+- **v0.1.60**：布局编辑器可设置“全部模型 IQ”等模块内子项是否默认展开，并在重启后保留。
 - **v0.1.59**：支持调整菜单模块顺序和默认展开状态，同时保持当前结论、关键告警与恢复入口可见。
 - **v0.1.58**：让多模型 IQ 的通过数在 M/L/XL 字号下保持完整，并让 SHA256 清单可在下载目录直接校验。
 - **v0.1.57**：将核心额度与 Codex IQ 前置，把低频信息统一收进清晰的折叠入口，同时保持关键告警可见。
@@ -229,14 +230,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.62
+./scripts/check_release_readiness.sh 0.1.63
 ```
 
 构建发布包：
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.62
+./scripts/package_release.sh 0.1.63
 ```
 
 更新中英文状态栏与菜单截图：

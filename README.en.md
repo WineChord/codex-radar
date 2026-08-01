@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.63: Restore the current Reset Radar state
+
+- Supports CodexRadar's latest Reset Radar card structure, restoring the current state, conclusion, and explanation for both reset-credit and hard-reset paths.
+- Both old and new page layouts remain compatible, including the event timestamp and radar-source summary when a card adds its own state badge.
+- Live contract checks now validate each Reset Radar card's name, state, and explanation so a future markup change cannot silently hide the entire section.
+
 ### v0.1.62: See quota changes with a calmer Layout
 
 - `Quota history` keeps local 24-hour, 7-day, and 30-day weekly-quota balance curves. Hover or drag to inspect real changes, reset jumps, and data gaps point by point.
@@ -37,15 +43,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Opening Layout from either entry point dismisses the tip. It can also be closed immediately, and that choice persists across app restarts.
 - The tip appears only once and stays out of the top content area, preserving the priority of the current result, critical alerts, and everyday data.
 
-### v0.1.60: Set defaults for nested details
-
-- The layout editor now lists collapsible details beneath their parent sections, including `All model IQ` and `Recommendations & alerts`, with their own default-open controls.
-- Nested controls and the disclosures in the main menu share the same preference, which persists when the menu reopens and after an app restart.
-- `Restore default layout` resets both levels, and future nested disclosures can use the same consistent hierarchy.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.60**: let Layout set default-open behavior for nested items such as `All model IQ`, with preferences preserved across restarts.
 - **v0.1.59**: added persistent menu ordering and default-open preferences while keeping current results, critical alerts, and recovery paths visible.
 - **v0.1.58**: kept multi-model IQ pass counts intact across M, L, and XL and made the SHA256 manifest directly verifiable from the download directory.
 - **v0.1.57**: moved quota and Codex IQ forward, grouped low-frequency information behind clear disclosures, and kept critical alerts visible.
@@ -229,14 +230,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.62
+./scripts/check_release_readiness.sh 0.1.63
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.62
+./scripts/package_release.sh 0.1.63
 ```
 
 Update the menu-bar and full-menu screenshots:

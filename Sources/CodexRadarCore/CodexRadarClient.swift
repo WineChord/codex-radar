@@ -413,13 +413,42 @@ public struct CodexRadarClient {
         let title = firstCapture(#"<div\s+class="reset-judgement-head">.*?<strong>(.*?)</strong>"#, in: section)
         let updatedLabel = firstCapture(#"<h2>.*?<em>(.*?)</em>.*?</h2>"#, in: section)
         let cards = allMatches(
-            #"<article\s+class="reset-judgement-card[^"]*">\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*<p>(.*?)</p>"#,
+            #"<article\s+class="[^"]*reset-judgement-card[^"]*"[^>]*>(.*?)</article>"#,
             in: section
-        ).map { groups in
-            [
-                "label": cleanHTMLText(groups[safe: 0]),
-                "level": cleanHTMLText(groups[safe: 1]),
-                "summary": cleanHTMLText(groups[safe: 2])
+        ).compactMap { groups -> [String: String]? in
+            guard let card = groups.first else {
+                return nil
+            }
+            let label = cleanHTMLText(firstCapture(
+                #"<span(?:\s+[^>]*)?>(.*?)</span>"#,
+                in: card
+            ))
+            let state = cleanHTMLText(firstCapture(
+                #"<em\s+class="[^"]*reset-judgement-state[^"]*"[^>]*>(.*?)</em>"#,
+                in: card
+            ))
+            let headline = cleanHTMLText(firstCapture(
+                #"<strong(?:\s+[^>]*)?>(.*?)</strong>"#,
+                in: card
+            ))
+            let detail = cleanHTMLText(firstCapture(
+                #"<p(?:\s+[^>]*)?>(.*?)</p>"#,
+                in: card
+            ))
+            // Current cards split the state badge from the headline. Older
+            // cards use the headline itself as the level, so normalize both
+            // layouts into the existing level and summary fields.
+            let level = state.isEmpty ? headline : state
+            let summary = state.isEmpty
+                ? detail
+                : [headline, detail].filter { !$0.isEmpty }.joined(separator: " — ")
+            guard !label.isEmpty, !level.isEmpty, !summary.isEmpty else {
+                return nil
+            }
+            return [
+                "label": label,
+                "level": level,
+                "summary": summary
             ]
         }
         guard !cards.isEmpty else {

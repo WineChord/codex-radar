@@ -2605,10 +2605,17 @@ struct DashboardMenuView: View {
 
     private func resetJudgementLevelColor(_ level: String?) -> Color {
         let normalized = level?.lowercased() ?? ""
-        if normalized.contains("高") || normalized.contains("high") {
+        if normalized.contains("高")
+            || normalized.contains("high")
+            || normalized.contains("已落地")
+            || normalized.contains("已完成")
+            || normalized.contains("completed") {
             return .green
         }
-        if normalized.contains("低") || normalized.contains("low") {
+        if normalized.contains("低")
+            || normalized.contains("low")
+            || normalized.contains("未宣布")
+            || normalized.contains("not announced") {
             return .orange
         }
         return .accentColor

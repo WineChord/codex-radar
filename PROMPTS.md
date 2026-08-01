@@ -106,6 +106,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 85 | [288f436](https://github.com/WineChord/codex-radar/commit/288f436a94cc624c38634e42149be6e690c8f886), [`Prompt-Id: 85 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+85%22&type=commits) | 让布局编辑器统一控制模块与子项是否显示，同时保留后台能力、默认折叠和关键状态保护。 |
 | 86 | [528cbe3](https://github.com/WineChord/codex-radar/commit/528cbe3e8ce2bba36794df0b437d47bc06df55af), [`Prompt-Id: 86 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+86%22&type=commits) | 将布局编辑器的显示与默认展开选项收进对应标题行，降低滚动和视觉噪声。 |
 | 87 | [`Prompt-Id: 87 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+87%22&type=commits) | 将额度历史、布局显示控制与紧凑单行编辑器作为 v0.1.62 正式发布。 |
+| 88 | [`Prompt-Id: 88 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+88%22&type=commits) | 例行兼容检查发现 CodexRadar 更新重置雷达卡片结构，恢复状态、结论和说明解析并加强在线契约验证。 |
 
 ## Prompts
 
@@ -687,4 +688,10 @@ commit 要求是可以点击的链接
 
 ```text
 将已经通过完整测试和中英文 M/L/XL 视觉验证的额度历史、布局显示控制与紧凑单行编辑器发布为新版本。同步版本号、双语说明、截图和可校验的 macOS 安装包，并从公开 Release 重新下载验证。
+```
+
+### 88. 重置雷达结构兼容
+
+```text
+对 Codex Radar Sentinel 做例行兼容性维护：核对 CodexRadar 公共页面与数据源，修复经过验证的结构变化，保留旧格式兼容，并在通过完整测试后发布。
 ```
