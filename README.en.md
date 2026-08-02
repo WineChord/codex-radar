@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.64: Keep local quota available after an upgrade or restart
+
+- Prefers the already signed-in local managed session from the Codex desktop app, avoiding a `--` quota when a fresh session has no persisted sign-in after an app upgrade or restart.
+- Falls back to an independent local app-server when the managed session is unavailable. Neither path reads, copies, or caches sign-in credentials.
+- If both local paths are genuinely signed out, Connection now gives a clear sign-in and refresh action instead of exposing a low-level API error.
+
 ### v0.1.63: Restore the current Reset Radar state
 
 - Supports CodexRadar's latest Reset Radar card structure, restoring the current state, conclusion, and explanation for both reset-credit and hard-reset paths.
@@ -37,15 +43,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - `Layout` now manages order, visibility, and default expansion for sections and nested items. Hiding changes only the menu: recording and alerts continue, while critical states can still appear temporarily.
 - `Show` and `Start open` stay on the same line as each title, reducing scrolling and repeated whitespace while remaining complete across both interface languages and M, L, and XL.
 
-### v0.1.61: Make Layout easier to discover
-
-- A compact tip above the bottom toolbar explains that section order and default-open states are customizable. `Try Layout` opens the editor directly.
-- Opening Layout from either entry point dismisses the tip. It can also be closed immediately, and that choice persists across app restarts.
-- The tip appears only once and stays out of the top content area, preserving the priority of the current result, critical alerts, and everyday data.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.61**: added a one-time Layout tip that opens the editor directly and remembers dismissal.
 - **v0.1.60**: let Layout set default-open behavior for nested items such as `All model IQ`, with preferences preserved across restarts.
 - **v0.1.59**: added persistent menu ordering and default-open preferences while keeping current results, critical alerts, and recovery paths visible.
 - **v0.1.58**: kept multi-model IQ pass counts intact across M, L, and XL and made the SHA256 manifest directly verifiable from the download directory.
@@ -176,7 +177,7 @@ If verification or installation fails, the current version stays in place and th
 
 ## Privacy and Security
 
-- Local quota comes from the local Codex app-server and is not uploaded to CodexRadar.
+- Local quota prefers the current user's already signed-in Codex managed session, then falls back to an independent local app-server. The quota-reading path never reads, copies, or caches sign-in credentials, and never uploads quota to CodexRadar.
 - Quota history stays on the Mac and contains only sample times, weekly quota remaining percentages, and server reset times for up to 31 days. It stores no account identity, access tokens, or request contents and is never uploaded.
 - Reset-credit expiry checks use the local Codex sign-in state only for the corresponding ChatGPT request. Credentials are not cached, logged, or sent to CodexRadar or GitHub.
 - Local cache stores only credit status, issue time, expiry time, and sanitized identifiers—never access tokens, cookies, email addresses, or full credit IDs.
@@ -192,7 +193,7 @@ If verification or installation fails, the current version stays in place and th
 - [CodexRadar community ratings](https://codexradar.com/api/model-ratings): public model ratings.
 - [CodexRadar Insights](https://api.codexradar.com/api/v1/radar-insights): scenario recommendations and degradation alerts.
 - [CodexRadar RSS](https://codexradar.com/feed.xml): a compatibility source for public entitlement events.
-- Local Codex app-server: weekly quota, short-window quota, account identity, and authoritative details needed by reset-credit auto-use.
+- Local Codex managed session or independent app-server: weekly quota, short-window quota, account identity, and authoritative details needed by reset-credit auto-use.
 
 When a public endpoint is unavailable or returns an unknown shape, the app retains the last valid public data while local quota refresh continues independently.
 
@@ -230,14 +231,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.63
+./scripts/check_release_readiness.sh 0.1.64
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.63
+./scripts/package_release.sh 0.1.64
 ```
 
 Update the menu-bar and full-menu screenshots:

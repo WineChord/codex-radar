@@ -28,6 +28,24 @@ private enum DashboardVisualTestOverrides {
         ] == "1"
 }
 
+enum DashboardConnectionErrorCopy {
+    static func text(for error: String, language: AppLanguage) -> String {
+        error.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line in
+                let normalized = line.lowercased()
+                guard normalized.contains("authentication required")
+                        || normalized.contains("not logged in") else {
+                    return String(line)
+                }
+                return language.text(
+                    "Codex 尚未登录。请先打开 Codex 完成登录，再点“刷新”。",
+                    "Codex is signed out. Open Codex and sign in, then choose Refresh."
+                )
+            }
+            .joined(separator: "\n")
+    }
+}
+
 struct DashboardMenuView: View {
     @ObservedObject var store: SentinelStore
     @State private var copiedCommunityPrompt = false
@@ -2934,11 +2952,15 @@ struct DashboardMenuView: View {
     }
 
     private func errorSection(_ error: String) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+        let visibleError = DashboardConnectionErrorCopy.text(
+            for: error,
+            language: language
+        )
+        return VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("连接", "Connection"), systemImage: "exclamationmark.triangle")
             expandableMenuText(
-                error,
-                key: "connection-error-\(error)",
+                visibleError,
+                key: "connection-error-\(visibleError)",
                 collapsedLines: 4,
                 fontSize: metrics.label
             )

@@ -1,6 +1,11 @@
 import Foundation
 
 public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
+    private enum ProcessTransport: Equatable {
+        case standaloneStdio
+        case managedWebSocket
+    }
+
     public enum ClientError: LocalizedError {
         case codexBinaryNotFound
         case processUnavailable
@@ -51,23 +56,42 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
     }
 
     private let binaryURLProvider: () -> URL?
+    private let managedControlSocketURLProvider: () -> URL?
     private let allowsAutomaticRestart: Bool
     private var process: Process?
     private var inputHandle: FileHandle?
     private var outputHandle: FileHandle?
     private var errorHandle: FileHandle?
     private var outputBuffer = Data()
+    private var transport: ProcessTransport?
+    private var managedHandshake: ManagedAppServerHandshake?
+    private var managedHandshakeContinuation: CheckedContinuation<Void, Error>?
+    private var managedWebSocketCodec = ManagedAppServerWebSocketCodec()
     private var nextID = 1
     private var processGeneration = 0
     private var initialized = false
     private var hasStartedProcess = false
+    private var hasCompletedRead = false
+    private var hasCompletedReadOnCurrentProcess = false
     private var pending: [Int: CheckedContinuation<Data, Error>] = [:]
 
     public init(
-        binaryURLProvider: @escaping () -> URL? = CodexBinaryLocator.findBinary,
         allowsAutomaticRestart: Bool = true
     ) {
+        binaryURLProvider = CodexBinaryLocator.findBinary
+        managedControlSocketURLProvider =
+            CodexManagedAppServerLocator.findControlSocket
+        self.allowsAutomaticRestart = allowsAutomaticRestart
+    }
+
+    public init(
+        binaryURLProvider: @escaping () -> URL?,
+        allowsAutomaticRestart: Bool = true,
+        managedControlSocketURLProvider: @escaping () -> URL? = { nil }
+    ) {
         self.binaryURLProvider = binaryURLProvider
+        self.managedControlSocketURLProvider =
+            managedControlSocketURLProvider
         self.allowsAutomaticRestart = allowsAutomaticRestart
     }
 
@@ -79,21 +103,25 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
     }
 
     public func readRateLimits() async throws -> RateLimitResponse {
-        try await ensureStarted()
-        let data = try await sendRequest(
+        let result: RateLimitResponse = try await performRead(
             method: "account/rateLimits/read",
             params: nil
         )
-        return try decodeResult(data, as: RateLimitResponse.self)
+        hasCompletedRead = true
+        hasCompletedReadOnCurrentProcess = process?.isRunning == true
+            && initialized
+        return result
     }
 
     public func readAccount() async throws -> CodexAccountResponse {
-        try await ensureStarted()
-        let data = try await sendRequest(
+        let result: CodexAccountResponse = try await performRead(
             method: "account/read",
             params: ["refreshToken": false]
         )
-        return try decodeResult(data, as: CodexAccountResponse.self)
+        hasCompletedRead = true
+        hasCompletedReadOnCurrentProcess = process?.isRunning == true
+            && initialized
+        return result
     }
 
     public func consumeResetCredit(
@@ -147,8 +175,16 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
         self.inputHandle = nil
         self.outputHandle = nil
         self.errorHandle = nil
+        transport = nil
+        managedHandshake = nil
+        managedWebSocketCodec = ManagedAppServerWebSocketCodec()
         initialized = false
+        hasCompletedReadOnCurrentProcess = false
         outputBuffer.removeAll(keepingCapacity: false)
+        managedHandshakeContinuation?.resume(
+            throwing: ClientError.processUnavailable
+        )
+        managedHandshakeContinuation = nil
         failPending(ClientError.processUnavailable)
 
         if process?.isRunning == true {
@@ -170,7 +206,31 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
         guard allowsAutomaticRestart || !hasStartedProcess else {
             throw ClientError.processUnavailable
         }
-        try startProcess()
+        if let socketURL = managedControlSocketURLProvider() {
+            do {
+                try await startAndInitialize(
+                    transport: .managedWebSocket,
+                    socketURL: socketURL
+                )
+                return
+            } catch {
+                shutdown()
+            }
+        }
+        try await startAndInitialize(
+            transport: .standaloneStdio,
+            socketURL: nil
+        )
+    }
+
+    private func startAndInitialize(
+        transport: ProcessTransport,
+        socketURL: URL?
+    ) async throws {
+        try startProcess(transport: transport, socketURL: socketURL)
+        if transport == .managedWebSocket {
+            try await performManagedHandshake()
+        }
         let params: [String: Any] = [
             "clientInfo": [
                 "name": AppConstants.clientName,
@@ -185,10 +245,16 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
         ]
         let data = try await sendRequest(method: "initialize", params: params)
         let _: InitializeResult = try decodeResult(data, as: InitializeResult.self)
+        if transport == .managedWebSocket {
+            try sendNotification(method: "initialized")
+        }
         initialized = true
     }
 
-    private func startProcess() throws {
+    private func startProcess(
+        transport: ProcessTransport,
+        socketURL: URL?
+    ) throws {
         shutdown()
         guard let binaryURL = binaryURLProvider() else {
             throw ClientError.codexBinaryNotFound
@@ -201,7 +267,20 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
         let output = Pipe()
         let standardError = Pipe()
         process.executableURL = binaryURL
-        process.arguments = ["app-server", "--listen", "stdio://"]
+        switch transport {
+        case .standaloneStdio:
+            process.arguments = ["app-server", "--listen", "stdio://"]
+        case .managedWebSocket:
+            guard let socketURL else {
+                throw ClientError.processUnavailable
+            }
+            process.arguments = [
+                "app-server",
+                "proxy",
+                "--sock",
+                socketURL.path,
+            ]
+        }
         process.standardInput = input
         process.standardOutput = output
         process.standardError = standardError
@@ -235,10 +314,84 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
             throw error
         }
         hasStartedProcess = true
+        self.transport = transport
         self.process = process
         self.inputHandle = input.fileHandleForWriting
         self.outputHandle = output.fileHandleForReading
         self.errorHandle = standardError.fileHandleForReading
+    }
+
+    private func performManagedHandshake() async throws {
+        guard transport == .managedWebSocket,
+              process?.isRunning == true,
+              let inputHandle else {
+            throw ClientError.processUnavailable
+        }
+        let handshake = ManagedAppServerHandshake()
+        managedHandshake = handshake
+        try await withTimeout(seconds: AppConstants.requestTimeoutSeconds) {
+            try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    self.managedHandshakeContinuation = continuation
+                    inputHandle.write(handshake.request)
+                }
+            } onCancel: {
+                Task {
+                    await self.cancelManagedHandshake()
+                }
+            }
+        }
+    }
+
+    private func performRead<T: Decodable>(
+        method: String,
+        params: [String: Any]?
+    ) async throws -> T {
+        try await ensureStarted()
+        let usedManagedTransport = transport == .managedWebSocket
+        do {
+            let data = try await sendRequest(method: method, params: params)
+            return try decodeResult(data, as: T.self)
+        } catch {
+            let isFallbackError = shouldFallbackFromManagedTransport(error)
+            let fallbackIsSafe = allowsAutomaticRestart
+                ? !hasCompletedReadOnCurrentProcess
+                : !hasCompletedRead
+            guard usedManagedTransport,
+                  isFallbackError,
+                  fallbackIsSafe,
+                  !(error is CancellationError) else {
+                if usedManagedTransport, isFallbackError {
+                    shutdown()
+                }
+                throw error
+            }
+            shutdown()
+            try await startAndInitialize(
+                transport: .standaloneStdio,
+                socketURL: nil
+            )
+            let data = try await sendRequest(method: method, params: params)
+            return try decodeResult(data, as: T.self)
+        }
+    }
+
+    private func shouldFallbackFromManagedTransport(_ error: Error) -> Bool {
+        if error is ManagedAppServerTransportError {
+            return true
+        }
+        guard let clientError = error as? ClientError else {
+            return false
+        }
+        switch clientError {
+        case .processUnavailable, .requestTimedOut:
+            return true
+        case .rpcError(_, let message):
+            return message.localizedCaseInsensitiveContains("authentication")
+                || message.localizedCaseInsensitiveContains("not logged in")
+        default:
+            return false
+        }
     }
 
     private func sendRequest(
@@ -260,8 +413,16 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
             object["params"] = params
         }
         let payload = try JSONSerialization.data(withJSONObject: object)
-        var line = payload
-        line.append(0x0A)
+        let wirePayload: Data
+        if transport == .managedWebSocket {
+            wirePayload = ManagedAppServerWebSocketCodec.clientFrame(
+                payload: payload
+            )
+        } else {
+            var line = payload
+            line.append(0x0A)
+            wirePayload = line
+        }
 
         return try await withTimeout(seconds: AppConstants.requestTimeoutSeconds) {
             try await withTaskCancellationHandler {
@@ -281,7 +442,7 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
                                 guard !Task.isCancelled else {
                                     throw ClientError.requestCancelledBeforeDispatch
                                 }
-                                inputHandle.write(line)
+                                inputHandle.write(wirePayload)
                             }
                         } else if dispatchAuthorization != nil {
                             throw ClientError.resetCreditDispatchNotAuthorized
@@ -289,7 +450,7 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
                             guard !Task.isCancelled else {
                                 throw ClientError.requestCancelledBeforeDispatch
                             }
-                            inputHandle.write(line)
+                            inputHandle.write(wirePayload)
                         }
                     } catch {
                         self.pending.removeValue(forKey: id)
@@ -320,6 +481,14 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
         guard generation == processGeneration else {
             return
         }
+        guard transport == .managedWebSocket else {
+            handleStdioOutput(data)
+            return
+        }
+        handleManagedOutput(data)
+    }
+
+    private func handleStdioOutput(_ data: Data) {
         outputBuffer.append(data)
         let newline = Data([0x0A])
         while let range = outputBuffer.range(of: newline) {
@@ -327,6 +496,72 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
             outputBuffer.removeSubrange(outputBuffer.startIndex..<range.upperBound)
             handleLine(line)
         }
+    }
+
+    private func handleManagedOutput(_ data: Data) {
+        var frameData = data
+        if let handshake = managedHandshake {
+            outputBuffer.append(data)
+            do {
+                guard try handshake.consumeResponse(from: &outputBuffer) else {
+                    return
+                }
+            } catch {
+                failManagedTransport(error)
+                return
+            }
+            managedHandshake = nil
+            frameData = outputBuffer
+            outputBuffer.removeAll(keepingCapacity: false)
+            managedHandshakeContinuation?.resume()
+            managedHandshakeContinuation = nil
+        }
+        guard !frameData.isEmpty else {
+            return
+        }
+        do {
+            let events = try managedWebSocketCodec.append(frameData)
+            for event in events {
+                switch event {
+                case .text(let payload):
+                    handleLine(payload)
+                case .ping(let payload):
+                    inputHandle?.write(
+                        ManagedAppServerWebSocketCodec.clientFrame(
+                            payload: payload,
+                            opcode: 0xA
+                        )
+                    )
+                case .close:
+                    failManagedTransport(ClientError.processUnavailable)
+                    return
+                }
+            }
+        } catch {
+            failManagedTransport(error)
+        }
+    }
+
+    private func sendNotification(method: String) throws {
+        guard transport == .managedWebSocket,
+              process?.isRunning == true,
+              let inputHandle else {
+            throw ClientError.processUnavailable
+        }
+        let payload = try JSONSerialization.data(
+            withJSONObject: ["method": method]
+        )
+        inputHandle.write(
+            ManagedAppServerWebSocketCodec.clientFrame(payload: payload)
+        )
+    }
+
+    private func failManagedTransport(_ error: Error) {
+        managedHandshakeContinuation?.resume(throwing: error)
+        managedHandshakeContinuation = nil
+        managedHandshake = nil
+        failPending(error)
+        shutdown()
     }
 
     private func handleLine(_ data: Data) {
@@ -353,6 +588,12 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
 
     private func cancelPending(id: Int) {
         pending.removeValue(forKey: id)?.resume(throwing: CancellationError())
+    }
+
+    private func cancelManagedHandshake() {
+        managedHandshakeContinuation?.resume(throwing: CancellationError())
+        managedHandshakeContinuation = nil
+        managedHandshake = nil
     }
 
     private func failPending(_ error: Error) {

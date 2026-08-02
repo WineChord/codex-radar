@@ -25,6 +25,12 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ## News / 最新功能
 
+### v0.1.64：升级重启后继续读取本机额度
+
+- 优先复用 Codex 桌面版已经登录的本机受管会话，避免应用升级或重启后因新会话没有登录态而把额度显示成 `--`。
+- 受管会话不可用时仍会回退到独立的本机 app-server；两种方式都不读取、复制或缓存登录凭证。
+- 如果两条本机通道都确实未登录，连接区会给出清楚的登录与刷新操作，不再直接展示难懂的英文接口错误。
+
 ### v0.1.63：恢复新版重置雷达状态
 
 - 兼容 CodexRadar 最新的重置雷达卡片结构，菜单重新显示“发重置卡”和“硬重置”的当前状态、结论与说明。
@@ -37,15 +43,10 @@ https://github.com/WineChord/codex-radar/releases/latest
 - “布局”现在统一管理模块与子项的顺序、显示状态和默认展开；隐藏只影响菜单，后台记录与提醒继续运行，关键状态仍会临时显示。
 - “显示”和“默认展开”与对应标题保持同一行，减少滚动和重复留白；中英文及 M/L/XL 字号下都保持清楚完整。
 
-### v0.1.61：“布局”入口更容易发现
-
-- 面板底部新增一条轻量提示，说明模块顺序和默认展开都能调整；点击“试试布局”会直接进入布局编辑器。
-- 从提示或底部“布局”进入后，提示不会重复出现；也可以直接关闭，选择会在应用重启后保留。
-- 提示只出现一次且不占用顶部空间，当前结论、关键告警和常用数据的优先级保持不变。
-
 <details>
 <summary><strong>历史版本</strong> — 展开查看更早的产品里程碑</summary>
 
+- **v0.1.61**：“布局”入口加入一次性轻提示，可直接进入编辑器并保留关闭选择。
 - **v0.1.60**：布局编辑器可设置“全部模型 IQ”等模块内子项是否默认展开，并在重启后保留。
 - **v0.1.59**：支持调整菜单模块顺序和默认展开状态，同时保持当前结论、关键告警与恢复入口可见。
 - **v0.1.58**：让多模型 IQ 的通过数在 M/L/XL 字号下保持完整，并让 SHA256 清单可在下载目录直接校验。
@@ -176,7 +177,7 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ## 隐私与安全
 
-- 本机额度通过本地 Codex app-server 读取，不会上传到 CodexRadar。
+- 本机额度优先通过当前用户专属、已经登录的 Codex 受管会话读取；不可用时回退到独立的本机 app-server。额度读取链路不会读取、复制或缓存登录凭证，也不会把额度上传到 CodexRadar。
 - 额度历史只在本机保存采样时间、周额度剩余百分比和服务端 reset 时间，最多保留 31 天；不保存账号身份、访问令牌或请求内容，也不会上传。
 - 重置卡到期查询需要使用本机 Codex 登录态访问 ChatGPT 对应接口；凭证只用于该请求，不会写入缓存、日志或发送给 CodexRadar、GitHub。
 - 本地缓存只保存卡片状态、发放时间、到期时间和脱敏标识，不保存访问令牌、Cookie、邮箱或完整卡片 ID。
@@ -192,7 +193,7 @@ https://github.com/WineChord/codex-radar/releases/latest
 - [CodexRadar 社区体感数据](https://codexradar.com/api/model-ratings)：模型社区评分。
 - [CodexRadar 智能洞察](https://api.codexradar.com/api/v1/radar-insights)：场景推荐和降智预警。
 - [CodexRadar RSS](https://codexradar.com/feed.xml)：公开权益事件的兼容来源。
-- 本机 Codex app-server：周额度、短窗额度、登录身份和重置卡自动使用所需的权威明细。
+- 本机 Codex 受管会话或独立 app-server：周额度、短窗额度、登录身份和重置卡自动使用所需的权威明细。
 
 公开端点暂时不可用或返回未知格式时，应用会保留最后一次有效数据，并让本机额度继续独立刷新。
 
@@ -230,14 +231,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.63
+./scripts/check_release_readiness.sh 0.1.64
 ```
 
 构建发布包：
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.63
+./scripts/package_release.sh 0.1.64
 ```
 
 更新中英文状态栏与菜单截图：
