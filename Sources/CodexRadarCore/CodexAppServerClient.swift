@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
@@ -266,6 +267,13 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
         let input = Pipe()
         let output = Pipe()
         let standardError = Pipe()
+        guard fcntl(
+            input.fileHandleForWriting.fileDescriptor,
+            F_SETNOSIGPIPE,
+            1
+        ) != -1 else {
+            throw ClientError.processUnavailable
+        }
         process.executableURL = binaryURL
         switch transport {
         case .standaloneStdio:
@@ -324,7 +332,7 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
     private func performManagedHandshake() async throws {
         guard transport == .managedWebSocket,
               process?.isRunning == true,
-              let inputHandle else {
+              inputHandle != nil else {
             throw ClientError.processUnavailable
         }
         let handshake = ManagedAppServerHandshake()
@@ -333,7 +341,13 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
             try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation { continuation in
                     self.managedHandshakeContinuation = continuation
-                    inputHandle.write(handshake.request)
+                    do {
+                        try self.writeToInput(handshake.request)
+                    } catch {
+                        self.managedHandshakeContinuation = nil
+                        continuation.resume(throwing: error)
+                        self.shutdown()
+                    }
                 }
             } onCancel: {
                 Task {
@@ -400,7 +414,7 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
         dispatchAuthorization: ResetCreditProtectionDispatchAuthorization? = nil,
         authorizedCreditID: String? = nil
     ) async throws -> Data {
-        guard process?.isRunning == true, let inputHandle else {
+        guard process?.isRunning == true, inputHandle != nil else {
             throw ClientError.processUnavailable
         }
         let id = nextID
@@ -442,7 +456,7 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
                                 guard !Task.isCancelled else {
                                     throw ClientError.requestCancelledBeforeDispatch
                                 }
-                                inputHandle.write(wirePayload)
+                                try self.writeToInput(wirePayload)
                             }
                         } else if dispatchAuthorization != nil {
                             throw ClientError.resetCreditDispatchNotAuthorized
@@ -450,23 +464,26 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
                             guard !Task.isCancelled else {
                                 throw ClientError.requestCancelledBeforeDispatch
                             }
-                            inputHandle.write(wirePayload)
+                            try self.writeToInput(wirePayload)
                         }
                     } catch {
                         self.pending.removeValue(forKey: id)
+                        let requestError: Error
                         switch error {
                         case ResetCreditProtectionStorageError.authorizationRevoked:
-                            continuation.resume(
-                                throwing: ClientError.resetCreditDispatchNotAuthorized
-                            )
+                            requestError = ClientError
+                                .resetCreditDispatchNotAuthorized
                         case ResetCreditProtectionStorageError.authorizationUnavailable:
-                            continuation.resume(
-                                throwing: ClientError
-                                    .resetCreditDispatchAuthorizationUnavailable
-                            )
+                            requestError = ClientError
+                                .resetCreditDispatchAuthorizationUnavailable
                         default:
-                            continuation.resume(throwing: error)
+                            requestError = error
                         }
+                        if let clientError = requestError as? ClientError,
+                           case .processUnavailable = clientError {
+                            self.shutdown()
+                        }
+                        continuation.resume(throwing: requestError)
                     }
                 }
             } onCancel: {
@@ -526,12 +543,17 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
                 case .text(let payload):
                     handleLine(payload)
                 case .ping(let payload):
-                    inputHandle?.write(
-                        ManagedAppServerWebSocketCodec.clientFrame(
-                            payload: payload,
-                            opcode: 0xA
+                    do {
+                        try writeToInput(
+                            ManagedAppServerWebSocketCodec.clientFrame(
+                                payload: payload,
+                                opcode: 0xA
+                            )
                         )
-                    )
+                    } catch {
+                        failManagedTransport(error)
+                        return
+                    }
                 case .close:
                     failManagedTransport(ClientError.processUnavailable)
                     return
@@ -545,15 +567,31 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
     private func sendNotification(method: String) throws {
         guard transport == .managedWebSocket,
               process?.isRunning == true,
-              let inputHandle else {
+              inputHandle != nil else {
             throw ClientError.processUnavailable
         }
         let payload = try JSONSerialization.data(
             withJSONObject: ["method": method]
         )
-        inputHandle.write(
-            ManagedAppServerWebSocketCodec.clientFrame(payload: payload)
-        )
+        do {
+            try writeToInput(
+                ManagedAppServerWebSocketCodec.clientFrame(payload: payload)
+            )
+        } catch {
+            shutdown()
+            throw error
+        }
+    }
+
+    private func writeToInput(_ data: Data) throws {
+        guard process?.isRunning == true, let inputHandle else {
+            throw ClientError.processUnavailable
+        }
+        do {
+            try inputHandle.write(contentsOf: data)
+        } catch {
+            throw ClientError.processUnavailable
+        }
     }
 
     private func failManagedTransport(_ error: Error) {

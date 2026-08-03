@@ -108,6 +108,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 87 | [`Prompt-Id: 87 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+87%22&type=commits) | 将额度历史、布局显示控制与紧凑单行编辑器作为 v0.1.62 正式发布。 |
 | 88 | [`Prompt-Id: 88 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+88%22&type=commits) | 例行兼容检查发现 CodexRadar 更新重置雷达卡片结构，恢复状态、结论和说明解析并加强在线契约验证。 |
 | 89 | [`Prompt-Id: 89 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+89%22&type=commits) | 修复升级或重启后独立会话无登录态导致额度未知的问题，优先复用当前用户已登录的 Codex 受管会话，并保留安全回退。 |
+| 90 | [`Prompt-Id: 90 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+90%22&type=commits) | 根据本机崩溃证据修复 Codex 子进程提前关闭输入通道时的应用退出，将断连转为可恢复错误并增加确定性回归验证。 |
 
 ## Prompts
 
@@ -701,4 +702,10 @@ commit 要求是可以点击的链接
 
 ```text
 修复应用升级或重启后本机额度偶尔显示为未知的问题：优先复用 Codex 桌面版已经登录的当前用户受管会话，在它不可用时安全回退到独立本机 app-server。不得读取、复制或缓存登录凭证；离线覆盖握手、分帧、失败回退和写操作安全边界，并用真实登录态只读验证额度，不消耗重置卡。
+```
+
+### 90. 本机连接断开后的稳定性
+
+```text
+对 Codex Radar Sentinel 做例行稳定性维护：依据可验证的本机崩溃证据，修复 Codex app-server 输入通道提前关闭时的异常退出；将传输失败转为可恢复的连接错误，覆盖独立与受管会话，并在不触发真实重置卡消耗的前提下完成断连测试和发布。
 ```

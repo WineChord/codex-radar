@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.65: Stay running when a local connection closes
+
+- If a long-running Codex child process has already closed its input channel, quota refresh now reports the unavailable connection and clears the stale session instead of terminating the menu-bar app.
+- Both independent and managed local connections now use a fallible, protected write path. A later refresh can establish a new session, while reset-credit consent, de-duplication, and default-off boundaries remain unchanged.
+- Deterministic coverage now closes the input channel early and verifies that the failure stays contained to that connection.
+
 ### v0.1.64: Keep local quota available after an upgrade or restart
 
 - Prefers the already signed-in local managed session from the Codex desktop app, avoiding a `--` quota when a fresh session has no persisted sign-in after an app upgrade or restart.
@@ -37,15 +43,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Both old and new page layouts remain compatible, including the event timestamp and radar-source summary when a card adds its own state badge.
 - Live contract checks now validate each Reset Radar card's name, state, and explanation so a future markup change cannot silently hide the entire section.
 
-### v0.1.62: See quota changes with a calmer Layout
-
-- `Quota history` keeps local 24-hour, 7-day, and 30-day weekly-quota balance curves. Hover or drag to inspect real changes, reset jumps, and data gaps point by point.
-- `Layout` now manages order, visibility, and default expansion for sections and nested items. Hiding changes only the menu: recording and alerts continue, while critical states can still appear temporarily.
-- `Show` and `Start open` stay on the same line as each title, reducing scrolling and repeated whitespace while remaining complete across both interface languages and M, L, and XL.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.62**: added inspectable local quota history and let Layout manage order, visibility, and default expansion in compact single-line rows.
 - **v0.1.61**: added a one-time Layout tip that opens the editor directly and remembers dismissal.
 - **v0.1.60**: let Layout set default-open behavior for nested items such as `All model IQ`, with preferences preserved across restarts.
 - **v0.1.59**: added persistent menu ordering and default-open preferences while keeping current results, critical alerts, and recovery paths visible.
@@ -231,14 +232,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.64
+./scripts/check_release_readiness.sh 0.1.65
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.64
+./scripts/package_release.sh 0.1.65
 ```
 
 Update the menu-bar and full-menu screenshots:
