@@ -1940,7 +1940,7 @@ struct DashboardMenuView: View {
             .minimumScaleFactor(0.72)
             Text(
                 top.map {
-                    "\(radarModelEffortLabel($0)) · ↓\(radarDropText($0.largestDrop))"
+                    "\(radarModelEffortLabel($0)) · \(radarLargestDropLabel($0))"
                 } ?? text("近 48 小时", "Last 48 hours")
             )
             .font(.system(size: metrics.caption, design: .monospaced))
@@ -1968,14 +1968,44 @@ struct DashboardMenuView: View {
             Text("IQ \(DisplayFormatters.iqScore(alert.iq))")
                 .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
                 .frame(width: 58, alignment: .trailing)
-            Text("24h ↓\(radarDropText(alert.from24HourHighIQ))")
+            Text(
+                radarHistoricalDropLabel(
+                    hours: 24,
+                    drop: alert.preferred24HourDropIQ,
+                    comparesWithAverage: alert.uses24HourAverageComparison
+                )
+            )
                 .font(.system(size: metrics.caption, weight: .medium, design: .monospaced))
                 .foregroundStyle(.orange)
-                .frame(width: 74, alignment: .trailing)
-            Text("48h ↓\(radarDropText(alert.from48HourHighIQ))")
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(width: radarHistoricalDropWidth, alignment: .trailing)
+                .accessibilityLabel(
+                    radarHistoricalDropAccessibilityLabel(
+                        hours: 24,
+                        drop: alert.preferred24HourDropIQ,
+                        comparesWithAverage: alert.uses24HourAverageComparison
+                    )
+                )
+            Text(
+                radarHistoricalDropLabel(
+                    hours: 48,
+                    drop: alert.preferred48HourDropIQ,
+                    comparesWithAverage: alert.uses48HourAverageComparison
+                )
+            )
                 .font(.system(size: metrics.caption, weight: .medium, design: .monospaced))
                 .foregroundStyle(.orange)
-                .frame(width: 74, alignment: .trailing)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(width: radarHistoricalDropWidth, alignment: .trailing)
+                .accessibilityLabel(
+                    radarHistoricalDropAccessibilityLabel(
+                        hours: 48,
+                        drop: alert.preferred48HourDropIQ,
+                        comparesWithAverage: alert.uses48HourAverageComparison
+                    )
+                )
         }
     }
 
@@ -2151,6 +2181,48 @@ struct DashboardMenuView: View {
             format: "%.1f",
             locale: Locale(identifier: "en_US_POSIX"),
             value
+        )
+    }
+
+    private var radarHistoricalDropWidth: CGFloat {
+        language == .zhHans ? 76 : 88
+    }
+
+    private func radarLargestDropLabel(
+        _ alert: RadarDegradationAlert
+    ) -> String {
+        let prefix = alert.largestDropUsesAverageComparison
+            ? text("均 ", "avg ")
+            : ""
+        return "\(prefix)↓\(radarDropText(alert.largestDrop))"
+    }
+
+    private func radarHistoricalDropLabel(
+        hours: Int,
+        drop: Double?,
+        comparesWithAverage: Bool
+    ) -> String {
+        let prefix = comparesWithAverage
+            ? text("\(hours)h均", "\(hours)h avg")
+            : "\(hours)h"
+        return "\(prefix) ↓\(radarDropText(drop))"
+    }
+
+    private func radarHistoricalDropAccessibilityLabel(
+        hours: Int,
+        drop: Double?,
+        comparesWithAverage: Bool
+    ) -> String {
+        let value = radarDropText(drop)
+        if comparesWithAverage {
+            return text(
+                "当前 IQ 低于过去 \(hours) 小时均值 \(value)",
+                "Current IQ is \(value) below the \(hours)-hour average"
+            )
+        }
+        return text(
+            "过去 \(hours) 小时下降 \(value)",
+            "Down \(value) over \(hours) hours"
         )
     }
 

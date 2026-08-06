@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.66: Align degradation alerts with the current average-based rule
+
+- Degradation alerts now prefer the current IQ drop versus the trailing 24- and 48-hour averages, matching CodexRadar's current public rule instead of presenting the drop from a historical high as the alert magnitude.
+- Compact labels such as `avg ↓8.2` and `24h avg ↓8.2` make the comparison baseline explicit while remaining on one line at M, L, and XL text sizes.
+- Legacy high-based and generic drop fields remain supported. Live-contract and offline regression coverage now verify both the current average fields and the compatibility fallback.
+
 ### v0.1.65: Stay running when a local connection closes
 
 - If a long-running Codex child process has already closed its input channel, quota refresh now reports the unavailable connection and clears the stale session instead of terminating the menu-bar app.
@@ -37,15 +43,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Falls back to an independent local app-server when the managed session is unavailable. Neither path reads, copies, or caches sign-in credentials.
 - If both local paths are genuinely signed out, Connection now gives a clear sign-in and refresh action instead of exposing a low-level API error.
 
-### v0.1.63: Restore the current Reset Radar state
-
-- Supports CodexRadar's latest Reset Radar card structure, restoring the current state, conclusion, and explanation for both reset-credit and hard-reset paths.
-- Both old and new page layouts remain compatible, including the event timestamp and radar-source summary when a card adds its own state badge.
-- Live contract checks now validate each Reset Radar card's name, state, and explanation so a future markup change cannot silently hide the entire section.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.63**: supported the new Reset Radar card structure, restoring current states, conclusions, and explanations while retaining the old format.
 - **v0.1.62**: added inspectable local quota history and let Layout manage order, visibility, and default expansion in compact single-line rows.
 - **v0.1.61**: added a one-time Layout tip that opens the editor directly and remembers dismissal.
 - **v0.1.60**: let Layout set default-open behavior for nested items such as `All model IQ`, with preferences preserved across restarts.
@@ -232,14 +233,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.65
+./scripts/check_release_readiness.sh 0.1.66
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.65
+./scripts/package_release.sh 0.1.66
 ```
 
 Update the menu-bar and full-menu screenshots:

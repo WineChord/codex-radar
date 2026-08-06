@@ -25,6 +25,12 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ## News / 最新功能
 
+### v0.1.66：降智预警与当前均值口径对齐
+
+- 降智预警现在优先展示当前 IQ 相对过去 24 / 48 小时均值的下降，与 CodexRadar 当前公开规则一致，不再把相对历史峰值的跌幅当作预警幅度。
+- 摘要用“均 ↓8.2”，展开明细用“24h均 ↓8.2”等紧凑标签，既说明比较基准，也在 M / L / XL 字号下保持单行可读。
+- 继续兼容旧版高点和通用跌幅字段；在线契约与离线回归会同时验证当前均值字段和旧格式回退。
+
 ### v0.1.65：本机连接断开后不再意外退出
 
 - 长时间运行后，如果 Codex 子进程已经关闭输入通道，额度刷新会安全地显示连接不可用并清理旧会话，不再导致整个菜单栏应用退出。
@@ -37,15 +43,10 @@ https://github.com/WineChord/codex-radar/releases/latest
 - 受管会话不可用时仍会回退到独立的本机 app-server；两种方式都不读取、复制或缓存登录凭证。
 - 如果两条本机通道都确实未登录，连接区会给出清楚的登录与刷新操作，不再直接展示难懂的英文接口错误。
 
-### v0.1.63：恢复新版重置雷达状态
-
-- 兼容 CodexRadar 最新的重置雷达卡片结构，菜单重新显示“发重置卡”和“硬重置”的当前状态、结论与说明。
-- 新旧网页结构继续同时支持；事件更新时间和雷达来源摘要不会因卡片内部新增状态标签而丢失。
-- 在线契约检查会逐项确认重置雷达卡片的名称、状态和说明，避免以后结构变化时静默隐藏整个模块。
-
 <details>
 <summary><strong>历史版本</strong> — 展开查看更早的产品里程碑</summary>
 
+- **v0.1.63**：兼容新版重置雷达卡片结构，恢复当前状态、结论和说明，并保留旧格式支持。
 - **v0.1.62**：加入可逐点检查的本机额度历史，并让布局统一管理排序、显示和默认展开，编辑器保持紧凑单行。
 - **v0.1.61**：“布局”入口加入一次性轻提示，可直接进入编辑器并保留关闭选择。
 - **v0.1.60**：布局编辑器可设置“全部模型 IQ”等模块内子项是否默认展开，并在重启后保留。
@@ -232,14 +233,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.65
+./scripts/check_release_readiness.sh 0.1.66
 ```
 
 构建发布包：
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.65
+./scripts/package_release.sh 0.1.66
 ```
 
 更新中英文状态栏与菜单截图：

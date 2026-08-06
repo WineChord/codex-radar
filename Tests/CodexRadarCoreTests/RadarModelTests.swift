@@ -105,7 +105,77 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(alert.iq, 71)
         XCTAssertEqual(alert.from24HourHighIQ, 5.3)
         XCTAssertEqual(alert.from48HourHighIQ, 8.2)
+        XCTAssertEqual(alert.preferred24HourDropIQ, 5.3)
+        XCTAssertEqual(alert.preferred48HourDropIQ, 8.2)
+        XCTAssertFalse(alert.uses24HourAverageComparison)
+        XCTAssertFalse(alert.uses48HourAverageComparison)
         XCTAssertEqual(alert.largestDrop, 8.2)
+        XCTAssertFalse(alert.largestDropUsesAverageComparison)
+    }
+
+    func testDegradationAlertsPreferAverageRelativeDrops() throws {
+        let insights = try JSONDecoder().decode(
+            RadarInsightsEnvelope.self,
+            from: Data(
+                """
+                {
+                  "schema": 1,
+                  "recommendations": [],
+                  "degradation_alerts": {
+                    "items": [
+                      {
+                        "model": "gpt-5.6-terra",
+                        "effort": "high",
+                        "iq": 72,
+                        "average_iq_24h": 80.18,
+                        "average_iq_48h": 80.04,
+                        "from_24h_average_iq": 8.18,
+                        "from_48h_average_iq": 8.04,
+                        "from_24h_high_iq": 12.4,
+                        "from_48h_high_iq": 12.4
+                      },
+                      {
+                        "model": "gpt-5.6-sol",
+                        "effort": "low",
+                        "current_iq": 71,
+                        "average_iq_24h": 78,
+                        "average_iq_48h": 81
+                      },
+                      {
+                        "model": "gpt-5.6-sol",
+                        "effort": "medium",
+                        "from_24h_average_iq": 8,
+                        "from_48h_average_iq": 10
+                      }
+                    ]
+                  }
+                }
+                """.utf8
+            )
+        )
+
+        XCTAssertEqual(insights.degradationAlerts.validItems.count, 2)
+        let current = try XCTUnwrap(
+            insights.degradationAlerts.validItems.first
+        )
+        XCTAssertEqual(current.from24HourAverageIQ, 8.18)
+        XCTAssertEqual(current.from48HourAverageIQ, 8.04)
+        XCTAssertEqual(current.from24HourHighIQ, 12.4)
+        XCTAssertEqual(current.from48HourHighIQ, 12.4)
+        XCTAssertEqual(current.preferred24HourDropIQ, 8.18)
+        XCTAssertEqual(current.preferred48HourDropIQ, 8.04)
+        XCTAssertEqual(current.largestDrop, 8.18)
+        XCTAssertTrue(current.uses24HourAverageComparison)
+        XCTAssertTrue(current.uses48HourAverageComparison)
+        XCTAssertTrue(current.largestDropUsesAverageComparison)
+
+        let computed = insights.degradationAlerts.validItems[1]
+        XCTAssertEqual(computed.preferred24HourDropIQ, 7)
+        XCTAssertEqual(computed.preferred48HourDropIQ, 10)
+        XCTAssertEqual(computed.largestDrop, 10)
+        XCTAssertTrue(computed.uses24HourAverageComparison)
+        XCTAssertTrue(computed.uses48HourAverageComparison)
+        XCTAssertTrue(computed.largestDropUsesAverageComparison)
     }
 
     func testDecodesRadarInsightsArrayDegradationAndSecondaryAliases() throws {

@@ -1607,15 +1607,23 @@ final class SentinelStore: NSObject, ObservableObject {
                 "model": "gpt-5.6-sol",
                 "effort": "low",
                 "iq": 71.0,
-                "from_24h_high_iq": 5.3,
-                "from_48h_high_iq": 8.0
+                "average_iq_24h": 76.3,
+                "average_iq_48h": 79.0,
+                "from_24h_average_iq": 5.3,
+                "from_48h_average_iq": 8.0,
+                "from_24h_high_iq": 8.4,
+                "from_48h_high_iq": 10.2
               },
               {
                 "model": "gpt-5.6-terra",
                 "effort": "medium",
                 "iq": 50.0,
-                "from_24h_high_iq": 4.9,
-                "from_48h_high_iq": 7.6
+                "average_iq_24h": 54.9,
+                "average_iq_48h": 57.6,
+                "from_24h_average_iq": 4.9,
+                "from_48h_average_iq": 7.6,
+                "from_24h_high_iq": 7.1,
+                "from_48h_high_iq": 9.3
               }
             ]
           }

@@ -62,6 +62,12 @@ final class LiveCodexRadarContractTests: XCTestCase {
                 $0.largestDrop > 0
             }
         )
+        XCTAssertTrue(
+            insights.degradationAlerts.validItems.allSatisfy {
+                $0.uses24HourAverageComparison
+                    || $0.uses48HourAverageComparison
+            }
+        )
 
         var homepageRequest = URLRequest(url: AppConstants.codexRadarBaseURL)
         homepageRequest.timeoutInterval = TimeInterval(AppConstants.requestTimeoutSeconds)

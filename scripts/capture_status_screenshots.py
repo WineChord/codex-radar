@@ -96,7 +96,7 @@ def render_status(preview, language, metrics, destination):
     return titles[0], style
 
 
-def has_status_content(path):
+def has_visible_content(path):
     image = Image.open(path).convert("RGB")
     stat = ImageStat.Stat(image)
     return sum(stat.stddev) > 20
@@ -164,7 +164,7 @@ def capture_case(language_dir, language, name, preview, metrics):
                 f"unexpected alert background state for {name}: {style}"
             )
         flatten_status_background(temporary_destination, style)
-        if not temporary_destination.exists() or not has_status_content(
+        if not temporary_destination.exists() or not has_visible_content(
             temporary_destination
         ):
             raise RuntimeError(
@@ -233,6 +233,12 @@ def render_menu_screenshots():
     env = os.environ.copy()
     env["CODEX_RADAR_RENDER_DOC_SCREENSHOTS"] = str(ASSET_ROOT)
     run(["swift", "run", "CodexRadarSentinel"], cwd=ROOT, env=env)
+    for language in ("zh", "en"):
+        destination = ASSET_ROOT / language / "menu-full.png"
+        if not destination.exists() or not has_visible_content(destination):
+            raise RuntimeError(
+                f"{language} menu renderer produced no visible content"
+            )
 
 
 def render_news_screenshots():

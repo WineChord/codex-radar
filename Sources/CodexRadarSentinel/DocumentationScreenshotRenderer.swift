@@ -12,6 +12,8 @@ enum DocumentationScreenshotRenderer {
         "CODEX_RADAR_VISUAL_TEST_EXPAND_MODEL_IQ"
     private static let quotaHistoryEnvironmentKey =
         "CODEX_RADAR_VISUAL_TEST_EXPAND_QUOTA_HISTORY"
+    private static let radarInsightsEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_EXPAND_RADAR_INSIGHTS"
     private static let quotaHistoryRangeEnvironmentKey =
         "CODEX_RADAR_VISUAL_TEST_QUOTA_HISTORY_RANGE"
     private static let layoutEditorEnvironmentKey =
@@ -118,6 +120,20 @@ enum DocumentationScreenshotRenderer {
         ].flatMap(QuotaHistoryRange.init(rawValue:)) {
             store.quotaHistoryRange = historyRange
         }
+        if ProcessInfo.processInfo.environment[
+            radarInsightsEnvironmentKey
+        ] == "1" {
+            store.moveDashboardSection(.insights, to: 0)
+            for section in DashboardSection.allCases
+                where section != .insights {
+                store.setDashboardSection(section, visible: false)
+            }
+            store.dismissLayoutDiscoveryTip()
+            store.setDashboardDisclosure(
+                .radarInsightsDetails,
+                expanded: true
+            )
+        }
         configureLayoutProfileIfRequested(store)
         if ProcessInfo.processInfo.environment[
             attentionEnvironmentKey
@@ -209,6 +225,21 @@ enum DocumentationScreenshotRenderer {
         window.orderFrontRegardless()
         window.displayIfNeeded()
         RunLoop.current.run(until: Date().addingTimeInterval(captureSettleSeconds))
+
+        if let bitmap = hostingView.bitmapImageRepForCachingDisplay(
+            in: hostingView.bounds
+        ) {
+            hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
+            let image = NSImage(
+                size: NSSize(
+                    width: bitmap.pixelsWide,
+                    height: bitmap.pixelsHigh
+                )
+            )
+            image.addRepresentation(bitmap)
+            window.close()
+            return image
+        }
 
         guard let cgImage = CGWindowListCreateImage(
             .null,
