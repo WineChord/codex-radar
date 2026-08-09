@@ -15,8 +15,46 @@ final class DashboardConnectionErrorCopyTests: XCTestCase {
         )
     }
 
-    func testUnrelatedErrorsRemainExact() {
+    func testAppServerTimeoutUsesRetryCopy() {
         let raw = "Codex app-server request timed out"
+
+        XCTAssertEqual(
+            DashboardConnectionErrorCopy.text(
+                for: raw,
+                language: .zhHans
+            ),
+            "暂时无法连接 Codex 额度服务，应用会自动重试。"
+        )
+    }
+
+    func testTransientQuotaErrorKeepsCachedReadingWithoutLeakingURL() {
+        let raw = "failed to fetch codex rate limits: error sending request for url (https://chatgpt.com/backend-api/wham/usage)"
+
+        let chinese = DashboardConnectionErrorCopy.text(
+            for: raw,
+            language: .zhHans,
+            hasCachedQuota: true
+        )
+        let english = DashboardConnectionErrorCopy.text(
+            for: raw,
+            language: .en,
+            hasCachedQuota: true
+        )
+
+        XCTAssertEqual(
+            chinese,
+            "Codex 额度暂时未更新。下方仍是最近一次数据，应用会自动重试。"
+        )
+        XCTAssertEqual(
+            english,
+            "Codex quota is temporarily unavailable. The latest saved reading remains below, and the app will retry automatically."
+        )
+        XCTAssertFalse(chinese.contains("https://"))
+        XCTAssertFalse(english.contains("https://"))
+    }
+
+    func testUnrelatedErrorsStillRemainExact() {
+        let raw = "The public radar request timed out"
 
         XCTAssertEqual(
             DashboardConnectionErrorCopy.text(for: raw, language: .zhHans),

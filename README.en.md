@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.67: Keep local quota stable through network interruptions
+
+- A recoverable network or connection failure now gets one bounded retry during the same quota refresh, reducing error flashes from brief proxy interruptions.
+- If that retry still fails, the menu says that the latest valid reading remains below and continues refreshing automatically instead of exposing an internal request URL or low-level error.
+- States that need action, such as being signed out, remain immediate and are never hidden by retry logic. A cancelled older refresh can no longer overwrite a newer result.
+
 ### v0.1.66: Align degradation alerts with the current average-based rule
 
 - Degradation alerts now prefer the current IQ drop versus the trailing 24- and 48-hour averages, matching CodexRadar's current public rule instead of presenting the drop from a historical high as the alert magnitude.
@@ -37,15 +43,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Both independent and managed local connections now use a fallible, protected write path. A later refresh can establish a new session, while reset-credit consent, de-duplication, and default-off boundaries remain unchanged.
 - Deterministic coverage now closes the input channel early and verifies that the failure stays contained to that connection.
 
-### v0.1.64: Keep local quota available after an upgrade or restart
-
-- Prefers the already signed-in local managed session from the Codex desktop app, avoiding a `--` quota when a fresh session has no persisted sign-in after an app upgrade or restart.
-- Falls back to an independent local app-server when the managed session is unavailable. Neither path reads, copies, or caches sign-in credentials.
-- If both local paths are genuinely signed out, Connection now gives a clear sign-in and refresh action instead of exposing a low-level API error.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.64**: preferred the signed-in local managed session after upgrades or restarts, safely fell back to an independent app-server, and added clear sign-in recovery guidance.
 - **v0.1.63**: supported the new Reset Radar card structure, restoring current states, conclusions, and explanations while retaining the old format.
 - **v0.1.62**: added inspectable local quota history and let Layout manage order, visibility, and default expansion in compact single-line rows.
 - **v0.1.61**: added a one-time Layout tip that opens the editor directly and remembers dismissal.
@@ -233,14 +234,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.66
+./scripts/check_release_readiness.sh 0.1.67
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.66
+./scripts/package_release.sh 0.1.67
 ```
 
 Update the menu-bar and full-menu screenshots:

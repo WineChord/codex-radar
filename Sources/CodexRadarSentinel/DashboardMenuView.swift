@@ -29,17 +29,37 @@ private enum DashboardVisualTestOverrides {
 }
 
 enum DashboardConnectionErrorCopy {
-    static func text(for error: String, language: AppLanguage) -> String {
+    static func text(
+        for error: String,
+        language: AppLanguage,
+        hasCachedQuota: Bool = false
+    ) -> String {
         error.split(separator: "\n", omittingEmptySubsequences: false)
             .map { line in
                 let normalized = line.lowercased()
-                guard normalized.contains("authentication required")
-                        || normalized.contains("not logged in") else {
+                if normalized.contains("authentication required")
+                    || normalized.contains("not logged in")
+                    || normalized.contains("signed out") {
+                    return language.text(
+                        "Codex 尚未登录。请先打开 Codex 完成登录，再点“刷新”。",
+                        "Codex is signed out. Open Codex and sign in, then choose Refresh."
+                    )
+                }
+                guard normalized.contains("failed to fetch codex rate limits")
+                    || normalized.contains("wham/usage")
+                    || normalized.contains("codex app-server request timed out")
+                    || normalized.contains("codex app-server is not available") else {
                     return String(line)
                 }
+                if hasCachedQuota {
+                    return language.text(
+                        "Codex 额度暂时未更新。下方仍是最近一次数据，应用会自动重试。",
+                        "Codex quota is temporarily unavailable. The latest saved reading remains below, and the app will retry automatically."
+                    )
+                }
                 return language.text(
-                    "Codex 尚未登录。请先打开 Codex 完成登录，再点“刷新”。",
-                    "Codex is signed out. Open Codex and sign in, then choose Refresh."
+                    "暂时无法连接 Codex 额度服务，应用会自动重试。",
+                    "Codex quota is temporarily unavailable. The app will retry automatically."
                 )
             }
             .joined(separator: "\n")
@@ -3026,7 +3046,8 @@ struct DashboardMenuView: View {
     private func errorSection(_ error: String) -> some View {
         let visibleError = DashboardConnectionErrorCopy.text(
             for: error,
-            language: language
+            language: language,
+            hasCachedQuota: state.rateLimits != nil
         )
         return VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("连接", "Connection"), systemImage: "exclamationmark.triangle")

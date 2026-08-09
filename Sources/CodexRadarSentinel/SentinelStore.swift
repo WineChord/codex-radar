@@ -80,6 +80,61 @@ private struct RateLimitReadPayload {
     let dashboard: RateLimitDashboard
 }
 
+enum RateLimitReadRecovery {
+    static let retryDelayNanoseconds: UInt64 = 1_000_000_000
+
+    static func read(
+        from service: any ResetCreditProtectionReadOnlyAppServerServing,
+        sleep: (UInt64) async throws -> Void = {
+            try await Task.sleep(nanoseconds: $0)
+        }
+    ) async throws -> RateLimitResponse {
+        do {
+            return try await service.readRateLimits()
+        } catch {
+            guard shouldRetry(error), !Task.isCancelled else {
+                throw error
+            }
+            try await sleep(retryDelayNanoseconds)
+            try Task.checkCancellation()
+            return try await service.readRateLimits()
+        }
+    }
+
+    static func shouldRetry(_ error: Error) -> Bool {
+        guard !(error is CancellationError),
+              let clientError = error as? CodexAppServerClient.ClientError else {
+            return false
+        }
+        switch clientError {
+        case .processUnavailable, .requestTimedOut:
+            return true
+        case .rpcError(_, let message):
+            return isTransientMessage(message)
+        default:
+            return false
+        }
+    }
+
+    static func isTransientMessage(_ message: String) -> Bool {
+        let normalized = message.lowercased()
+        guard !normalized.contains("authentication required"),
+              !normalized.contains("not logged in"),
+              !normalized.contains("signed out") else {
+            return false
+        }
+        return [
+            "failed to fetch codex rate limits",
+            "error sending request for url",
+            "connection reset",
+            "connection closed",
+            "network connection was lost",
+            "temporarily unavailable",
+            "timed out",
+        ].contains { normalized.contains($0) }
+    }
+}
+
 private enum ResetCreditProtectionJournalLoadResult {
     case absent
     case loaded(ResetCreditProtectionAttemptJournal)
@@ -1417,6 +1472,12 @@ final class SentinelStore: NSObject, ObservableObject {
         documentationState.modelRatings = Self.documentationModelRatings()
         documentationState.radarInsights = Self.documentationRadarInsights()
         documentationState.lastUpdatedAt = Self.documentationUpdatedAt
+        if ProcessInfo.processInfo.environment[
+            "CODEX_RADAR_VISUAL_TEST_CONNECTION_ERROR"
+        ] == "1" {
+            documentationState.lastError =
+                "failed to fetch codex rate limits: error sending request for url (https://chatgpt.com/backend-api/wham/usage)"
+        }
         state = documentationState
         resetCreditSnapshot = Self.documentationResetCreditSnapshot()
         resetCreditPhase = .idle
@@ -1979,6 +2040,9 @@ final class SentinelStore: NSObject, ObservableObject {
             modelRatings: modelRatingsResult,
             rateLimits: rateLimitResult
         )
+        guard !Task.isCancelled else {
+            return
+        }
 
         let previous = state
         var next = previous
@@ -2122,7 +2186,9 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private func fetchRateLimitResult() async -> Result<RateLimitReadPayload, Error> {
         await capture {
-            let response = try await appServerClient.readRateLimits()
+            let response = try await RateLimitReadRecovery.read(
+                from: appServerClient
+            )
             return RateLimitReadPayload(
                 response: response,
                 dashboard: RateLimitDashboard(response: response)
