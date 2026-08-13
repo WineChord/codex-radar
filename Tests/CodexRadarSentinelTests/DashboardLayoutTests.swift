@@ -342,6 +342,10 @@ final class DashboardLayoutTests: XCTestCase {
                 availableCount: 1
             ),
             .waitingForUsage(expiresAt: now),
+            .retrying(
+                expiresAt: now.addingTimeInterval(600),
+                retryAt: now.addingTimeInterval(120)
+            ),
             .succeeded(usedAt: now, expiresAt: now),
         ]
         for status in routineStatuses {

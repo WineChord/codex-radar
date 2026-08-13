@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.68: Retry safely when a verified session ends before dispatch
+
+- If a verified Codex session ends before the reset-credit request is written, the app confirms that nothing was sent, preserves the original account-and-credit authorization, and retries from a newly verified session instead of turning the switch off.
+- Account changes, sign-out, authorized-credit-set changes, lost clock continuity, and an unsupported consume RPC still turn auto-use off before dispatch. Those safety boundaries remain unchanged.
+- Safety shutdowns now record their reason and time locally. The app can explain the required reconfirmation after a restart without storing raw account details, credit IDs, or credentials.
+
 ### v0.1.67: Keep local quota stable through network interruptions
 
 - A recoverable network or connection failure now gets one bounded retry during the same quota refresh, reducing error flashes from brief proxy interruptions.
@@ -37,15 +43,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Compact labels such as `avg ↓8.2` and `24h avg ↓8.2` make the comparison baseline explicit while remaining on one line at M, L, and XL text sizes.
 - Legacy high-based and generic drop fields remain supported. Live-contract and offline regression coverage now verify both the current average fields and the compatibility fallback.
 
-### v0.1.65: Stay running when a local connection closes
-
-- If a long-running Codex child process has already closed its input channel, quota refresh now reports the unavailable connection and clears the stale session instead of terminating the menu-bar app.
-- Both independent and managed local connections now use a fallible, protected write path. A later refresh can establish a new session, while reset-credit consent, de-duplication, and default-off boundaries remain unchanged.
-- Deterministic coverage now closes the input channel early and verifies that the failure stays contained to that connection.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.65**: kept the menu-bar app running when a local Codex connection closed early, contained the failure to that connection, and allowed later refreshes to reconnect.
 - **v0.1.64**: preferred the signed-in local managed session after upgrades or restarts, safely fell back to an independent app-server, and added clear sign-in recovery guidance.
 - **v0.1.63**: supported the new Reset Radar card structure, restoring current states, conclusions, and explanations while retaining the old format.
 - **v0.1.62**: added inspectable local quota history and let Layout manage order, visibility, and default expansion in compact single-line rows.
@@ -158,7 +159,7 @@ Pacing cards use unsigned percentages with an explicit direction. When actual us
 
 `Auto-use reset credits before expiry` is a separate switch and is strictly off by default. Before enabling, the app explains the irreversible action and requires explicit confirmation. Authorization covers only supported credits that are visible and have a clear expiry at that moment. Plan checks are read only and never consume a credit.
 
-The app attempts to use the earliest target only when it is about 30 minutes from expiry. Auto-use turns itself off when account, credit-set, or clock-continuity changes cannot be verified safely. Network loss, shutdown, sleep, quitting the app, or the absence of resettable usage can still prevent execution, so this is best effort rather than a guarantee. Enabling `Launch at login` is recommended.
+The app attempts to use the earliest target only when it is about 30 minutes from expiry. If the verified local session ends before the request is written, no credit is consumed; the app preserves the same explicit authorization and retries after a complete fresh verification. Auto-use still turns itself off when account, credit-set, or clock-continuity changes cannot be verified safely, and its local safety record keeps the reason and time without raw account or credit identifiers. Network loss, shutdown, sleep, quitting the app, or the absence of resettable usage can still prevent execution, so this is best effort rather than a guarantee. Enabling `Launch at login` is recommended.
 
 ### Notifications
 
@@ -234,14 +235,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.67
+./scripts/check_release_readiness.sh 0.1.68
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.67
+./scripts/package_release.sh 0.1.68
 ```
 
 Update the menu-bar and full-menu screenshots:

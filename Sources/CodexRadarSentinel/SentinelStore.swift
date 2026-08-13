@@ -58,6 +58,7 @@ enum ResetCreditProtectionStatus: Equatable {
     case previewNoCredits(Date)
     case scheduled(actionAt: Date, expiresAt: Date, availableCount: Int)
     case waitingForUsage(expiresAt: Date)
+    case retrying(expiresAt: Date, retryAt: Date)
     case using(expiresAt: Date)
     case reconciling(expiresAt: Date)
     case succeeded(usedAt: Date, expiresAt: Date)
@@ -617,6 +618,8 @@ final class SentinelStore: NSObject, ObservableObject {
         var protectionClockDiscontinuityReason:
             ResetCreditProtectionAuthorization.ClockDiscontinuityReason?
         let initialProtectionClock = resetCreditProtectionClock()
+        let storedProtectionRevocation = protectionAuthorizationStore
+            .lastRevocation()
         if protectionRequested {
             do {
                 let clockValidation = try protectionAuthorizationStore
@@ -700,6 +703,8 @@ final class SentinelStore: NSObject, ObservableObject {
         let protectionAvailableInThisRuntime = destructiveActionsAllowed
             && protectionEnabled
             && !protectionStorageCorrupt
+        let storedProtectionRevocationStatus = storedProtectionRevocation
+            .flatMap(Self.resetCreditProtectionStatus(for:))
         self.resetCreditProtectionEnabled = protectionAvailableInThisRuntime
         self.resetCreditProtectionStatus = !destructiveActionsAllowed
             ? .disabled
@@ -717,7 +722,7 @@ final class SentinelStore: NSObject, ObservableObject {
             )
             : ((protectionEnabled || loadedLedger.activeAttempt != nil)
                 ? .checking
-                : .disabled)))
+                : (storedProtectionRevocationStatus ?? .disabled))))
         self.resetCreditProtectionConsent = destructiveActionsAllowed
             && protectionEnabled
             ? protectionConsent
@@ -1105,7 +1110,9 @@ final class SentinelStore: NSObject, ObservableObject {
         resetCreditProtectionTask?.cancel()
         resetCreditProtectionEnablingClockAnchor = nil
         do {
-            try resetCreditProtectionAuthorizationStore.clear { [defaults] in
+            try resetCreditProtectionAuthorizationStore.clear(
+                reason: .userDisabled
+            ) { [defaults] in
                 defaults.set(
                     false,
                     forKey: DefaultsKey.resetCreditProtectionEnabled
@@ -1493,6 +1500,15 @@ final class SentinelStore: NSObject, ObservableObject {
                 "校验失败，请重新检查",
                 "Verification failed; check again"
             )
+        )
+    }
+
+    func configureForDocumentationResetRetry() {
+        let retryAt = Self.documentationUpdatedAt.addingTimeInterval(120)
+        resetCreditProtectionEnabled = true
+        resetCreditProtectionStatus = .retrying(
+            expiresAt: Self.documentationUpdatedAt.addingTimeInterval(1_800),
+            retryAt: retryAt
         )
     }
 
@@ -2613,7 +2629,8 @@ final class SentinelStore: NSObject, ObservableObject {
             return
         } catch ResetCreditProtectionAccountBindingError.accountUnavailable {
             if revokeResetCreditProtectionAuthorization(
-                expectedConsent: consent
+                expectedConsent: consent,
+                reason: .signedOut
             ) {
                 resetCreditProtectionStatus = .blocked(
                     .signedOut,
@@ -2624,7 +2641,8 @@ final class SentinelStore: NSObject, ObservableObject {
         } catch {
             if isAuthenticationError(error),
                revokeResetCreditProtectionAuthorization(
-                   expectedConsent: consent
+                   expectedConsent: consent,
+                   reason: .signedOut
                ) {
                 resetCreditProtectionStatus = .blocked(
                     .signedOut,
@@ -2662,7 +2680,8 @@ final class SentinelStore: NSObject, ObservableObject {
                target: selectedTarget
            ) {
             if revokeResetCreditProtectionAuthorization(
-                expectedConsent: consent
+                expectedConsent: consent,
+                reason: .creditNotAuthorized
             ) {
                 resetCreditProtectionStatus = .blocked(
                     .creditNotAuthorized,
@@ -2701,7 +2720,10 @@ final class SentinelStore: NSObject, ObservableObject {
         case .ready(let target):
             if let retryAt = resetCreditProtectionNextRetryAt,
                retryAt > Date() {
-                resetCreditProtectionStatus = .waitingForUsage(expiresAt: target.expiresAt)
+                resetCreditProtectionStatus = .retrying(
+                    expiresAt: target.expiresAt,
+                    retryAt: retryAt
+                )
                 return
             }
             await attemptResetCreditProtection(target: target)
@@ -2982,7 +3004,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 target: validatedTarget
             ) else {
                 if revokeResetCreditProtectionAuthorization(
-                    expectedConsent: consent
+                    expectedConsent: consent,
+                    reason: .creditNotAuthorized
                 ) {
                     resetCreditProtectionStatus = .blocked(
                         .creditNotAuthorized,
@@ -3001,7 +3024,8 @@ final class SentinelStore: NSObject, ObservableObject {
                         consent: consent
                     ) else {
                 if revokeResetCreditProtectionAuthorization(
-                    expectedConsent: consent
+                    expectedConsent: consent,
+                    reason: .creditNotAuthorized
                 ) {
                     resetCreditProtectionStatus = .blocked(
                         .creditNotAuthorized,
@@ -3106,7 +3130,8 @@ final class SentinelStore: NSObject, ObservableObject {
                     )
                 case .accountUnavailable:
                     if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
+                        expectedConsent: consent,
+                        reason: .signedOut
                     ) {
                         resetCreditProtectionStatus = .blocked(
                             .signedOut,
@@ -3120,7 +3145,8 @@ final class SentinelStore: NSObject, ObservableObject {
                         _ = clearResetCreditProtectionJournal()
                     }
                     if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
+                        expectedConsent: consent,
+                        reason: .runtimeUnavailable
                     ) {
                         resetCreditProtectionStatus = .disabled
                     }
@@ -3139,15 +3165,56 @@ final class SentinelStore: NSObject, ObservableObject {
                         return
                     }
                 }
-                if case CodexAppServerClient.ClientError
-                    .resetCreditDispatchAuthorizationUnavailable = error {
-                    failClosedForResetCreditProtectionJournal()
-                } else {
-                    if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
-                    ) {
-                        resetCreditProtectionStatus = .disabled
+                switch error as? CodexAppServerClient.ClientError {
+                case .requestCancelledBeforeDispatch,
+                     .resetCreditSessionUnavailableBeforeDispatch:
+                    let stillRequested = defaults.object(
+                        forKey: DefaultsKey.resetCreditProtectionEnabled
+                    ) as? Bool ?? false
+                    guard stillRequested,
+                          resetCreditProtectionEnabled,
+                          resetCreditProtectionConsent == consent,
+                          resetCreditProtectionAuthorizationStore.load()
+                            == .loaded(consent) else {
+                        resetCreditProtectionNextRetryAt = nil
+                        resetCreditProtectionStatus = existingJournal == nil
+                            ? .disabled
+                            : .reconciling(expiresAt: expiresAt)
+                        return
                     }
+                    let retryAt = Date().addingTimeInterval(
+                        AppConstants.resetCreditProtectionRetrySeconds
+                    )
+                    resetCreditProtectionNextRetryAt = retryAt
+                    resetCreditProtectionStatus = existingJournal == nil
+                        ? .retrying(
+                            expiresAt: expiresAt,
+                            retryAt: retryAt
+                        )
+                        : .reconciling(expiresAt: expiresAt)
+                case .resetCreditDispatchNotAuthorized:
+                    let stillRequested = defaults.object(
+                        forKey: DefaultsKey.resetCreditProtectionEnabled
+                    ) as? Bool ?? false
+                    guard stillRequested, resetCreditProtectionEnabled else {
+                        resetCreditProtectionStatus = .disabled
+                        return
+                    }
+                    if revokeResetCreditProtectionAuthorization(
+                        expectedConsent: consent,
+                        reason: .creditNotAuthorized
+                    ) {
+                        resetCreditProtectionStatus = .blocked(
+                            .creditNotAuthorized,
+                            detail: nil
+                        )
+                    }
+                case .resetCreditDispatchAuthorizationUnavailable:
+                    failClosedForResetCreditProtectionJournal()
+                default:
+                    resetCreditProtectionStatus = protectionBlockedStatus(
+                        for: error
+                    )
                 }
                 return
             }
@@ -3161,7 +3228,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 }
                 if isUnsupportedResetCreditRPC(error) {
                     if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
+                        expectedConsent: consent,
+                        reason: .unsupportedCodex
                     ) {
                         resetCreditProtectionStatus = .blocked(
                             .unsupportedCodex,
@@ -3172,7 +3240,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 }
                 if isAuthenticationError(error) {
                     if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
+                        expectedConsent: consent,
+                        reason: .signedOut
                     ) {
                         resetCreditProtectionStatus = .blocked(
                             .signedOut,
@@ -3224,7 +3293,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 } catch ResetCreditProtectionAccountBindingError
                     .accountUnavailable {
                     if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
+                        expectedConsent: consent,
+                        reason: .signedOut
                     ) {
                         resetCreditProtectionStatus = .blocked(
                             .signedOut,
@@ -3234,7 +3304,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 } catch {
                     if isAuthenticationError(error),
                        revokeResetCreditProtectionAuthorization(
-                           expectedConsent: consent
+                           expectedConsent: consent,
+                           reason: .signedOut
                        ) {
                         resetCreditProtectionStatus = .blocked(
                             .signedOut,
@@ -3255,7 +3326,8 @@ final class SentinelStore: NSObject, ObservableObject {
             )
         } catch ResetCreditProtectionAccountBindingError.accountUnavailable {
             if revokeResetCreditProtectionAuthorization(
-                expectedConsent: consent
+                expectedConsent: consent,
+                reason: .signedOut
             ) {
                 resetCreditProtectionStatus = .blocked(
                     .signedOut,
@@ -3265,7 +3337,8 @@ final class SentinelStore: NSObject, ObservableObject {
         } catch {
             if isAuthenticationError(error),
                revokeResetCreditProtectionAuthorization(
-                   expectedConsent: consent
+                   expectedConsent: consent,
+                   reason: .signedOut
                ) {
                 resetCreditProtectionStatus = .blocked(
                     .signedOut,
@@ -3469,6 +3542,27 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    private static func resetCreditProtectionStatus(
+        for record: ResetCreditProtectionAuthorizationStore.RevocationRecord
+    ) -> ResetCreditProtectionStatus? {
+        switch record.reason {
+        case .userDisabled:
+            return nil
+        case .accountChanged:
+            return .blocked(.accountChanged, detail: nil)
+        case .signedOut:
+            return .blocked(.signedOut, detail: nil)
+        case .clockChanged:
+            return .blocked(.clockChanged, detail: nil)
+        case .creditNotAuthorized:
+            return .blocked(.creditNotAuthorized, detail: nil)
+        case .unsupportedCodex:
+            return .blocked(.unsupportedCodex, detail: nil)
+        case .runtimeUnavailable:
+            return .blocked(.journalUnavailable, detail: nil)
+        }
+    }
+
     private func blockResetCreditProtectionEnableForClockDiscontinuity(
         _ reason: ResetCreditProtectionAuthorization.ClockDiscontinuityReason
     ) {
@@ -3520,7 +3614,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 expectedConsent: consent
             )
         } else if revokeResetCreditProtectionAuthorization(
-            expectedConsent: consent
+            expectedConsent: consent,
+            reason: .signedOut
         ) {
             resetCreditProtectionStatus = .blocked(.signedOut, detail: nil)
         }
@@ -3531,7 +3626,8 @@ final class SentinelStore: NSObject, ObservableObject {
         expectedConsent: ResetCreditProtectionConsent
     ) {
         guard revokeResetCreditProtectionAuthorization(
-            expectedConsent: expectedConsent
+            expectedConsent: expectedConsent,
+            reason: .accountChanged
         ) else {
             return
         }
@@ -3551,11 +3647,13 @@ final class SentinelStore: NSObject, ObservableObject {
 
     @discardableResult
     private func revokeResetCreditProtectionAuthorization(
-        expectedConsent: ResetCreditProtectionConsent
+        expectedConsent: ResetCreditProtectionConsent,
+        reason: ResetCreditProtectionAuthorizationStore.RevocationReason
     ) -> Bool {
         do {
             let result = try resetCreditProtectionAuthorizationStore.clear(
-                ifCurrent: expectedConsent
+                ifCurrent: expectedConsent,
+                reason: reason
             ) { [defaults] in
                 defaults.set(
                     false,
@@ -3986,7 +4084,9 @@ final class SentinelStore: NSObject, ObservableObject {
         resetCreditProtectionJournalCorrupt = true
         resetCreditProtectionStatus = .blocked(.journalUnavailable, detail: nil)
         do {
-            try resetCreditProtectionAuthorizationStore.clear { [defaults] in
+            try resetCreditProtectionAuthorizationStore.clear(
+                reason: .runtimeUnavailable
+            ) { [defaults] in
                 defaults.set(
                     false,
                     forKey: DefaultsKey.resetCreditProtectionEnabled

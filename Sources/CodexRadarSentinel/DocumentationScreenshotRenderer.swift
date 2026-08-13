@@ -24,6 +24,8 @@ enum DocumentationScreenshotRenderer {
         "CODEX_RADAR_VISUAL_TEST_LAYOUT_PROFILE"
     private static let attentionEnvironmentKey =
         "CODEX_RADAR_VISUAL_TEST_ATTENTION"
+    private static let resetRetryEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_RESET_RETRYING"
     private static let defaultsSuitePrefix = "com.codexradar.sentinel.docs"
     private static let layoutProbeHeight: CGFloat = 10
     private static let captureSettleSeconds: TimeInterval = 0.2
@@ -139,6 +141,18 @@ enum DocumentationScreenshotRenderer {
             attentionEnvironmentKey
         ] == "1" {
             store.configureForDocumentationAttention()
+        }
+        if ProcessInfo.processInfo.environment[
+            resetRetryEnvironmentKey
+        ] == "1" {
+            store.configureForDocumentationResetRetry()
+            store.moveDashboardSection(.resetCredits, to: 0)
+            for section in DashboardSection.allCases
+                where section != .resetCredits {
+                store.setDashboardSection(section, visible: false)
+            }
+            store.setDashboardSection(.resetCredits, expanded: true)
+            store.dismissLayoutDiscoveryTip()
         }
 
         let showsLayoutEditor = ProcessInfo.processInfo.environment[

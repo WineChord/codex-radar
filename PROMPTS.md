@@ -109,6 +109,9 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 88 | [`Prompt-Id: 88 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+88%22&type=commits) | 例行兼容检查发现 CodexRadar 更新重置雷达卡片结构，恢复状态、结论和说明解析并加强在线契约验证。 |
 | 89 | [`Prompt-Id: 89 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+89%22&type=commits) | 修复升级或重启后独立会话无登录态导致额度未知的问题，优先复用当前用户已登录的 Codex 受管会话，并保留安全回退。 |
 | 90 | [`Prompt-Id: 90 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+90%22&type=commits) | 根据本机崩溃证据修复 Codex 子进程提前关闭输入通道时的应用退出，将断连转为可恢复错误并增加确定性回归验证。 |
+| 91 | [7a12079](https://github.com/WineChord/codex-radar/commit/7a120794b402b3fa12c8b0ab91bdfad7c34ebc2a), [`Prompt-Id: 91 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+91%22&type=commits) | 将降智预警对齐到当前 24 / 48 小时均值口径，保留旧格式兼容，并加强双语多字号验证。 |
+| 92 | [f6edbc0](https://github.com/WineChord/codex-radar/commit/f6edbc0aad3abb92cc90d14af85c3f7edcad3cd2), [`Prompt-Id: 92 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+92%22&type=commits) | 让本机额度读取从短暂网络或连接中断中有界恢复，保留最近有效结果并避免旧刷新覆盖新状态。 |
+| 93 | [`Prompt-Id: 93 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+93%22&type=commits) | 发送前会话中断时保留原有显式授权并自动重新核对后重试，同时持久化不含敏感标识的安全关闭原因与时间。 |
 
 ## Prompts
 
@@ -720,4 +723,10 @@ commit 要求是可以点击的链接
 
 ```text
 排查本机额度偶发连接错误：区分短暂网络波动、连接中断与真正的未登录状态。可恢复故障应进行一次有界的只读重试；持续失败时保留最近一次有效额度并给出简洁的自动恢复说明，不展示内部请求地址。旧刷新取消后不得覆盖新结果，并通过离线故障注入与真实只读请求验证，不能触发重置卡使用。
+```
+
+### 93. 重置卡发送前故障恢复
+
+```text
+加强重置卡到期前自动使用的发送边界：已经完整核对账号、卡片和时间后，如果本机会话在消费请求实际写出前中断，应确认本次没有发送，保留原有显式授权并从新的完整核对会话自动重试。账号变化、退出登录、卡片集合变化、时间连续性失效和不受支持的消费接口仍必须在写入前关闭。安全关闭的原因与时间应在本机持久化，重启后仍可解释，且不得保存原始账号、卡号或凭证。使用离线故障注入证明失败路径不会触发真实消费，再完成完整测试、双语界面验证和发布。
 ```

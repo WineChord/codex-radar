@@ -1205,6 +1205,8 @@ struct DashboardMenuView: View {
             return text("已排期", "Scheduled")
         case .waitingForUsage:
             return text("等待可重置额度", "Waiting for usage")
+        case .retrying:
+            return text("稍后重试", "Retrying soon")
         case .using:
             return text("正在使用", "Using")
         case .reconciling:
@@ -1403,6 +1405,11 @@ struct DashboardMenuView: View {
             )
         case .waitingForUsage:
             return text("已接近到期 · 等待出现可重置额度", "Near expiry · waiting for eligible usage")
+        case .retrying:
+            return text(
+                "请求未发送 · 将自动重试",
+                "Request not sent · retrying automatically"
+            )
         case .using:
             return text("正在请求 Codex 使用重置卡…", "Asking Codex to use the reset credit…")
         case .reconciling:
@@ -1475,6 +1482,11 @@ struct DashboardMenuView: View {
                 "下一张卡将在 \(DisplayFormatters.compactDateTime(expiresAt)) 到期。当前尚未出现需要重置的额度，App 会继续检查至到期；能否最终使用仍取决于运行、网络和 Codex 状态。",
                 "The next credit expires \(DisplayFormatters.compactDateTime(expiresAt)). No limit currently needs a reset. The app keeps checking until expiry; eventual use still depends on runtime, network, and Codex state."
             )
+        case .retrying(let expiresAt, let retryAt):
+            return text(
+                "本次在写入 Codex 前中断，没有消耗重置卡；App 将于 \(DisplayFormatters.compactDateTime(retryAt)) 自动重试。卡片 \(DisplayFormatters.compactDateTime(expiresAt)) 到期，无需重新开启。",
+                "The attempt stopped before anything was written to Codex, so no reset credit was consumed. The app will retry automatically at \(DisplayFormatters.compactDateTime(retryAt)). The credit expires \(DisplayFormatters.compactDateTime(expiresAt)); no re-enabling is needed."
+            )
         case .reconciling(let expiresAt):
             if store.resetCreditProtectionEnabled {
                 return text(
@@ -1520,7 +1532,8 @@ struct DashboardMenuView: View {
         switch store.resetCreditProtectionStatus {
         case .succeeded, .scheduled, .noCredits, .preview, .previewNoCredits:
             return .green
-        case .enabling, .checking, .using, .reconciling, .waitingForUsage:
+        case .enabling, .checking, .using, .reconciling, .waitingForUsage,
+             .retrying:
             return .orange
         case .blocked, .missed:
             return .red

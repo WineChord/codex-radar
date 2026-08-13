@@ -147,6 +147,10 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
             context.defaults.bool(forKey: "resetCreditProtectionEnabled")
         )
         XCTAssertEqual(context.authorizationStore.load(), .absent)
+        XCTAssertEqual(
+            context.authorizationStore.lastRevocation()?.reason,
+            .userDisabled
+        )
         XCTAssertEqual(sessions.count, 0)
         let longLivedSnapshot = await longLived.snapshot()
         XCTAssertEqual(longLivedSnapshot.consumeCallCount, 0)
@@ -449,6 +453,158 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
                 ("new-later-credit", now.addingTimeInterval(2 * 60 * 60)),
             ]
         )
+    }
+
+    func testPreDispatchSessionFailureKeepsAuthorizationForSafeRetry()
+        async throws
+    {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "pre-dispatch-retry-credit"
+        let expiresAt = Date().addingTimeInterval(10 * 60)
+        let account = accountResponse(email: "account-a@example.com")
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: expiresAt
+        )
+        let currentConsent = try consent(
+            account: account,
+            creditIDs: [creditID]
+        )
+        try context.authorizationStore.save(currentConsent)
+        context.defaults.set(true, forKey: "resetCreditProtectionEnabled")
+        let longLived = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let failingService = PreDispatchFailingAppServer(
+            account: account,
+            response: response
+        )
+        let failingFactory = ResetCreditProtectionAppServerSessionFactory {
+            ResetCreditProtectionAppServerSession(
+                service: failingService,
+                shutdown: {
+                    await failingService.recordShutdown()
+                }
+            )
+        }
+        let store = context.makeStore(
+            appServer: longLived,
+            sessionFactory: failingFactory
+        )
+
+        store.refreshNow()
+        try await waitUntil {
+            guard case .retrying = store.resetCreditProtectionStatus else {
+                return false
+            }
+            return await failingService.snapshot().shutdownCount == 1
+        }
+
+        XCTAssertTrue(store.resetCreditProtectionEnabled)
+        XCTAssertTrue(
+            context.defaults.bool(forKey: "resetCreditProtectionEnabled")
+        )
+        XCTAssertEqual(
+            context.authorizationStore.load(),
+            .loaded(currentConsent)
+        )
+        XCTAssertNil(context.authorizationStore.lastRevocation())
+        guard case .loaded(let ledger) = context.ledgerStore.load() else {
+            return XCTFail("Expected a durable empty ledger")
+        }
+        XCTAssertNil(ledger.activeAttempt)
+        let failedSnapshot = await failingService.snapshot()
+        XCTAssertEqual(failedSnapshot.consumeCallCount, 1)
+        XCTAssertEqual(failedSnapshot.authorizedDispatchCount, 0)
+        guard case .retrying(let statusExpiry, let retryAt) =
+            store.resetCreditProtectionStatus else {
+            return XCTFail("Expected an automatic retry state")
+        }
+        XCTAssertEqual(
+            statusExpiry.timeIntervalSince1970,
+            expiresAt.timeIntervalSince1970,
+            accuracy: 1
+        )
+        XCTAssertGreaterThan(retryAt, Date())
+
+        store.stop()
+        try await Task.sleep(nanoseconds: 20_000_000)
+        let healthyLongLived = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let healthySessions = OfflineSessionFactoryRecorder {
+            OfflineAppServer(
+                account: account,
+                response: response,
+                consumeOutcome: .reset
+            )
+        }
+        let restartedStore = context.makeStore(
+            appServer: healthyLongLived,
+            sessionFactory: healthySessions.factory
+        )
+
+        restartedStore.refreshNow()
+        try await waitUntil {
+            restartedStore.resetCreditProtectionStatus.isSucceeded
+        }
+
+        XCTAssertTrue(restartedStore.resetCreditProtectionEnabled)
+        XCTAssertEqual(healthySessions.count, 1)
+        let healthyService = try XCTUnwrap(healthySessions.services.first)
+        let healthySnapshot = await healthyService.snapshot()
+        XCTAssertEqual(healthySnapshot.consumeCallCount, 1)
+        restartedStore.stop()
+        try await Task.sleep(nanoseconds: 20_000_000)
+    }
+
+    func testPersistedRevocationExplainsFailureAfterRestart() throws {
+        let context = try OfflineStoreContext()
+        defer { context.cleanup() }
+        let creditID = "persisted-revocation-credit"
+        let account = accountResponse(email: "account-a@example.com")
+        let response = rateLimitResponse(
+            creditID: creditID,
+            expiresAt: Date().addingTimeInterval(10 * 60)
+        )
+        let currentConsent = try consent(
+            account: account,
+            creditIDs: [creditID]
+        )
+        try context.authorizationStore.save(currentConsent)
+        _ = try context.authorizationStore.clear(
+            ifCurrent: currentConsent,
+            reason: .creditNotAuthorized
+        )
+        context.defaults.set(false, forKey: "resetCreditProtectionEnabled")
+        let appServer = OfflineAppServer(
+            account: account,
+            response: response
+        )
+        let sessions = OfflineSessionFactoryRecorder {
+            OfflineAppServer(account: account, response: response)
+        }
+
+        let failedStore = context.makeStore(
+            appServer: appServer,
+            sessionFactory: sessions.factory
+        )
+        XCTAssertFalse(failedStore.resetCreditProtectionEnabled)
+        XCTAssertEqual(
+            failedStore.resetCreditProtectionStatus,
+            .blocked(.creditNotAuthorized, detail: nil)
+        )
+
+        try context.authorizationStore.clear(reason: .userDisabled)
+        let disabledStore = context.makeStore(
+            appServer: appServer,
+            sessionFactory: sessions.factory
+        )
+        XCTAssertFalse(disabledStore.resetCreditProtectionEnabled)
+        XCTAssertEqual(disabledStore.resetCreditProtectionStatus, .disabled)
     }
 
     func testFreshPreflightMissingCreditClosesAuthorizationBeforeConsume()
@@ -1756,6 +1912,10 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
             store.resetCreditProtectionStatus,
             .blocked(.creditNotAuthorized, detail: nil)
         )
+        XCTAssertEqual(
+            context.authorizationStore.lastRevocation()?.reason,
+            .creditNotAuthorized
+        )
         let service = try XCTUnwrap(sessions.services.first)
         let snapshot = await service.snapshot()
         XCTAssertEqual(snapshot.calls, ["account", "rate", "account"])
@@ -1813,6 +1973,10 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
             context.defaults.bool(forKey: "resetCreditProtectionEnabled")
         )
         XCTAssertEqual(context.authorizationStore.load(), .absent)
+        XCTAssertEqual(
+            context.authorizationStore.lastRevocation()?.reason,
+            .signedOut
+        )
         XCTAssertEqual(sessions.count, 0)
         let snapshot = await signedOut.snapshot()
         XCTAssertGreaterThanOrEqual(snapshot.accountReadCount, 1)
@@ -2104,6 +2268,57 @@ private actor OfflineAppServer: ResetCreditProtectionAppServerServing {
             rateLimitReadCount: rateLimitReadCount,
             consumeCallCount: consumeCallCount,
             idempotencyKeys: idempotencyKeys,
+            shutdownCount: shutdownCount
+        )
+    }
+}
+
+private actor PreDispatchFailingAppServer:
+    ResetCreditProtectionAppServerServing
+{
+    struct Snapshot {
+        let consumeCallCount: Int
+        let authorizedDispatchCount: Int
+        let shutdownCount: Int
+    }
+
+    private let account: CodexAccountResponse
+    private let response: RateLimitResponse
+    private var consumeCallCount = 0
+    private var authorizedDispatchCount = 0
+    private var shutdownCount = 0
+
+    init(account: CodexAccountResponse, response: RateLimitResponse) {
+        self.account = account
+        self.response = response
+    }
+
+    func readRateLimits() async throws -> RateLimitResponse {
+        response
+    }
+
+    func readAccount() async throws -> CodexAccountResponse {
+        account
+    }
+
+    func consumeResetCredit(
+        creditID: String,
+        idempotencyKey: String,
+        authorization: ResetCreditProtectionDispatchAuthorization
+    ) async throws -> ResetCreditConsumeResponse {
+        consumeCallCount += 1
+        throw CodexAppServerClient.ClientError
+            .resetCreditSessionUnavailableBeforeDispatch
+    }
+
+    func recordShutdown() {
+        shutdownCount += 1
+    }
+
+    func snapshot() -> Snapshot {
+        Snapshot(
+            consumeCallCount: consumeCallCount,
+            authorizedDispatchCount: authorizedDispatchCount,
             shutdownCount: shutdownCount
         )
     }
