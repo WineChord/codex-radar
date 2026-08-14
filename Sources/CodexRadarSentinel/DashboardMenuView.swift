@@ -1080,6 +1080,20 @@ struct DashboardMenuView: View {
                                 collapsedLines: 3
                             )
                         }
+                        if let sourceURL = card.sourceLinkURL {
+                            Button {
+                                store.openURL(sourceURL)
+                            } label: {
+                                Label(
+                                    text("查看指南", "Open guide"),
+                                    systemImage: "arrow.up.right.square"
+                                )
+                                .font(.system(size: metrics.caption, weight: .medium))
+                                .foregroundStyle(Color.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                            .help(text("打开社区指南", "Open community guide"))
+                        }
                     }
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -631,6 +631,23 @@ final class RadarModelTests: XCTestCase {
                     <img src="assets/codex-enable-max-reasoning-20260711.png" alt="在 Codex Configuration 的 Available reasoning efforts 中开启 Max">
                   </div>
                 </article>
+                <article class="community-knowledge-card">
+                  <div class="community-knowledge-card-main">
+                    <h2>推理强度中英文对照</h2>
+                  </div>
+                  <div class="community-knowledge-guide" data-site-announcement-prompt hidden>
+                    <img src="assets/codex-reasoning-effort.png" alt="轻度 low、中 medium、高 high、极高 xhigh、最高 max、极高 ultra">
+                  </div>
+                </article>
+                <article class="community-knowledge-card">
+                  <div class="community-knowledge-card-main">
+                    <h2>DeepSeek 官方 Codex 接入指南</h2>
+                    <p>按照 DeepSeek 官方配置步骤，在 Codex 中接入并使用 DeepSeek 模型。</p>
+                  </div>
+                  <div class="community-knowledge-actions">
+                    <a href="https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex/">查看指南</a>
+                  </div>
+                </article>
               </div>
             </section>
           </body>
@@ -643,8 +660,32 @@ final class RadarModelTests: XCTestCase {
         )
 
         XCTAssertEqual(current.communityKnowledge?.title, "如何开启 Max 推理强度")
-        XCTAssertEqual(current.communityKnowledges.count, 1)
+        XCTAssertEqual(current.communityKnowledges.count, 3)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("Available reasoning efforts") == true)
+        XCTAssertEqual(
+            current.communityKnowledges[1].prompt,
+            "轻度 low、中 medium、高 high、极高 xhigh、最高 max、极高 ultra"
+        )
+        XCTAssertEqual(
+            current.communityKnowledges[2].prompt,
+            "按照 DeepSeek 官方配置步骤，在 Codex 中接入并使用 DeepSeek 模型。"
+        )
+        XCTAssertEqual(
+            current.communityKnowledges[2].sourceLinkURL?.absoluteString,
+            "https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex/"
+        )
+        XCTAssertEqual(current.communityKnowledges[2].sourceLabel, "查看指南")
+    }
+
+    func testCommunityKnowledgeRejectsNonHTTPSourceURL() throws {
+        let knowledge = try JSONDecoder().decode(
+            CommunityKnowledge.self,
+            from: Data(
+                #"{"title":"Local file","prompt":"Do not open it","source_url":"file:///tmp/private"}"#.utf8
+            )
+        )
+
+        XCTAssertNil(knowledge.sourceLinkURL)
     }
 
     func testBuildsFastRadarFromHomepageHTML() throws {

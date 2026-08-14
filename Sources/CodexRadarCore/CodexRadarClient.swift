@@ -485,17 +485,52 @@ public struct CodexRadarClient {
                 return nil
             }
             let title = cleanHTMLText(firstCapture(#"<h2>(.*?)</h2>"#, in: card))
-            let prompt = cleanHTMLMultilineText(firstCapture(
+            let guideHTML = firstCapture(
                 #"<(?:code|div)[^>]*data-site-announcement-prompt[^>]*>(.*?)</(?:code|div)>"#,
                 in: card
+            )
+            let guideText = cleanHTMLMultilineText(guideHTML)
+            let imageDescription = cleanHTMLText(firstCapture(
+                #"<img[^>]*\salt="([^"]+)"[^>]*>"#,
+                in: guideHTML ?? card
             ))
+            let cardMain = firstCapture(
+                #"<div\s+class="[^"]*community-knowledge-card-main[^"]*"[^>]*>(.*?)</div>"#,
+                in: card
+            )
+            let visibleDescription = cleanHTMLMultilineText(firstCapture(
+                #"<p(?:\s+[^>]*)?>(.*?)</p>"#,
+                in: cardMain ?? ""
+            ))
+            let prompt = [guideText, visibleDescription, imageDescription]
+                .first { !$0.isEmpty } ?? ""
             guard !title.isEmpty, !prompt.isEmpty else {
                 return nil
             }
-            return [
+            var payload = [
                 "title": title,
                 "prompt": prompt
             ]
+            if let source = allMatches(
+                #"<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#,
+                in: card
+            ).first,
+               source.count >= 2 {
+                let sourceURL = cleanHTMLText(source[0])
+                if let url = URL(string: sourceURL),
+                   let scheme = url.scheme?.lowercased(),
+                   (scheme == "https" || scheme == "http"),
+                   url.host?.isEmpty == false,
+                   url.user == nil,
+                   url.password == nil {
+                    payload["source_url"] = sourceURL
+                    let sourceLabel = cleanHTMLText(source[1])
+                    if !sourceLabel.isEmpty {
+                        payload["source_label"] = sourceLabel
+                    }
+                }
+            }
+            return payload
         }
     }
 

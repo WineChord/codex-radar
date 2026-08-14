@@ -1833,44 +1833,38 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private static func documentationCurrent(language: AppLanguage) -> RadarCurrent? {
         let title = language.text(
-            "CodexRadar 重置、额度与模型雷达",
-            "CodexRadar reset, quota, and model radar"
+            "CodexRadar 额度、性能与模型雷达",
+            "CodexRadar quota, performance, and model radar"
         )
         let window = language.text("无窗", "none")
         let scope = language.text(
-            "重置雷达 / 额度雷达 / Fast / 分布式 Model IQ",
-            "reset radar / quota radar / Fast / distributed Model IQ"
+            "额度雷达 / Fast / 分布式 Model IQ / 社区指南",
+            "quota radar / Fast / distributed Model IQ / community guides"
         )
         let summary = language.text(
-            "CodexRadar 当前公开重置研判、7d 额度、Fast 实测与分布式社区 Model IQ。",
-            "CodexRadar currently publishes reset judgement, 7d quota, Fast benchmarks, and distributed community Model IQ."
-        )
-        let resetUpdated = language.text(
-            "事件更新 7月29日 13:42",
-            "Event updated Jul 29 13:42"
-        )
-        let resetTitle = language.text("官方源快车", "Official-source fast lane")
-        let cardLabel = language.text("发重置卡", "Reset card")
-        let cardLevel = language.text("未宣布", "Not announced")
-        let cardSummary = language.text(
-            "本轮是直接重置 — 本轮官方信号指向直接用量重置，不代表新增可储存的 banked reset。",
-            "This round is a direct reset — the official signal points to quota restoration, not a new banked reset."
-        )
-        let hardResetLabel = language.text("硬重置", "Hard reset")
-        let hardResetLevel = language.text("已落地", "Completed")
-        let hardResetSummary = language.text(
-            "官方重置完成 — Tibo 确认本轮直接用量重置已完成；当前没有开启的速蹬窗口。",
-            "Official reset complete — Tibo confirmed that this direct quota reset finished; no speed window is open."
-        )
-        let communityTitle = language.text("重置卡过期时间自查", "Reset credit expiry check")
-        let communityPrompt = language.text(
-            "帮我用本机 Codex 凭证查一下 rate-limit reset credits，读取 ~/.codex/auth.json 里的 tokens.access_token，请求 https://chatgpt.com/backend-api/wham/rate-limit-reset-credits。要求：如果 401，说明是凭证失效或没带对 Authorization header；不要打印 access_token、refresh_token、cookie 或完整唯一 ID；只要展示每张重置卡发放时间和过期时间，从 UTC 转成北京时间，用中文回复。",
-            "Use my local Codex credentials to check rate-limit reset credits from ~/.codex/auth.json tokens.access_token via https://chatgpt.com/backend-api/wham/rate-limit-reset-credits. If it returns 401, explain that the credential is expired or the Authorization header is missing. Do not print access_token, refresh_token, cookies, or full unique IDs. Show only each reset credit issue time and expiry time, converted to local time."
+            "CodexRadar 当前公开 7d 额度、Fast 实测、分布式社区 Model IQ 与实用指南。",
+            "CodexRadar currently publishes 7d quota, Fast benchmarks, distributed community Model IQ, and practical guides."
         )
         let maxReasoningTitle = language.text("如何开启 Max 推理强度", "How to enable Max reasoning")
         let maxReasoningGuide = language.text(
             "打开 Codex 设置 → Configuration → Model features → Available reasoning efforts，勾选 Max。之后即可在支持 Max 的模型控制中选择。",
             "Open Codex Settings → Configuration → Model features → Available reasoning efforts, then enable Max. After that, Max appears in supported model controls."
+        )
+        let reasoningReferenceTitle = language.text(
+            "推理强度中英文对照",
+            "Reasoning effort reference"
+        )
+        let reasoningReference = language.text(
+            "轻度 low、中 medium、高 high、极高 xhigh、最高 max、极高 ultra",
+            "low, medium, high, xhigh, max, and ultra"
+        )
+        let deepSeekTitle = language.text(
+            "DeepSeek 官方 Codex 接入指南",
+            "Official DeepSeek Codex integration guide"
+        )
+        let deepSeekGuide = language.text(
+            "按照 DeepSeek 官方配置步骤，在 Codex 中接入并使用 DeepSeek 模型。",
+            "Follow DeepSeek's official configuration steps to use DeepSeek models in Codex."
         )
         let announcementLabel = language.text("CodexRadar 公告", "CodexRadar notice")
         let announcementMessage = language.text(
@@ -1912,22 +1906,19 @@ final class SentinelStore: NSObject, ObservableObject {
             "reasoning_summary": "\(summary)",
             "updated_at": "2026-07-17T14:38:00+08:00"
           },
-          "reset_judgement": {
-            "updated_label": "\(resetUpdated)",
-            "title": "\(resetTitle)",
-            "cards": [
-              { "label": "\(cardLabel)", "level": "\(cardLevel)", "summary": "\(cardSummary)" },
-              { "label": "\(hardResetLabel)", "level": "\(hardResetLevel)", "summary": "\(hardResetSummary)" }
-            ],
-            "reasons": []
-          },
           "community_knowledge": {
-            "title": "\(communityTitle)",
-            "prompt": "\(communityPrompt)"
+            "title": "\(maxReasoningTitle)",
+            "prompt": "\(maxReasoningGuide)"
           },
           "community_knowledges": [
-            { "title": "\(communityTitle)", "prompt": "\(communityPrompt)" },
-            { "title": "\(maxReasoningTitle)", "prompt": "\(maxReasoningGuide)" }
+            { "title": "\(maxReasoningTitle)", "prompt": "\(maxReasoningGuide)" },
+            { "title": "\(reasoningReferenceTitle)", "prompt": "\(reasoningReference)" },
+            {
+              "title": "\(deepSeekTitle)",
+              "prompt": "\(deepSeekGuide)",
+              "source_label": "查看指南",
+              "source_url": "https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex/"
+            }
           ],
           "site_announcement": {
             "label": "\(announcementLabel)",

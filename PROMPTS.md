@@ -112,6 +112,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 91 | [7a12079](https://github.com/WineChord/codex-radar/commit/7a120794b402b3fa12c8b0ab91bdfad7c34ebc2a), [`Prompt-Id: 91 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+91%22&type=commits) | 将降智预警对齐到当前 24 / 48 小时均值口径，保留旧格式兼容，并加强双语多字号验证。 |
 | 92 | [f6edbc0](https://github.com/WineChord/codex-radar/commit/f6edbc0aad3abb92cc90d14af85c3f7edcad3cd2), [`Prompt-Id: 92 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+92%22&type=commits) | 让本机额度读取从短暂网络或连接中断中有界恢复，保留最近有效结果并避免旧刷新覆盖新状态。 |
 | 93 | [`Prompt-Id: 93 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+93%22&type=commits) | 发送前会话中断时保留原有显式授权并自动重新核对后重试，同时持久化不含敏感标识的安全关闭原因与时间。 |
+| 94 | [`Prompt-Id: 94 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+94%22&type=commits) | 例行兼容检查对齐 CodexRadar 当前社区知识卡，补齐图片说明和官方指南链接，并将已下架的重置雷达视为可选模块。 |
 
 ## Prompts
 
@@ -729,4 +730,10 @@ commit 要求是可以点击的链接
 
 ```text
 加强重置卡到期前自动使用的发送边界：已经完整核对账号、卡片和时间后，如果本机会话在消费请求实际写出前中断，应确认本次没有发送，保留原有显式授权并从新的完整核对会话自动重试。账号变化、退出登录、卡片集合变化、时间连续性失效和不受支持的消费接口仍必须在写入前关闭。安全关闭的原因与时间应在本机持久化，重启后仍可解释，且不得保存原始账号、卡号或凭证。使用离线故障注入证明失败路径不会触发真实消费，再完成完整测试、双语界面验证和发布。
+```
+
+### 94. 社区知识卡与可选模块兼容
+
+```text
+对 Codex Radar Sentinel 做例行产品与兼容性维护：核对 CodexRadar 当前公开页面，完整同步社区知识卡中的文字指南、图片可访问说明和官方外部链接；公开页面已不再提供的重置雷达应作为可选模块自然隐藏，同时保留旧结构兼容。通过离线解析、实时契约、双语界面和发布包验证后发布。
 ```

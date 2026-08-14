@@ -21,7 +21,7 @@ final class LiveCodexRadarContractTests: XCTestCase {
             $0.snapshot.model == "gpt-5.6-sol" && $0.snapshot.reasoningEffort == "ultra"
         } == true)
         XCTAssertGreaterThanOrEqual(current.modelIQ?.quotaRadar?.rows.count ?? 0, 1)
-        try assertValidResetJudgement(current.resetJudgement)
+        try assertValidResetJudgementIfPresent(current.resetJudgement)
         XCTAssertNotNil(current.communityKnowledge?.prompt)
         XCTAssertGreaterThanOrEqual(current.communityKnowledges.count, 1)
         try assertValidSiteAnnouncementIfPresent(current.siteAnnouncement)
@@ -105,8 +105,11 @@ final class LiveCodexRadarContractTests: XCTestCase {
             homepageCurrent.modelIQ?.dataSource?.validCells,
             homepageValidTasks.reduce(0, +)
         )
-        try assertValidResetJudgement(homepageCurrent.resetJudgement)
-        XCTAssertGreaterThanOrEqual(homepageCurrent.communityKnowledges.count, 1)
+        try assertValidResetJudgementIfPresent(homepageCurrent.resetJudgement)
+        XCTAssertEqual(
+            homepageCurrent.communityKnowledges.count,
+            communityKnowledgeCardCount(in: html)
+        )
         try assertValidSiteAnnouncementIfPresent(homepageCurrent.siteAnnouncement)
         XCTAssertGreaterThanOrEqual(homepageCurrent.fastRadar?.rows.count ?? 0, 1)
     }
@@ -122,15 +125,24 @@ final class LiveCodexRadarContractTests: XCTestCase {
         XCTAssertFalse(message.isEmpty)
     }
 
-    private func assertValidResetJudgement(
+    private func assertValidResetJudgementIfPresent(
         _ judgement: ResetJudgement?
     ) throws {
-        let judgement = try XCTUnwrap(judgement)
+        guard let judgement else {
+            return
+        }
         XCTAssertFalse(judgement.cards.isEmpty)
         XCTAssertTrue(judgement.cards.allSatisfy { card in
             card.label?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 && card.level?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 && card.summary?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         })
+    }
+
+    private func communityKnowledgeCardCount(in html: String) -> Int {
+        let pattern = #"<article\s+class="[^"]*community-knowledge-card[^"]*"[^>]*>"#
+        let regex = try? NSRegularExpression(pattern: pattern)
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        return regex?.numberOfMatches(in: html, range: range) ?? 0
     }
 }
