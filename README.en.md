@@ -25,6 +25,12 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.70: Keep current official reset notices visible
+
+- More from CodexRadar now supports the current official-reset notice structure and shows its headline, expected time, explanation, and source.
+- Expected timing stays in the compact heading while longer context remains expandable. A missing notice is still a normal empty state, and legacy notice markup remains supported.
+- Notice sources accept only credential-free HTTP or HTTPS addresses; local files and other non-web links do not open.
+
 ### v0.1.69: Keep community guides aligned with the public site
 
 - More from CodexRadar now mirrors text guides, image-only reasoning-effort references, and guides with external sources. The official DeepSeek integration guide opens its original page directly.
@@ -37,15 +43,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Account changes, sign-out, authorized-credit-set changes, lost clock continuity, and an unsupported consume RPC still turn auto-use off before dispatch. Those safety boundaries remain unchanged.
 - Safety shutdowns now record their reason and time locally. The app can explain the required reconfirmation after a restart without storing raw account details, credit IDs, or credentials.
 
-### v0.1.67: Keep local quota stable through network interruptions
-
-- A recoverable network or connection failure now gets one bounded retry during the same quota refresh, reducing error flashes from brief proxy interruptions.
-- If that retry still fails, the menu says that the latest valid reading remains below and continues refreshing automatically instead of exposing an internal request URL or low-level error.
-- States that need action, such as being signed out, remain immediate and are never hidden by retry logic. A cancelled older refresh can no longer overwrite a newer result.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.67**: added a bounded retry for brief local-quota network failures, retained the latest valid reading, and prevented older refreshes from overwriting newer state.
 - **v0.1.66**: aligned degradation alerts with current 24- and 48-hour average comparisons, clarified the baseline in compact one-line labels, and retained legacy-format support.
 - **v0.1.65**: kept the menu-bar app running when a local Codex connection closed early, contained the failure to that connection, and allowed later refreshes to reconnect.
 - **v0.1.64**: preferred the signed-in local managed session after upgrades or restarts, safely fell back to an independent app-server, and added clear sign-in recovery guidance.
@@ -236,14 +237,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.69
+./scripts/check_release_readiness.sh 0.1.70
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.69
+./scripts/package_release.sh 0.1.70
 ```
 
 Update the menu-bar and full-menu screenshots:

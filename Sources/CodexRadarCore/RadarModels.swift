@@ -144,6 +144,19 @@ public struct SiteAnnouncement: Decodable, Equatable {
     public let sourceLabel: String?
     public let sourceURL: String?
 
+    public var sourceLinkURL: URL? {
+        guard let sourceURL,
+              let url = URL(string: sourceURL),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "http",
+              url.host?.isEmpty == false,
+              url.user == nil,
+              url.password == nil else {
+            return nil
+        }
+        return url
+    }
+
     enum CodingKeys: String, CodingKey {
         case label
         case message

@@ -1039,7 +1039,7 @@ struct DashboardMenuView: View {
                     key: "site-announcement-\(announcement.updatedLabel ?? "")-\(message)",
                     collapsedLines: 2
                 )
-                if let sourceURL = announcement.sourceURL.flatMap(URL.init(string:)) {
+                if let sourceURL = announcement.sourceLinkURL {
                     Button {
                         store.openURL(sourceURL)
                     } label: {

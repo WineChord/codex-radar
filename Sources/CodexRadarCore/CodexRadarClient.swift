@@ -536,31 +536,58 @@ public struct CodexRadarClient {
 
     private static func parseHomepageSiteAnnouncement(html: String) -> [String: Any]? {
         guard let section = firstCapture(
-            #"<section\s+class="site-announcement"[^>]*>(.*?)</section>"#,
+            #"<section\s+[^>]*class="(?:[^"]*\s)?site-announcement(?:\s[^"]*)?"[^>]*>(.*?)</section>"#,
             in: html
-        ),
-        let paragraph = firstCapture(#"<p>(.*?)</p>"#, in: section) else {
+        ) else {
             return nil
         }
 
-        let label = cleanHTMLText(firstCapture(#"<span>(.*?)</span>"#, in: section))
-        let updatedLabel = cleanHTMLText(firstCapture(#"<span\s+class="site-announcement-updated"[^>]*>(.*?)</span>"#, in: paragraph))
-        let source = allMatches(
-            #"<a\s+class="site-announcement-source"\s+href="([^"]+)"[^>]*>(.*?)</a>"#,
-            in: paragraph
-        ).first
-        var messageHTML = paragraph
-        messageHTML = messageHTML.replacingOccurrences(
-            of: #"<a\s+class="site-announcement-source"[^>]*>.*?</a>"#,
+        let explicitLabel = cleanHTMLText(firstCapture(
+            #"<span\s+[^>]*class="(?:[^"]*\s)?site-announcement-label(?:\s[^"]*)?"[^>]*>(.*?)</span>"#,
+            in: section
+        ))
+        let fallbackLabel = cleanHTMLText(firstCapture(
+            #"<span(?:\s+[^>]*)?>(.*?)</span>"#,
+            in: section
+        ))
+        let label = explicitLabel.isEmpty ? fallbackLabel : explicitLabel
+        let legacyUpdatedLabel = cleanHTMLText(firstCapture(
+            #"<span\s+[^>]*class="(?:[^"]*\s)?site-announcement-updated(?:\s[^"]*)?"[^>]*>(.*?)</span>"#,
+            in: section
+        ))
+        let lead = cleanHTMLText(firstCapture(
+            #"<span\s+[^>]*class="(?:[^"]*\s)?site-announcement-lead(?:\s[^"]*)?"[^>]*>(.*?)</span>"#,
+            in: section
+        ))
+        let updatedLabel = legacyUpdatedLabel.isEmpty ? lead : legacyUpdatedLabel
+        let headline = cleanHTMLText(firstCapture(
+            #"<strong\s+[^>]*class="(?:[^"]*\s)?site-announcement-headline(?:\s[^"]*)?"[^>]*>(.*?)</strong>"#,
+            in: section
+        ))
+        let detail = cleanHTMLText(firstCapture(
+            #"<p\s+[^>]*class="(?:[^"]*\s)?site-announcement-reset-detail(?:\s[^"]*)?"[^>]*>(.*?)</p>"#,
+            in: section
+        ))
+        let legacyParagraph = firstCapture(
+            #"<p(?:\s+[^>]*)?>(.*?)</p>"#,
+            in: section
+        )
+        var legacyMessageHTML = legacyParagraph ?? ""
+        legacyMessageHTML = legacyMessageHTML.replacingOccurrences(
+            of: #"<a\s+[^>]*class="(?:[^"]*\s)?site-announcement-source(?:\s[^"]*)?"[^>]*>.*?</a>"#,
             with: "",
             options: .regularExpression
         )
-        messageHTML = messageHTML.replacingOccurrences(
-            of: #"<br\s*/?>\s*<span\s+class="site-announcement-updated"[^>]*>.*?</span>"#,
+        legacyMessageHTML = legacyMessageHTML.replacingOccurrences(
+            of: #"(?:<br\s*/?>\s*)?<span\s+[^>]*class="(?:[^"]*\s)?site-announcement-updated(?:\s[^"]*)?"[^>]*>.*?</span>"#,
             with: "",
             options: .regularExpression
         )
-        let message = cleanHTMLText(messageHTML)
+        let message = headline.isEmpty
+            ? cleanHTMLText(legacyMessageHTML)
+            : [headline, detail]
+                .filter { !$0.isEmpty }
+                .joined(separator: " — ")
         guard !message.isEmpty else {
             return nil
         }
@@ -572,14 +599,26 @@ public struct CodexRadarClient {
         if !updatedLabel.isEmpty {
             payload["updated_label"] = updatedLabel
         }
-        if let source, source.count >= 2 {
-            let sourceURL = cleanHTMLText(source[0])
-            let sourceLabel = cleanHTMLText(source[1])
-            if !sourceURL.isEmpty {
+        if let source = allMatches(
+            #"<a\s+([^>]*class="(?:[^"]*\s)?site-announcement-source(?:\s[^"]*)?"[^>]*)>(.*?)</a>"#,
+            in: section
+        ).first,
+           source.count >= 2 {
+            let sourceURL = cleanHTMLText(firstCapture(
+                #"href="([^"]+)""#,
+                in: source[0]
+            ))
+            if let url = URL(string: sourceURL),
+               let scheme = url.scheme?.lowercased(),
+               (scheme == "https" || scheme == "http"),
+               url.host?.isEmpty == false,
+               url.user == nil,
+               url.password == nil {
                 payload["source_url"] = sourceURL
-            }
-            if !sourceLabel.isEmpty {
-                payload["source_label"] = sourceLabel
+                let sourceLabel = cleanHTMLText(source[1])
+                if !sourceLabel.isEmpty {
+                    payload["source_label"] = sourceLabel
+                }
             }
         }
         return payload

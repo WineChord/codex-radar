@@ -492,6 +492,10 @@ final class RadarModelTests: XCTestCase {
         XCTAssertTrue(current.siteAnnouncement?.message?.contains("Polymarket GPT-5.6") == true)
         XCTAssertEqual(current.siteAnnouncement?.updatedLabel, "数据更新时间 2026-07-07 08:49:36 北京时间")
         XCTAssertEqual(current.siteAnnouncement?.sourceURL, "https://polymarket.com/event/gpt-5pt6-released-onptptpt-20260623051439980")
+        XCTAssertEqual(
+            current.siteAnnouncement?.sourceLinkURL?.host,
+            "polymarket.com"
+        )
         XCTAssertEqual(current.resetJudgement?.updatedLabel, "7月3日08:08研判")
         XCTAssertEqual(current.resetJudgement?.title, "发卡路径占优")
         XCTAssertEqual(current.resetJudgement?.cards.count, 2)
@@ -502,6 +506,63 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.communityKnowledges.count, 1)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("rate-limit reset credits") == true)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("不要打印 access_token") == true)
+    }
+
+    func testBuildsSiteAnnouncementFromCurrentResetMarkup() throws {
+        let html = """
+        <html>
+          <head>
+            <title>9月8日 GPT-5.6 Sol max: IQ指数 106.7, 80/112, 费用 $7.2, 耗时 33分钟, cache命中率 97.6%</title>
+          </head>
+          <body>
+            <section class="site-announcement site-announcement-reset" data-speed-window="open" aria-label="官方重置公告">
+              <span class="site-announcement-label">官方公告</span>
+              <div class="site-announcement-main site-announcement-reset-main">
+                <div class="site-announcement-heading">
+                  <strong class="site-announcement-headline">全体付费订阅用量重置</strong>
+                  <span class="site-announcement-lead">预计北京时间 9 月 8 日 10:00 左右</span>
+                </div>
+                <p class="site-announcement-reset-detail">Tibo 原文写作“around 6pm PST today”；实际完成仍待确认。</p>
+                <a href="https://x.com/thsottiaux/status/2097043464538264003" class="site-announcement-source site-announcement-reset-source" target="_blank" rel="noreferrer">查看 Tibo 官方原帖 ↗</a>
+              </div>
+            </section>
+          </body>
+        </html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_789_000_000)
+        )
+
+        XCTAssertEqual(current.siteAnnouncement?.label, "官方公告")
+        XCTAssertEqual(
+            current.siteAnnouncement?.updatedLabel,
+            "预计北京时间 9 月 8 日 10:00 左右"
+        )
+        XCTAssertEqual(
+            current.siteAnnouncement?.message,
+            "全体付费订阅用量重置 — Tibo 原文写作“around 6pm PST today”；实际完成仍待确认。"
+        )
+        XCTAssertEqual(
+            current.siteAnnouncement?.sourceLabel,
+            "查看 Tibo 官方原帖 ↗"
+        )
+        XCTAssertEqual(
+            current.siteAnnouncement?.sourceLinkURL?.absoluteString,
+            "https://x.com/thsottiaux/status/2097043464538264003"
+        )
+    }
+
+    func testSiteAnnouncementRejectsNonHTTPSourceURL() throws {
+        let announcement = try JSONDecoder().decode(
+            SiteAnnouncement.self,
+            from: Data(
+                #"{"label":"Notice","message":"Read this","source_url":"file:///tmp/private"}"#.utf8
+            )
+        )
+
+        XCTAssertNil(announcement.sourceLinkURL)
     }
 
     func testBuildsResetJudgementFromCurrentHomepageCardMarkup() throws {

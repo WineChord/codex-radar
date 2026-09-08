@@ -110,7 +110,12 @@ final class LiveCodexRadarContractTests: XCTestCase {
             homepageCurrent.communityKnowledges.count,
             communityKnowledgeCardCount(in: html)
         )
-        try assertValidSiteAnnouncementIfPresent(homepageCurrent.siteAnnouncement)
+        if containsSiteAnnouncement(in: html) {
+            let announcement = try XCTUnwrap(
+                homepageCurrent.siteAnnouncement
+            )
+            try assertValidSiteAnnouncementIfPresent(announcement)
+        }
         XCTAssertGreaterThanOrEqual(homepageCurrent.fastRadar?.rows.count ?? 0, 1)
     }
 
@@ -144,5 +149,12 @@ final class LiveCodexRadarContractTests: XCTestCase {
         let regex = try? NSRegularExpression(pattern: pattern)
         let range = NSRange(html.startIndex..<html.endIndex, in: html)
         return regex?.numberOfMatches(in: html, range: range) ?? 0
+    }
+
+    private func containsSiteAnnouncement(in html: String) -> Bool {
+        let pattern = #"<section\s+[^>]*class="(?:[^"]*\s)?site-announcement(?:\s[^"]*)?"[^>]*>"#
+        let regex = try? NSRegularExpression(pattern: pattern)
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        return regex?.firstMatch(in: html, range: range) != nil
     }
 }
