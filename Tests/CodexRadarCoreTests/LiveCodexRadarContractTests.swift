@@ -117,6 +117,13 @@ final class LiveCodexRadarContractTests: XCTestCase {
             try assertValidSiteAnnouncementIfPresent(announcement)
         }
         XCTAssertGreaterThanOrEqual(homepageCurrent.fastRadar?.rows.count ?? 0, 1)
+        if html.contains("fast-radar-explain") {
+            XCTAssertFalse(
+                homepageCurrent.fastRadar?.method?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .isEmpty ?? true
+            )
+        }
     }
 
     private func assertValidSiteAnnouncementIfPresent(

@@ -626,7 +626,7 @@ public struct CodexRadarClient {
 
     private static func parseHomepageFastRadar(html: String) -> [String: Any]? {
         guard let section = firstCapture(
-            #"<section\s+class="[^"]*fast-radar[^"]*"[^>]*>(.*?)</section>"#,
+            #"<section\s+[^>]*class="(?:[^"]*\s)?fast-radar(?:\s[^"]*)?"[^>]*>(.*?)</section>"#,
             in: html
         ) else {
             return nil
@@ -647,7 +647,7 @@ public struct CodexRadarClient {
             in: section
         ) ?? ""
         let summary = allMatches(
-            #"<div>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>"#,
+            #"<div(?:\s+[^>]*)?>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>"#,
             in: summarySection
         ).map { groups in
             [
@@ -671,8 +671,8 @@ public struct CodexRadarClient {
             !(row["model"] as? String ?? "").isEmpty
         }
         let method = cleanHTMLMultilineText(firstCapture(
-            #"<div\s+class="fast-radar-explain"[^>]*>\s*<p>(.*?)</p>"#,
-            in: section
+            #"<(?:div|details)\s+[^>]*class="(?:[^"]*\s)?fast-radar-explain(?:\s[^"]*)?"[^>]*>.*?<p(?:\s+[^>]*)?>(.*?)</p>"#,
+            in: html
         ))
 
         guard !summary.isEmpty || !rows.isEmpty else {

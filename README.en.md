@@ -25,6 +25,11 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.71: Keep the Fast Radar overview and method complete
+
+- Fast Radar now supports the current public overview-card structure, restoring its E2E speedup, first-visible-output latency, and token-generation speed summaries.
+- The test method continues to sync after the source page moved it into a disclosure. Legacy markup remains supported, and detailed data rows are unaffected.
+
 ### v0.1.70: Keep current official reset notices visible
 
 - More from CodexRadar now supports the current official-reset notice structure and shows its headline, expected time, explanation, and source.
@@ -37,15 +42,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Image-only cards use the site's accessible description instead of disappearing when no body copy is present. External links accept only HTTP or HTTPS URLs.
 - Reset Radar is now treated as an optional public module: the app hides it cleanly when the site does not publish it while retaining legacy-format support. Live checks compare parsed community content with the page's actual card count to catch future drift.
 
-### v0.1.68: Retry safely when a verified session ends before dispatch
-
-- If a verified Codex session ends before the reset-credit request is written, the app confirms that nothing was sent, preserves the original account-and-credit authorization, and retries from a newly verified session instead of turning the switch off.
-- Account changes, sign-out, authorized-credit-set changes, lost clock continuity, and an unsupported consume RPC still turn auto-use off before dispatch. Those safety boundaries remain unchanged.
-- Safety shutdowns now record their reason and time locally. The app can explain the required reconfirmation after a restart without storing raw account details, credit IDs, or credentials.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.68**: safely retried when a verified session ended before dispatch while preserving account, authorized-credit, clock-continuity, and unresolved-result write boundaries.
 - **v0.1.67**: added a bounded retry for brief local-quota network failures, retained the latest valid reading, and prevented older refreshes from overwriting newer state.
 - **v0.1.66**: aligned degradation alerts with current 24- and 48-hour average comparisons, clarified the baseline in compact one-line labels, and retained legacy-format support.
 - **v0.1.65**: kept the menu-bar app running when a local Codex connection closed early, contained the failure to that connection, and allowed later refreshes to reconnect.
@@ -237,14 +237,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.70
+./scripts/check_release_readiness.sh 0.1.71
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.70
+./scripts/package_release.sh 0.1.71
 ```
 
 Update the menu-bar and full-menu screenshots:

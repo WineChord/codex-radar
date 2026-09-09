@@ -811,6 +811,57 @@ final class RadarModelTests: XCTestCase {
         XCTAssertTrue(current.fastRadar?.method?.contains("Standard 与 Fast") == true)
     }
 
+    func testBuildsFastRadarFromCurrentSummaryAndMethodMarkup() throws {
+        let html = """
+        <html>
+          <head>
+            <title>9月9日 Astra medium: IQ指数 109.0, 81/112, 费用 $7.3, 耗时 34分钟, cache命中率 97.2%</title>
+          </head>
+          <body>
+            <section id="fast-radar" class="fast-radar" aria-label="Fast 雷达">
+              <div class="fast-radar-head">
+                <div>
+                  <h2>Fast 雷达 <em>更新 9月8日 23:43</em></h2>
+                </div>
+                <span>Astra medium · Standard → Fast</span>
+              </div>
+              <div class="fast-radar-summary" aria-label="Fast 模式速览">
+                <div class=""><span>体感加速</span><strong>1.687×</strong></div>
+                <div class="is-regression"><span>首可见输出延迟减少</span><strong>慢 4.2%</strong></div>
+                <div data-kind="tps"><span>Token 生成速度加速</span><strong>不可测</strong></div>
+              </div>
+              <div class="fast-radar-table" role="table" aria-label="Fast 雷达">
+                <div class="fast-radar-row" role="row">
+                  <div class="fast-radar-model"><strong>Astra medium</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-e2e" data-label="体感加速"><span>70.81s → 41.96s</span><strong>1.687×</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-ttft" data-label="首可见输出延迟减少"><span>70.56s → 41.72s</span><strong>快 40.9%</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-tps" data-label="Token 生成速度加速"><span>无可测流式区间</span><strong>不可测</strong></div>
+                </div>
+              </div>
+              <section class="fast-radar-history"><p>历史数据</p></section>
+              <details class="fast-radar-explain">
+                <summary>测试方法</summary>
+                <p>测试方法：Standard 与 Fast 各独立运行 3 次。</p>
+              </details>
+            </section>
+          </body>
+        </html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_789_000_000)
+        )
+
+        XCTAssertEqual(current.fastRadar?.title, "Fast 雷达")
+        XCTAssertEqual(current.fastRadar?.summary.count, 3)
+        XCTAssertEqual(current.fastRadar?.summary.first?.label, "体感加速")
+        XCTAssertEqual(current.fastRadar?.summary.first?.value, "1.687×")
+        XCTAssertEqual(current.fastRadar?.summary.last?.value, "不可测")
+        XCTAssertEqual(current.fastRadar?.rows.first?.model, "Astra medium")
+        XCTAssertTrue(current.fastRadar?.method?.contains("各独立运行 3 次") == true)
+    }
+
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(currentWithoutIQJSON.utf8))
         let merged = try CodexRadarClient.currentByMergingHomepageModelIQ(

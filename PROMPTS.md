@@ -114,6 +114,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 93 | [`Prompt-Id: 93 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+93%22&type=commits) | 发送前会话中断时保留原有显式授权并自动重新核对后重试，同时持久化不含敏感标识的安全关闭原因与时间。 |
 | 94 | [`Prompt-Id: 94 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+94%22&type=commits) | 例行兼容检查对齐 CodexRadar 当前社区知识卡，补齐图片说明和官方指南链接，并将已下架的重置雷达视为可选模块。 |
 | 95 | [`Prompt-Id: 95 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+95%22&type=commits) | 例行兼容检查对齐 CodexRadar 新版官方重置公告结构，恢复标题、时间、说明和安全来源链接。 |
+| 96 | [`Prompt-Id: 96 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+96%22&type=commits) | 例行兼容检查对齐 CodexRadar 当前 Fast 雷达结构，恢复速览摘要与测试方法解析。 |
 
 ## Prompts
 
@@ -743,4 +744,10 @@ commit 要求是可以点击的链接
 
 ```text
 对 Codex Radar Sentinel 做例行产品与兼容性维护：核对 CodexRadar 当前公开页面，兼容新版官方重置公告的分层结构，保留旧格式与正常空状态，并将标题、预计时间、说明和来源映射到现有渐进披露界面。外部来源只接受不含嵌入凭据的 HTTP / HTTPS 地址；通过离线解析、实时契约、双语界面和发布包验证后发布。
+```
+
+### 96. Fast 雷达当前结构兼容
+
+```text
+对 Codex Radar Sentinel 做例行产品与兼容性维护：核对当前公开 Fast 雷达结构，恢复速览摘要与测试方法解析，保留旧版结构兼容，并通过离线解析、实时契约、双语界面和发布包验证后发布。
 ```
