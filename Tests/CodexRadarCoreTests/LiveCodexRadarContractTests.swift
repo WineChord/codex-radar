@@ -115,6 +115,17 @@ final class LiveCodexRadarContractTests: XCTestCase {
                 homepageCurrent.siteAnnouncement
             )
             try assertValidSiteAnnouncementIfPresent(announcement)
+            if html.contains("pro-subscription-announcement") {
+                let message = try XCTUnwrap(announcement.message)
+                let paragraphs = siteAnnouncementLeadParagraphs(in: html)
+                XCTAssertFalse(paragraphs.isEmpty)
+                for paragraph in paragraphs {
+                    XCTAssertTrue(message.contains(paragraph))
+                }
+                if html.contains("pro-subscription-announcement-link") {
+                    XCTAssertNotNil(announcement.sourceLinkURL)
+                }
+            }
         }
         XCTAssertGreaterThanOrEqual(homepageCurrent.fastRadar?.rows.count ?? 0, 1)
         if html.contains("fast-radar-explain") {
@@ -163,5 +174,47 @@ final class LiveCodexRadarContractTests: XCTestCase {
         let regex = try? NSRegularExpression(pattern: pattern)
         let range = NSRange(html.startIndex..<html.endIndex, in: html)
         return regex?.firstMatch(in: html, range: range) != nil
+    }
+
+    private func siteAnnouncementLeadParagraphs(in html: String) -> [String] {
+        let pattern = #"<p\s+[^>]*class="(?:[^"]*\s)?site-announcement-lead(?:\s[^"]*)?"[^>]*>(.*?)</p>"#
+        guard let regex = try? NSRegularExpression(
+            pattern: pattern,
+            options: [.dotMatchesLineSeparators]
+        ) else {
+            return []
+        }
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        return regex.matches(in: html, range: range).compactMap { match in
+            guard let captureRange = Range(match.range(at: 1), in: html) else {
+                return nil
+            }
+            var paragraph = String(html[captureRange])
+                .replacingOccurrences(
+                    of: #"<[^>]+>"#,
+                    with: "",
+                    options: .regularExpression
+                )
+                .replacingOccurrences(
+                    of: #"\s+"#,
+                    with: " ",
+                    options: .regularExpression
+                )
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            for (entity, replacement) in [
+                "&amp;": "&",
+                "&lt;": "<",
+                "&gt;": ">",
+                "&quot;": "\"",
+                "&#39;": "'",
+                "&nbsp;": " "
+            ] {
+                paragraph = paragraph.replacingOccurrences(
+                    of: entity,
+                    with: replacement
+                )
+            }
+            return paragraph
+        }.filter { !$0.isEmpty }
     }
 }

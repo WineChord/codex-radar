@@ -25,6 +25,11 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 
 ## News
 
+### v0.1.72: Keep current important notices complete
+
+- More from CodexRadar now supports the current important-notice structure and keeps the headline plus every body paragraph instead of showing only the headline.
+- Same-origin notice-image links can be opened safely. Legacy reset notices retain their expected time, explanation, and external source.
+
 ### v0.1.71: Keep the Fast Radar overview and method complete
 
 - Fast Radar now supports the current public overview-card structure, restoring its E2E speedup, first-visible-output latency, and token-generation speed summaries.
@@ -36,15 +41,10 @@ You can also install manually from [GitHub Releases](https://github.com/WineChor
 - Expected timing stays in the compact heading while longer context remains expandable. A missing notice is still a normal empty state, and legacy notice markup remains supported.
 - Notice sources accept only credential-free HTTP or HTTPS addresses; local files and other non-web links do not open.
 
-### v0.1.69: Keep community guides aligned with the public site
-
-- More from CodexRadar now mirrors text guides, image-only reasoning-effort references, and guides with external sources. The official DeepSeek integration guide opens its original page directly.
-- Image-only cards use the site's accessible description instead of disappearing when no body copy is present. External links accept only HTTP or HTTPS URLs.
-- Reset Radar is now treated as an optional public module: the app hides it cleanly when the site does not publish it while retaining legacy-format support. Live checks compare parsed community content with the page's actual card count to catch future drift.
-
 <details>
 <summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
+- **v0.1.69**: synced community guides delivered as text, image descriptions, or safe source links, and treated an unpublished Reset Radar as optional.
 - **v0.1.68**: safely retried when a verified session ended before dispatch while preserving account, authorized-credit, clock-continuity, and unresolved-result write boundaries.
 - **v0.1.67**: added a bounded retry for brief local-quota network failures, retained the latest valid reading, and prevented older refreshes from overwriting newer state.
 - **v0.1.66**: aligned degradation alerts with current 24- and 48-hour average comparisons, clarified the baseline in compact one-line labels, and retained legacy-format support.
@@ -237,14 +237,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.71
+./scripts/check_release_readiness.sh 0.1.72
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.71
+./scripts/package_release.sh 0.1.72
 ```
 
 Update the menu-bar and full-menu screenshots:

@@ -554,6 +554,46 @@ final class RadarModelTests: XCTestCase {
         )
     }
 
+    func testBuildsSiteAnnouncementFromCurrentNewsMarkup() throws {
+        let html = """
+        <html>
+          <head>
+            <title>9月11日 GPT-5.6 Sol max: IQ指数 110.3, 82/112, 费用 $7.34, 耗时 34分钟, cache命中率 97.2%</title>
+          </head>
+          <body>
+            <section class="site-announcement site-announcement-news" aria-label="重要公告">
+              <div id="pro-subscription-announcement" class="site-announcement-main pro-subscription-announcement">
+                <div class="site-announcement-heading">
+                  <strong class="site-announcement-headline">OpenAI 官方已停止新 Pro 订阅</strong>
+                </div>
+                <p class="site-announcement-lead pro-subscription-announcement-copy">现有订阅用户需要保持自动续费。</p>
+                <p class="site-announcement-lead pro-subscription-announcement-maintenance-copy">部分公开数据可能暂时延迟更新。</p>
+                <a class="pro-subscription-announcement-link" href="assets/announcement.jpg?v=1" target="_blank" rel="noreferrer">
+                  <img class="site-announcement-image" src="assets/announcement.jpg?v=1" alt="公告截图">
+                </a>
+              </div>
+            </section>
+          </body>
+        </html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_789_000_000)
+        )
+
+        XCTAssertNil(current.siteAnnouncement?.updatedLabel)
+        XCTAssertEqual(
+            current.siteAnnouncement?.message,
+            "OpenAI 官方已停止新 Pro 订阅\n\n现有订阅用户需要保持自动续费。\n\n部分公开数据可能暂时延迟更新。"
+        )
+        XCTAssertNil(current.siteAnnouncement?.sourceLabel)
+        XCTAssertEqual(
+            current.siteAnnouncement?.sourceLinkURL?.absoluteString,
+            "https://codexradar.com/assets/announcement.jpg?v=1"
+        )
+    }
+
     func testSiteAnnouncementRejectsNonHTTPSourceURL() throws {
         let announcement = try JSONDecoder().decode(
             SiteAnnouncement.self,

@@ -115,6 +115,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 94 | [`Prompt-Id: 94 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+94%22&type=commits) | 例行兼容检查对齐 CodexRadar 当前社区知识卡，补齐图片说明和官方指南链接，并将已下架的重置雷达视为可选模块。 |
 | 95 | [`Prompt-Id: 95 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+95%22&type=commits) | 例行兼容检查对齐 CodexRadar 新版官方重置公告结构，恢复标题、时间、说明和安全来源链接。 |
 | 96 | [`Prompt-Id: 96 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+96%22&type=commits) | 例行兼容检查对齐 CodexRadar 当前 Fast 雷达结构，恢复速览摘要与测试方法解析。 |
+| 97 | [`Prompt-Id: 97 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+97%22&type=commits) | 例行兼容检查对齐 CodexRadar 当前重要公告结构，保留多段正文并安全解析同源图片链接。 |
 
 ## Prompts
 
@@ -750,4 +751,10 @@ commit 要求是可以点击的链接
 
 ```text
 对 Codex Radar Sentinel 做例行产品与兼容性维护：核对当前公开 Fast 雷达结构，恢复速览摘要与测试方法解析，保留旧版结构兼容，并通过离线解析、实时契约、双语界面和发布包验证后发布。
+```
+
+### 97. 重要公告多段正文兼容
+
+```text
+对 Codex Radar Sentinel 做例行产品与兼容性维护：核对 CodexRadar 当前重要公告结构，完整保留标题和多段正文，并在安全解析同源图片来源的同时保持旧版公告兼容；通过离线解析、实时契约、双语界面和发布包验证后发布。
 ```

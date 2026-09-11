@@ -568,6 +568,13 @@ public struct CodexRadarClient {
             #"<p\s+[^>]*class="(?:[^"]*\s)?site-announcement-reset-detail(?:\s[^"]*)?"[^>]*>(.*?)</p>"#,
             in: section
         ))
+        let leadParagraphs = allMatches(
+            #"<p\s+[^>]*class="(?:[^"]*\s)?site-announcement-lead(?:\s[^"]*)?"[^>]*>(.*?)</p>"#,
+            in: section
+        ).compactMap { groups -> String? in
+            let paragraph = cleanHTMLText(groups.first)
+            return paragraph.isEmpty ? nil : paragraph
+        }
         let legacyParagraph = firstCapture(
             #"<p(?:\s+[^>]*)?>(.*?)</p>"#,
             in: section
@@ -583,11 +590,14 @@ public struct CodexRadarClient {
             with: "",
             options: .regularExpression
         )
-        let message = headline.isEmpty
-            ? cleanHTMLText(legacyMessageHTML)
-            : [headline, detail]
-                .filter { !$0.isEmpty }
-                .joined(separator: " — ")
+        let message: String
+        if headline.isEmpty {
+            message = cleanHTMLText(legacyMessageHTML)
+        } else if !detail.isEmpty {
+            message = [headline, detail].joined(separator: " — ")
+        } else {
+            message = ([headline] + leadParagraphs).joined(separator: "\n\n")
+        }
         guard !message.isEmpty else {
             return nil
         }
@@ -600,21 +610,25 @@ public struct CodexRadarClient {
             payload["updated_label"] = updatedLabel
         }
         if let source = allMatches(
-            #"<a\s+([^>]*class="(?:[^"]*\s)?site-announcement-source(?:\s[^"]*)?"[^>]*)>(.*?)</a>"#,
+            #"<a\s+([^>]*class="[^"]*(?:site-announcement-source|pro-subscription-announcement-link)[^"]*"[^>]*)>(.*?)</a>"#,
             in: section
         ).first,
            source.count >= 2 {
-            let sourceURL = cleanHTMLText(firstCapture(
+            let sourceURLString = cleanHTMLText(firstCapture(
                 #"href="([^"]+)""#,
                 in: source[0]
             ))
-            if let url = URL(string: sourceURL),
+            if !sourceURLString.isEmpty,
+               let url = URL(
+                string: sourceURLString,
+                relativeTo: AppConstants.codexRadarBaseURL
+            )?.absoluteURL,
                let scheme = url.scheme?.lowercased(),
                (scheme == "https" || scheme == "http"),
                url.host?.isEmpty == false,
                url.user == nil,
                url.password == nil {
-                payload["source_url"] = sourceURL
+                payload["source_url"] = url.absoluteString
                 let sourceLabel = cleanHTMLText(source[1])
                 if !sourceLabel.isEmpty {
                     payload["source_label"] = sourceLabel

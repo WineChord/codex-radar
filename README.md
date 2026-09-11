@@ -25,6 +25,11 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ## News / 最新功能
 
+### v0.1.72：新版重要公告正文保持完整
+
+- “更多 CodexRadar 信息”现在兼容当前重要公告结构，完整保留标题和多段正文，不再只显示标题。
+- 公告图片的同源链接可安全打开；旧版重置公告的预计时间、说明和外部来源保持兼容。
+
 ### v0.1.71：Fast 雷达速览与说明保持完整
 
 - Fast 雷达现在兼容当前公开页面的速览卡片结构，恢复体感加速、首可见输出延迟和 Token 生成速度三项摘要。
@@ -36,15 +41,10 @@ https://github.com/WineChord/codex-radar/releases/latest
 - 预计时间保持在紧凑标题区，较长说明继续按需展开；没有公告仍是正常空状态，旧版公告结构也继续兼容。
 - 公告来源只接受不含嵌入凭据的 HTTP / HTTPS 地址，本地文件和其他非网页链接不会打开。
 
-### v0.1.69：社区指南随公开页面完整同步
-
-- “更多 CodexRadar 信息”现在会完整同步公开页面中的文字指南、仅图片呈现的推理强度对照，以及带外部来源的指南；DeepSeek 官方接入指南可直接打开原始页面。
-- 仅图片卡片会使用网站提供的可访问说明，不再因为没有正文而消失；链接只接受 HTTP / HTTPS 地址。
-- CodexRadar 未提供重置雷达时，应用会自然隐藏该可选模块，同时保留旧结构兼容；在线契约会按网页实际卡片数量检查社区内容，及时发现后续结构变化。
-
 <details>
 <summary><strong>历史版本</strong> — 展开查看更早的产品里程碑</summary>
 
+- **v0.1.69**：完整同步文字、图片说明和安全来源链接形式的社区指南，并将未发布的重置雷达视为可选模块。
 - **v0.1.68**：在已核对会话于发送前断开时安全重试，并保持账号、授权卡片、时间连续性和未决结果等写入边界。
 - **v0.1.67**：在本机额度读取遇到短暂网络中断时有界重试，保留最近有效数据，并避免旧刷新覆盖新状态。
 - **v0.1.66**：将降智预警对齐到当前 24 / 48 小时均值口径，用紧凑单行标签明确比较基准，并保留旧格式兼容。
@@ -237,14 +237,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.71
+./scripts/check_release_readiness.sh 0.1.72
 ```
 
 构建发布包：
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.71
+./scripts/package_release.sh 0.1.72
 ```
 
 更新中英文状态栏与菜单截图：
