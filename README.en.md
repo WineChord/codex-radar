@@ -2,15 +2,32 @@
 
 [中文](README.md) | English
 
-A menu bar app for macOS 13 and later. It brings local Codex quota, usage pacing, reset-credit status, and public model-quality signals from [CodexRadar](https://codexradar.com/) into one compact, configurable panel.
+> A native macOS menu-bar dashboard for **local Codex quota, usage pacing, Model IQ, Radar signals, and reset-credit status**.
+
+[![Latest Release](https://img.shields.io/github/v/release/WineChord/codex-radar?display_name=tag&sort=semver)](https://github.com/WineChord/codex-radar/releases/latest)
+![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black)
+![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-orange)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ![Codex Radar Sentinel menu bar](docs/assets/en/status-normal.png)
 
-[Latest release](https://github.com/WineChord/codex-radar/releases/latest) · [Features](#core-features) · [Privacy and security](#privacy-and-security) · [Run from source](#run-from-source)
+**Stop bouncing between pages just to answer “how much quota is left, am I using it too fast, and is the model behaving normally?”** Codex Radar Sentinel combines authoritative local Codex quota with public model-quality and radar signals from [CodexRadar](https://codexradar.com/), while keeping sensitive credentials local.
 
-## Install With Codex
+[Download latest](https://github.com/WineChord/codex-radar/releases/latest) · [Core features](#core-features) · [Privacy and security](#privacy-and-security) · [Run from source](#run-from-source)
 
-> **Recommended:** Send the text below to the Codex desktop app to download, verify, install, launch, and confirm the current version.
+## Quick Start
+
+### Option 1: Install directly
+
+1. Download the `.dmg` from the [latest GitHub Release](https://github.com/WineChord/codex-radar/releases/latest).
+2. Open it and drag **Codex Radar Sentinel.app** into `Applications`.
+3. Launch the app. macOS may request notification permission on first run; allow it to receive quota, Model IQ, and reset-credit auto-use alerts.
+
+The `.zip` contains the same app for manual copying or automated installation.
+
+### Option 2: Let Codex install it
+
+Send the text below to the Codex desktop app. It can download, verify, install, launch, and confirm the current version:
 
 ```text
 Please install the latest stable release of Codex Radar Sentinel.
@@ -19,62 +36,26 @@ https://github.com/WineChord/codex-radar/releases/latest
 Download the macOS package and SHA256 file, verify the package, install the app in /Applications, launch it, and confirm that the version shown in the menu matches the latest Release. If macOS needs my approval for a permission, explain why and let me confirm it.
 ```
 
-Installation requires network access and permission to write to `/Applications`. On first launch, macOS may ask for notification permission; allow it to receive quota, Model IQ, and reset-credit auto-use alerts.
+> Installation requires network access and permission to write to `/Applications`.
 
-You can also install manually from [GitHub Releases](https://github.com/WineChord/codex-radar/releases/latest).
+## Why Use It
 
-## News
+- **Quota at a glance**: keep weekly quota in the menu bar and show the 5h short window whenever Codex explicitly returns it.
+- **Know whether to keep going**: pacing strategies compare actual remaining quota with a target instead of leaving you to eyeball it.
+- **Model health without guesswork**: combine Model IQ, multi-model cost/runtime/pass counts, community ratings, and degradation alerts.
+- **One place for radar signals**: Reset Radar, Quota Radar, Fast Radar, scenario recommendations, and notices stay together.
+- **Local-first**: quota history and sanitized caches stay on the Mac; sign-in credentials are never uploaded to CodexRadar.
+- **Controlled automation**: update assets are SHA256-verified; reset-credit auto-use is strictly off by default and runs only after explicit authorization.
 
-### v0.1.72: Keep current important notices complete
+## What's New
 
-- More from CodexRadar now supports the current important-notice structure and keeps the headline plus every body paragraph instead of showing only the headline.
-- Same-origin notice-image links can be opened safely. Legacy reset notices retain their expected time, explanation, and external source.
+**v0.1.72**
 
-### v0.1.71: Keep the Fast Radar overview and method complete
+- Supports the current important-notice structure while preserving the full headline and multi-paragraph body.
+- Allows safe opening of same-origin notice-image links.
+- Keeps expected time, explanation, and external source for legacy reset notices.
 
-- Fast Radar now supports the current public overview-card structure, restoring its E2E speedup, first-visible-output latency, and token-generation speed summaries.
-- The test method continues to sync after the source page moved it into a disclosure. Legacy markup remains supported, and detailed data rows are unaffected.
-
-### v0.1.70: Keep current official reset notices visible
-
-- More from CodexRadar now supports the current official-reset notice structure and shows its headline, expected time, explanation, and source.
-- Expected timing stays in the compact heading while longer context remains expandable. A missing notice is still a normal empty state, and legacy notice markup remains supported.
-- Notice sources accept only credential-free HTTP or HTTPS addresses; local files and other non-web links do not open.
-
-<details>
-<summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
-
-- **v0.1.69**: synced community guides delivered as text, image descriptions, or safe source links, and treated an unpublished Reset Radar as optional.
-- **v0.1.68**: safely retried when a verified session ended before dispatch while preserving account, authorized-credit, clock-continuity, and unresolved-result write boundaries.
-- **v0.1.67**: added a bounded retry for brief local-quota network failures, retained the latest valid reading, and prevented older refreshes from overwriting newer state.
-- **v0.1.66**: aligned degradation alerts with current 24- and 48-hour average comparisons, clarified the baseline in compact one-line labels, and retained legacy-format support.
-- **v0.1.65**: kept the menu-bar app running when a local Codex connection closed early, contained the failure to that connection, and allowed later refreshes to reconnect.
-- **v0.1.64**: preferred the signed-in local managed session after upgrades or restarts, safely fell back to an independent app-server, and added clear sign-in recovery guidance.
-- **v0.1.63**: supported the new Reset Radar card structure, restoring current states, conclusions, and explanations while retaining the old format.
-- **v0.1.62**: added inspectable local quota history and let Layout manage order, visibility, and default expansion in compact single-line rows.
-- **v0.1.61**: added a one-time Layout tip that opens the editor directly and remembers dismissal.
-- **v0.1.60**: let Layout set default-open behavior for nested items such as `All model IQ`, with preferences preserved across restarts.
-- **v0.1.59**: added persistent menu ordering and default-open preferences while keeping current results, critical alerts, and recovery paths visible.
-- **v0.1.58**: kept multi-model IQ pass counts intact across M, L, and XL and made the SHA256 manifest directly verifiable from the download directory.
-- **v0.1.57**: moved quota and Codex IQ forward, grouped low-frequency information behind clear disclosures, and kept critical alerts visible.
-- **v0.1.56**: accepts a missing temporary notice as a normal empty state without interrupting other live data.
-- **v0.1.55**: added scenario recommendations and degradation alerts while retaining the last valid result through network or schema failures.
-- **v0.1.54**: prevented normal clock synchronization from disabling reset-credit auto-use and made unresolved attempts reconcile read only first.
-- **v0.1.53**: completed 19 Intelligence Efficiency configurations, clarified overuse wording, and added explicitly enabled, default-off auto-use before reset credits expire.
-- **v0.1.52**: added distributed Model IQ with consistent per-task cost, runtime, pass count, and community-rating semantics.
-- **v0.1.51**: hides the 5h window while paused and restores it automatically when available.
-- **v0.1.50**: added Standard versus Fast comparisons for E2E, TTFT, and TPS.
-- **v0.1.49–v0.1.45**: improved community cards, official-window detection, local quota discovery, restore alerts, and site notices.
-- **v0.1.44–v0.1.40**: unified expandable text and added manual plus low-frequency automatic reset-credit expiry checks.
-- **v0.1.39–v0.1.35**: improved reset-credit guidance, Reset Radar, Quota Radar, and multi-model IQ.
-- **v0.1.34–v0.1.30**: strengthened schema compatibility, workday pacing, notification cooldowns, and network timeout handling.
-- **v0.1.29–v0.1.23**: added cost, runtime, cache, and rating details while making collapsed sections easier to use.
-- **v0.1.22–v0.1.17**: added multiple pacing strategies and more compact menu-bar customization.
-- **v0.1.11–v0.1.0**: established short-window display, automatic updates, and the original menu-bar dashboard.
-
-See [GitHub Releases](https://github.com/WineChord/codex-radar/releases) for the complete version history.
-
-</details>
+See [GitHub Releases](https://github.com/WineChord/codex-radar/releases) for the complete history.
 
 ## Core Features
 
@@ -202,14 +183,6 @@ If verification or installation fails, the current version stays in place and th
 - Local Codex managed session or independent app-server: weekly quota, short-window quota, account identity, and authoritative details needed by reset-credit auto-use.
 
 When a public endpoint is unavailable or returns an unknown shape, the app retains the last valid public data while local quota refresh continues independently.
-
-## Manual Install
-
-1. Download the `.dmg` from the [latest GitHub Release](https://github.com/WineChord/codex-radar/releases/latest).
-2. Open the image and drag `Codex Radar Sentinel.app` into `Applications`.
-3. Launch the app and confirm the version in the update section of the menu.
-
-The `.zip` contains the same app for manual copying or automated installation.
 
 ## Run From Source
 
