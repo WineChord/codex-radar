@@ -37,6 +37,7 @@ jobs:
           swift --version
           xcodebuild -version
           python3 scripts/release_version.py
+          python3 -m unittest discover -s scripts/tests -p 'test_*.py'
           git diff --check
           for script in scripts/*.sh; do bash -n "$script"; done
       - name: Unit tests
