@@ -660,7 +660,7 @@ public struct CodexRadarClient {
             #"<div\s+class="fast-radar-summary"[^>]*>(.*?)</div>\s*<div\s+class="fast-radar-table""#,
             in: section
         ) ?? ""
-        let summary = allMatches(
+        var summary = allMatches(
             #"<div(?:\s+[^>]*)?>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>"#,
             in: summarySection
         ).map { groups in
@@ -670,6 +670,23 @@ public struct CodexRadarClient {
             ]
         }.filter { item in
             !(item["label"] ?? "").isEmpty && !(item["value"] ?? "").isEmpty
+        }
+        if summary.isEmpty {
+            // The current site summarizes TPS by effort instead of averaging models.
+            summary = allMatches(
+                #"<div\s+[^>]*class="(?:[^"]*\s)?fast-simple-row(?:\s[^"]*)?"[^>]*>\s*<strong\b[^>]*>(.*?)</strong>\s*<span\b[^>]*>.*?</span>\s*<span\b[^>]*>.*?</span>\s*<strong\s+[^>]*class="(?:[^"]*\s)?fast-simple-ratio(?:\s[^"]*)?"[^>]*>(.*?)</strong>\s*</div>"#,
+                in: section
+            ).compactMap { groups -> [String: String]? in
+                let modelHTML = (groups[safe: 0] ?? "").replacingOccurrences(
+                    of: #"(?s)<small\b[^>]*>.*?</small>"#,
+                    with: "",
+                    options: .regularExpression
+                )
+                let model = cleanHTMLText(modelHTML)
+                let value = cleanHTMLText(groups[safe: 1])
+                guard !model.isEmpty, !value.isEmpty else { return nil }
+                return ["label": "\(model) · TPS", "value": value]
+            }
         }
         let rows = allMatches(
             #"<div\s+class="fast-radar-row"[^>]*>\s*<div\s+class="fast-radar-model"[^>]*>.*?<strong>(.*?)</strong></div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*</div>"#,

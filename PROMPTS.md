@@ -116,7 +116,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 95 | [`Prompt-Id: 95 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+95%22&type=commits) | 例行兼容检查对齐 CodexRadar 新版官方重置公告结构，恢复标题、时间、说明和安全来源链接。 |
 | 96 | [`Prompt-Id: 96 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+96%22&type=commits) | 例行兼容检查对齐 CodexRadar 当前 Fast 雷达结构，恢复速览摘要与测试方法解析。 |
 | 97 | [`Prompt-Id: 97 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+97%22&type=commits) | 例行兼容检查对齐 CodexRadar 当前重要公告结构，保留多段正文并安全解析同源图片链接。 |
-| 98 | [`Prompt-Id: 98 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+98%22&type=commits) | 补齐云端 macOS 双架构测试、通用安装包校验与发布草稿流程。 |
+| 98 | [ff69e39](https://github.com/WineChord/codex-radar/commit/ff69e3905863a41465746f6db56b0d61bbcd3d9d), [`Prompt-Id: 98 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+98%22&type=commits) | 补齐云端 macOS 双架构测试、通用安装包校验与发布草稿流程；兼容 Fast 雷达分档速度摘要。 |
 
 ## Prompts
 
@@ -763,5 +763,5 @@ commit 要求是可以点击的链接
 ### 98. 云端 macOS 验证与发布准备
 
 ```text
-为跨平台维护补齐云端 macOS 验证：测试 Apple 芯片与 Intel 架构，核对实时数据接口，生成并验证通用安装包，保留双语界面检查产物，并提供不覆盖既有版本的发布草稿流程。
+为跨平台维护补齐云端 macOS 验证：测试 Apple 芯片与 Intel 架构，核对实时数据接口，修复可复现的兼容性问题，生成并验证通用安装包，保留双语界面检查产物，并提供不覆盖既有版本的发布草稿流程。
 ```

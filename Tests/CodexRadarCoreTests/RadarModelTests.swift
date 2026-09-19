@@ -902,6 +902,62 @@ final class RadarModelTests: XCTestCase {
         XCTAssertTrue(current.fastRadar?.method?.contains("各独立运行 3 次") == true)
     }
 
+    func testBuildsFastRadarSummaryFromPerEffortSpeedTable() throws {
+        let html = """
+        <html><head>
+          <title>9月9日 Astra medium: IQ指数 109.0, 81/112, 费用 $7.3, 耗时 34分钟, cache命中率 97.2%</title>
+        </head><body>
+          <section class="fast-radar" id="fast-radar">
+            <div class="fast-radar-head"><div>
+              <h2>Fast 加速雷达 <em>9月14日09:25更新</em></h2>
+            </div><span>GPT-6 Astra</span></div>
+            <div class="fast-simple" role="table">
+              <div class="fast-simple-row fast-simple-header" role="row">
+                <span>模型档位</span><span>Standard</span><span>Fast</span><span>速度倍数</span>
+              </div>
+              <div class="fast-simple-row" role="row" data-fast-simple-effort="low">
+                <strong role="cell">Astra low<small data-fast-simple-time>9月14日 09:21</small></strong>
+                <span role="cell" class="fast-simple-standard">33.3</span>
+                <span role="cell" class="fast-simple-speed">62.1</span>
+                <strong role="cell" class="fast-simple-ratio" data-ratio-state="valid">⚡1.87×</strong>
+              </div>
+              <div role="row" class="fast-simple-row is-regression">
+                <strong role="cell">Astra medium<small data-fast-simple-time>
+                  9月14日 09:25
+                </small></strong>
+                <span>33.3</span><span>30.0</span>
+                <strong class="fast-simple-ratio is-regression">0.90×</strong>
+              </div>
+              <div class="fast-simple-row">
+                <strong>Astra high</strong><span>—</span><span>—</span>
+                <strong class="fast-simple-ratio" data-ratio-state="unavailable">不可测</strong>
+              </div>
+              <div class="fast-simple-row">
+                <strong><small>更新时间</small></strong><span>—</span><span>—</span>
+                <strong class="fast-simple-ratio">2.0×</strong>
+              </div>
+            </div>
+            <details class="fast-radar-explain"><summary>历史与测试详情</summary>
+              <p>每档测试：Standard 3 次 + Fast 3 次，同一道计数题。</p>
+            </details>
+          </section>
+          <div class="fast-simple-row">
+            <strong>Unrelated model</strong><span>1</span><span>9</span>
+            <strong class="fast-simple-ratio">9×</strong>
+          </div>
+        </body></html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(html)
+        let summary = try XCTUnwrap(current.fastRadar?.summary)
+
+        XCTAssertEqual(summary.map(\.label), ["Astra low · TPS", "Astra medium · TPS", "Astra high · TPS"])
+        XCTAssertEqual(summary.map(\.value), ["⚡1.87×", "0.90×", "不可测"])
+        XCTAssertEqual(current.fastRadar?.title, "Fast 加速雷达")
+        XCTAssertEqual(current.fastRadar?.subtitle, "GPT-6 Astra")
+        XCTAssertEqual(current.fastRadar?.method, "每档测试：Standard 3 次 + Fast 3 次，同一道计数题。")
+    }
+
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(currentWithoutIQJSON.utf8))
         let merged = try CodexRadarClient.currentByMergingHomepageModelIQ(
