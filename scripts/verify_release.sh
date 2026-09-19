@@ -20,6 +20,6 @@ expected_build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Resources/
 binary="${app_bundle}/Contents/MacOS/Codex Radar Sentinel"
 test -x "$binary"
 if [[ "${CODEX_RADAR_UNIVERSAL:-0}" == "1" ]]; then
-  lipo -verify_arch arm64 x86_64 "$binary"
+  lipo "$binary" -verify_arch arm64 x86_64
 fi
 echo "Verified release ${version} (${actual_build})."

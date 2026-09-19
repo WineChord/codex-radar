@@ -24,7 +24,7 @@ cp "Resources/AppIcon.icns" "${resources_dir}/AppIcon.icns"
 cp "${binary_dir}/${binary_name}" "${macos_dir}/${app_name}"
 chmod +x "${macos_dir}/${app_name}"
 if [[ "${CODEX_RADAR_UNIVERSAL:-0}" == "1" ]]; then
-  lipo -verify_arch arm64 x86_64 "${macos_dir}/${app_name}"
+  lipo "${macos_dir}/${app_name}" -verify_arch arm64 x86_64
 fi
 codesign --force --deep --sign - "${bundle_dir}" >/dev/null
 codesign --verify --deep --strict "${bundle_dir}"
