@@ -1,0 +1,104 @@
+name: Release macOS
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Prepared source version, without v; leave blank to detect it'
+        required: false
+        type: string
+      mode:
+        description: 'release publishes Latest; draft keeps it private; verify only tests/packages'
+        required: true
+        default: release
+        type: choice
+        options: [release, draft, verify]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.source.outputs.version }}
+      sha: ${{ steps.source.outputs.sha }}
+      mode: ${{ steps.source.outputs.mode }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate source and release eligibility
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+          RELEASE_MODE: ${{ inputs.mode || 'release' }}
+        run: |
+          set -euo pipefail
+          case "$RELEASE_MODE" in release|draft|verify) ;; *) exit 1 ;; esac
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            [[ "$GITHUB_REF" == refs/tags/v* ]]
+            REQUESTED_VERSION="${GITHUB_REF_NAME#v}"
+          else
+            test "$GITHUB_REF" = refs/heads/main
+          fi
+          args=()
+          if [[ -n "$REQUESTED_VERSION" ]]; then args+=("$REQUESTED_VERSION"); fi
+          version="$(python3 scripts/release_version.py "${args[@]}")"
+          sha="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$sha" origin/main
+          if [[ "$RELEASE_MODE" != verify ]]; then
+            python3 scripts/publish_release.py "$version" --sha "$sha" --check
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "mode=$RELEASE_MODE" >> "$GITHUB_OUTPUT"
+
+  checks:
+    needs: validate
+    uses: ./.github/workflows/macos-ci.yml
+    permissions:
+      contents: read
+
+  publish:
+    needs: [validate, checks]
+    if: needs.validate.outputs.mode != 'verify'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: macOS-universal-${{ github.sha }}
+          path: dist
+      - name: Upload, download-verify and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          RELEASE_SHA: ${{ needs.validate.outputs.sha }}
+          RELEASE_MODE: ${{ needs.validate.outputs.mode }}
+        run: |
+          git merge-base --is-ancestor "$RELEASE_SHA" origin/main
+          python3 scripts/publish_release.py "$RELEASE_VERSION" \
+            --sha "$RELEASE_SHA" --mode "$RELEASE_MODE"
