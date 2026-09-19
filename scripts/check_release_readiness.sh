@@ -7,6 +7,9 @@ tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
 cd "$repo_root"
+if [[ -n "$version" ]]; then
+  python3 scripts/release_version.py "$version" >/dev/null
+fi
 
 echo "Checking CodexRadar live sources..."
 fetch_url() {
@@ -109,11 +112,7 @@ CODEX_RADAR_APP="${repo_root}/.build/Codex Radar Sentinel.app" ./scripts/update_
 if [[ -n "$version" ]]; then
   echo "Packaging and verifying release ${version}..."
   ./scripts/package_release.sh "$version"
-  (
-    cd dist
-    shasum -a 256 -c "CodexRadarSentinel-${version}-macOS.sha256"
-  )
-  hdiutil verify "dist/CodexRadarSentinel-${version}-macOS.dmg"
+  ./scripts/verify_release.sh "$version"
 fi
 
 echo "Release readiness check completed."

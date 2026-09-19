@@ -1,0 +1,83 @@
+name: Prepare macOS release draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version already recorded on main, without v (for example 0.1.73)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-release-draft
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Validate release source
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          python3 scripts/release_version.py "$RELEASE_VERSION"
+
+  checks:
+    needs: validate
+    uses: ./.github/workflows/macos-ci.yml
+    permissions:
+      contents: read
+
+  draft:
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: macOS-universal-${{ github.sha }}
+          path: dist
+      - name: Create a draft with complete verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          archive="CodexRadarSentinel-${RELEASE_VERSION}-macOS"
+          (cd dist && sha256sum -c "${archive}.sha256")
+          # Refuse an existing tag or release; never replace published assets.
+          gh api "repos/$GH_REPO/git/matching-refs/tags/v${RELEASE_VERSION}" > refs.json
+          python3 -c 'import json; assert not json.load(open("refs.json")), "Release tag already exists"'
+          gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '.[].tag_name' > release-tags.txt
+          if grep -Fxq "v${RELEASE_VERSION}" release-tags.txt; then
+            echo 'A release or draft already exists for this version.' >&2
+            exit 1
+          fi
+          cat > release-notes.md <<EOF
+          Universal macOS build for Apple silicon and Intel.
+
+          Source: ${GITHUB_SHA}
+
+          Unit tests on both architectures, live source contracts, bilingual screenshot rendering, archive checksums, app signature integrity and disk-image verification passed in this workflow.
+
+          Signing: ad-hoc; this build is not Developer ID signed or notarized.
+
+          Before publication, add the user-visible changes and complete an installed-app smoke test for login, notifications and updating.
+          EOF
+          gh release create "v${RELEASE_VERSION}" \
+            "dist/${archive}.dmg" "dist/${archive}.zip" "dist/${archive}.sha256" \
+            --target "$GITHUB_SHA" --title "v${RELEASE_VERSION}" \
+            --notes-file release-notes.md --draft

@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+
 version="${1:-}"
 if [[ -z "$version" ]]; then
   echo "Usage: $0 <version>" >&2
   exit 2
 fi
+python3 scripts/release_version.py "$version" >/dev/null
 app_name="Codex Radar Sentinel"
 archive_name="CodexRadarSentinel-${version}-macOS"
 dist_dir="dist"

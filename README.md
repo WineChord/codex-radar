@@ -234,6 +234,8 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 
 ## 开发与验证
 
+云端 macOS 测试、双架构安装包与发布草稿流程见[维护指南](docs/MAINTENANCE.md)。
+
 ```bash
 swift test
 swift build -c release
