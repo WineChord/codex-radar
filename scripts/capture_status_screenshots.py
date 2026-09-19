@@ -31,6 +31,9 @@ CASES = [
     ("en", "en", "custom", "qualityNormal", ["weeklyQuota", "signal"]),
 ]
 
+# Crop coordinates use the original 1560-pixel-wide documentation capture.
+# Hosted Macs can render at a different backing scale.
+NEWS_CROP_REFERENCE_WIDTH = 1560
 NEWS_CROPS = {
     "zh": [(0, 1560, 1560, 2820)],
     "en": [(0, 1550, 1560, 2820)],
@@ -246,6 +249,8 @@ def render_news_screenshots():
         source = ASSET_ROOT / language / "menu-full.png"
         destination = ASSET_ROOT / language / "news-pacing.png"
         image = Image.open(source).convert("RGB")
+        scale = image.width / NEWS_CROP_REFERENCE_WIDTH
+        boxes = [tuple(round(coordinate * scale) for coordinate in box) for box in boxes]
         for box in boxes:
             left, top, right, bottom = box
             if (
@@ -261,7 +266,7 @@ def render_news_screenshots():
                     f"{image.width}x{image.height} menu screenshot"
                 )
         parts = [image.crop(box) for box in boxes]
-        gap = 28
+        gap = max(1, round(28 * scale))
         output = Image.new(
             "RGB",
             (image.width, sum(part.height for part in parts) + gap * (len(parts) - 1)),
