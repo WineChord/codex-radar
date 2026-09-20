@@ -11,6 +11,18 @@ public struct RateLimitResponse: Decodable, Equatable {
         case rateLimits, rateLimitsByLimitId, rateLimitResetCredits, ordinaryUsageAllowed
     }
 
+    init(
+        rateLimits: RateLimitSnapshot,
+        rateLimitsByLimitId: [String: RateLimitSnapshot]?,
+        rateLimitResetCredits: RateLimitResetCreditsSummary?
+    ) {
+        self.rateLimits = rateLimits
+        self.rateLimitsByLimitId = rateLimitsByLimitId
+        self.rateLimitResetCredits = rateLimitResetCredits
+        ordinaryUsageAllowed = nil
+        reportsOrdinaryUsagePermission = false
+    }
+
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         rateLimits = try values.decode(RateLimitSnapshot.self, forKey: .rateLimits)
@@ -30,6 +42,22 @@ public struct RateLimitSnapshot: Decodable, Equatable {
     public let planType: String?
     public let rateLimitReachedType: String?
     public let spendControlReached: Bool?
+
+    init(
+        limitId: String?, limitName: String?,
+        primary: RateLimitWindow?, secondary: RateLimitWindow?,
+        credits: CreditsSnapshot?, planType: String?,
+        rateLimitReachedType: String?, spendControlReached: Bool? = nil
+    ) {
+        self.limitId = limitId
+        self.limitName = limitName
+        self.primary = primary
+        self.secondary = secondary
+        self.credits = credits
+        self.planType = planType
+        self.rateLimitReachedType = rateLimitReachedType
+        self.spendControlReached = spendControlReached
+    }
 }
 
 public struct RateLimitWindow: Decodable, Equatable {
