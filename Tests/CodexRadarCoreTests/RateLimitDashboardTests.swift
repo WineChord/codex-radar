@@ -2,6 +2,67 @@ import XCTest
 @testable import CodexRadarCore
 
 final class RateLimitDashboardTests: XCTestCase {
+    func testExplicitUsageDenialOverridesRemainingPercent() throws {
+        let dashboard = try permissionDashboard(permission: false)
+
+        XCTAssertEqual(dashboard.weeklyRemainingPercent, 98)
+        XCTAssertTrue(dashboard.isBlocked)
+        XCTAssertFalse(dashboard.canConfirmWeeklyRecovery)
+        XCTAssertEqual(DashboardState(rateLimits: dashboard).statusTitle, "98%/--/限额")
+    }
+
+    func testSpendControlUsesSelectedCodexBucket() throws {
+        var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: sampleRateLimitData) as? [String: Any])
+        var buckets = try XCTUnwrap(payload["rateLimitsByLimitId"] as? [String: [String: Any]])
+        buckets["codex"]?["spendControlReached"] = true
+        payload["rateLimitsByLimitId"] = buckets
+        payload["ordinaryUsageAllowed"] = true
+        let dashboard = RateLimitDashboard(response: try JSONDecoder().decode(
+            RateLimitResponse.self, from: JSONSerialization.data(withJSONObject: payload)
+        ))
+
+        XCTAssertTrue(dashboard.isBlocked)
+        XCTAssertFalse(dashboard.canConfirmWeeklyRecovery)
+    }
+
+    func testExplicitPermissionDoesNotOverrideOtherLimits() throws {
+        let cases: [[String: Any]] = [
+            ["spendControlReached": true],
+            ["rateLimitReachedType": "workspace_owner_usage_limit_reached"],
+            ["primary": ["usedPercent": 100, "windowDurationMins": 300]]
+        ]
+        for fields in cases {
+            let dashboard = try permissionDashboard(permission: true, fields: fields)
+            XCTAssertTrue(dashboard.isBlocked)
+            XCTAssertFalse(dashboard.canConfirmWeeklyRecovery)
+        }
+    }
+
+    func testMissingAndNullPermissionRetainQuotaButDifferForRecovery() throws {
+        let legacy = try permissionDashboard()
+        let unknown = try permissionDashboard(permission: NSNull())
+        let allowed = try permissionDashboard(permission: true, fields: ["spendControlReached": false])
+
+        for dashboard in [legacy, unknown, allowed] {
+            XCTAssertEqual(dashboard.weeklyRemainingPercent, 98)
+            XCTAssertFalse(dashboard.isBlocked)
+        }
+        XCTAssertTrue(legacy.canConfirmWeeklyRecovery)
+        XCTAssertFalse(unknown.canConfirmWeeklyRecovery)
+        XCTAssertTrue(allowed.canConfirmWeeklyRecovery)
+    }
+
+    func testUnrelatedBucketSpendLimitDoesNotBlockCodex() throws {
+        var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: sampleRateLimitData) as? [String: Any])
+        var buckets = try XCTUnwrap(payload["rateLimitsByLimitId"] as? [String: [String: Any]])
+        buckets["codex_bengalfox"]?["spendControlReached"] = true
+        payload["rateLimitsByLimitId"] = buckets
+        let dashboard = RateLimitDashboard(response: try JSONDecoder().decode(
+            RateLimitResponse.self, from: JSONSerialization.data(withJSONObject: payload)
+        ))
+        XCTAssertFalse(dashboard.isBlocked)
+    }
+
     func testSelectsCodexWeeklyAndShortBuckets() throws {
         let response = try JSONDecoder().decode(RateLimitResponse.self, from: sampleRateLimitData)
         let dashboard = RateLimitDashboard(response: response)
@@ -315,6 +376,21 @@ final class RateLimitDashboardTests: XCTestCase {
         XCTAssertEqual(HolidayCalendar.chinaMainland2026.dayKind(for: dragonBoat, calendar: calendar), .holiday)
         XCTAssertEqual(HolidayCalendar.chinaMainland2026.dayKind(for: makeupSunday, calendar: calendar), .workday)
     }
+}
+
+private func permissionDashboard(
+    permission: Any? = nil,
+    fields: [String: Any] = [:]
+) throws -> RateLimitDashboard {
+    var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: sampleRateLimitData) as? [String: Any])
+    payload.removeValue(forKey: "rateLimitsByLimitId")
+    payload["ordinaryUsageAllowed"] = permission
+    var snapshot = try XCTUnwrap(payload["rateLimits"] as? [String: Any])
+    snapshot.merge(fields) { _, new in new }
+    payload["rateLimits"] = snapshot
+    return RateLimitDashboard(response: try JSONDecoder().decode(
+        RateLimitResponse.self, from: JSONSerialization.data(withJSONObject: payload)
+    ))
 }
 
 private func weeklyDashboard(usedPercent: Double, start: Date) throws -> RateLimitDashboard {
