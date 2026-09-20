@@ -2,6 +2,49 @@ import XCTest
 @testable import CodexRadarCore
 
 final class NotificationPolicyTests: XCTestCase {
+    func testDeniedOrUnknownPermissionDoesNotStartRecoveryConfirmation() throws {
+        let low = DashboardState(rateLimits: try sampleDashboard(weeklyUsed: 86))
+        for permission in ["false", "null"] {
+            var memory = NotificationMemory(initialized: true)
+            let current = DashboardState(rateLimits: try sampleDashboard(
+                weeklyUsed: 0, weeklyResetsAt: 1_784_084_696,
+                ordinaryUsageAllowed: permission
+            ))
+            let events = NotificationPolicy().evaluate(previous: low, current: current, memory: &memory)
+            XCTAssertTrue(events.isEmpty)
+            XCTAssertNil(memory.pendingWeeklyRestoreKey)
+        }
+    }
+
+    func testDeniedOrUnknownPermissionClearsPendingRecovery() throws {
+        for permission in ["false", "null"] {
+            var memory = NotificationMemory(
+                initialized: true, pendingWeeklyRestoreKey: "1784084696:restored"
+            )
+            let current = DashboardState(rateLimits: try sampleDashboard(
+                weeklyUsed: 0, weeklyResetsAt: 1_784_084_696,
+                ordinaryUsageAllowed: permission
+            ))
+            let events = NotificationPolicy().evaluate(previous: current, current: current, memory: &memory)
+            XCTAssertTrue(events.isEmpty)
+            XCTAssertNil(memory.pendingWeeklyRestoreKey)
+            XCTAssertNil(memory.lastWeeklyRestoreKey)
+        }
+    }
+
+    func testExplicitPermissionStillRequiresStableRecoveryConfirmation() throws {
+        var memory = NotificationMemory(initialized: true)
+        let low = DashboardState(rateLimits: try sampleDashboard(weeklyUsed: 86))
+        let recovered = DashboardState(rateLimits: try sampleDashboard(
+            weeklyUsed: 0, weeklyResetsAt: 1_784_084_696, ordinaryUsageAllowed: "true"
+        ))
+        let first = NotificationPolicy().evaluate(previous: low, current: recovered, memory: &memory)
+        XCTAssertTrue(first.isEmpty)
+        XCTAssertNotNil(memory.pendingWeeklyRestoreKey)
+        let second = NotificationPolicy().evaluate(previous: recovered, current: recovered, memory: &memory)
+        XCTAssertEqual(second.map(\.title), ["Codex 周额度已恢复"])
+    }
+
     func testInitialOpenWindowStillNotifies() throws {
         var memory = NotificationMemory()
         let state = DashboardState(
@@ -327,10 +370,13 @@ private func current(windowOpen: Bool, status: String) throws -> RadarCurrent {
 
 private func sampleDashboard(
     weeklyUsed: Double,
-    weeklyResetsAt: Int = 1_781_140_743
+    weeklyResetsAt: Int = 1_781_140_743,
+    ordinaryUsageAllowed: String? = nil
 ) throws -> RateLimitDashboard {
+    let permissionField = ordinaryUsageAllowed.map { "\"ordinaryUsageAllowed\": \($0)," } ?? ""
     let json = """
     {
+      \(permissionField)
       "rateLimits": {
         "limitId": "codex",
         "limitName": null,

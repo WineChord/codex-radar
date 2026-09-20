@@ -4,6 +4,21 @@ public struct RateLimitResponse: Decodable, Equatable {
     public let rateLimits: RateLimitSnapshot
     public let rateLimitsByLimitId: [String: RateLimitSnapshot]?
     public let rateLimitResetCredits: RateLimitResetCreditsSummary?
+    public let ordinaryUsageAllowed: Bool?
+    let reportsOrdinaryUsagePermission: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case rateLimits, rateLimitsByLimitId, rateLimitResetCredits, ordinaryUsageAllowed
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        rateLimits = try values.decode(RateLimitSnapshot.self, forKey: .rateLimits)
+        rateLimitsByLimitId = try values.decodeIfPresent([String: RateLimitSnapshot].self, forKey: .rateLimitsByLimitId)
+        rateLimitResetCredits = try values.decodeIfPresent(RateLimitResetCreditsSummary.self, forKey: .rateLimitResetCredits)
+        ordinaryUsageAllowed = try values.decodeIfPresent(Bool.self, forKey: .ordinaryUsageAllowed)
+        reportsOrdinaryUsagePermission = values.contains(.ordinaryUsageAllowed)
+    }
 }
 
 public struct RateLimitSnapshot: Decodable, Equatable {
@@ -14,6 +29,7 @@ public struct RateLimitSnapshot: Decodable, Equatable {
     public let credits: CreditsSnapshot?
     public let planType: String?
     public let rateLimitReachedType: String?
+    public let spendControlReached: Bool?
 }
 
 public struct RateLimitWindow: Decodable, Equatable {
@@ -67,11 +83,15 @@ public struct RateLimitResetCredit: Decodable, Equatable {
 public struct RateLimitDashboard: Equatable {
     public let snapshot: RateLimitSnapshot
     public let allBuckets: [String: RateLimitSnapshot]
+    public let ordinaryUsageAllowed: Bool?
+    private let reportsOrdinaryUsagePermission: Bool
 
     public init(response: RateLimitResponse) {
         let buckets = response.rateLimitsByLimitId ?? [:]
         self.snapshot = buckets[AppConstants.codexLimitID] ?? response.rateLimits
         self.allBuckets = buckets
+        self.ordinaryUsageAllowed = response.ordinaryUsageAllowed
+        self.reportsOrdinaryUsagePermission = response.reportsOrdinaryUsagePermission
     }
 
     public var weeklyBucket: RateLimitWindow? {
@@ -91,9 +111,17 @@ public struct RateLimitDashboard: Equatable {
     }
 
     public var isBlocked: Bool {
-        snapshot.rateLimitReachedType != nil
+        ordinaryUsageAllowed == false
+            || snapshot.spendControlReached == true
+            || snapshot.rateLimitReachedType != nil
             || (snapshot.primary?.usedPercent ?? 0) >= 100
             || (snapshot.secondary?.usedPercent ?? 0) >= 100
+    }
+
+    public var canConfirmWeeklyRecovery: Bool {
+        // Older servers omit this field. An explicit null on newer servers is
+        // unknown permission, not evidence of recovery from percentages alone.
+        !isBlocked && (!reportsOrdinaryUsagePermission || ordinaryUsageAllowed == true)
     }
 
     private var windows: [RateLimitWindow] {

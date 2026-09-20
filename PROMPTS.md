@@ -117,7 +117,8 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 96 | [`Prompt-Id: 96 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+96%22&type=commits) | 例行兼容检查对齐 CodexRadar 当前 Fast 雷达结构，恢复速览摘要与测试方法解析。 |
 | 97 | [`Prompt-Id: 97 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+97%22&type=commits) | 例行兼容检查对齐 CodexRadar 当前重要公告结构，保留多段正文并安全解析同源图片链接。 |
 | 98 | [ff69e39](https://github.com/WineChord/codex-radar/commit/ff69e3905863a41465746f6db56b0d61bbcd3d9d), [`Prompt-Id: 98 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+98%22&type=commits) | 补齐云端 macOS 双架构测试、通用安装包校验与发布草稿流程；兼容 Fast 雷达分档速度摘要。 |
-| 99 | [`Prompt-Id: 99 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+99%22&type=commits) | 支持版本标签和 Actions 按钮正式发布，完整上传校验后发布 Latest，并保留验证与草稿模式。 |
+| 99 | [19fba2f](https://github.com/WineChord/codex-radar/commit/19fba2f1079f07dd8b86adc38e47caf2b129d320), [`Prompt-Id: 99 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+99%22&type=commits) | 支持版本标签和 Actions 按钮正式发布，完整上传校验后发布 Latest，并保留验证与草稿模式。 |
+| 100 | [`Prompt-Id: 100 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+100%22&type=commits) | 对齐服务端用量权限和支出限制，避免受限或权限未知时误报额度恢复。 |
 
 ## Prompts
 
@@ -771,4 +772,10 @@ commit 要求是可以点击的链接
 
 ```text
 提供便捷的正式发布入口：准备好版本与双语说明后，可通过版本标签或 Actions 按钮完成 macOS 验证、通用安装包上传与正式 Release 发布。安装包应在公开前完成下载校验，支持安全重试并保留草稿和只验证模式，不覆盖已发布版本。
+```
+
+### 100. 用量权限与恢复提醒兼容
+
+```text
+对齐 Codex app-server 的明确用量权限与支出限制信号：即使百分比仍有剩余，也应展示服务端报告的受限状态；权限未知或仍受限时不确认额度恢复。保留旧版接口兼容与已有二次确认，通过离线回归、实时接口和双架构 macOS 验证后整合修复。
 ```
