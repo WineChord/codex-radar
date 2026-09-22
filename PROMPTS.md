@@ -123,8 +123,8 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 102 | [ea9a46a](https://github.com/print-happy/codex-radar/commit/ea9a46a) | 完善 Windows 本地启动、额度读取、响应性能、圆角底栏和公开安装说明。 |
 | 103 | [35fdc64](https://github.com/print-happy/codex-radar/commit/35fdc64) | 修复长期运行刷新白屏，并提供通知区域图标与输入法左侧常驻任务栏文字两种状态位置。 |
 | 104 | [35fdc64](https://github.com/print-happy/codex-radar/commit/35fdc64) | 对齐跨平台实时数据、额度历史、布局控制、重置卡安全与隐私边界，并补齐 Windows x64/ARM64 自动化验证。 |
-| 105 | [`Prompt-Id: 106 commits`](https://github.com/print-happy/codex-radar/search?q=%22Prompt-Id%3A+106%22&type=commits) | 同步 Windows v0.1.64，补齐 Reset、Fast 与社区雷达、受管会话、不可逆重置卡指纹及发布生命周期验证。 |
-| 106 | [`Prompt-Id: 106 commits`](https://github.com/print-happy/codex-radar/search?q=%22Prompt-Id%3A+106%22&type=commits) | 对齐最新主线的数据与安全边界，完善 Windows Fluent 界面、平台隔离和可复现验证。 |
+| 105 | [6887ce3](https://github.com/print-happy/codex-radar/commit/6887ce3) | 同步 Windows v0.1.64，补齐 Reset、Fast 与社区雷达、受管会话、不可逆重置卡指纹及发布生命周期验证。 |
+| 106 | [6887ce3](https://github.com/print-happy/codex-radar/commit/6887ce3), [`Prompt-Id: 106 commits`](https://github.com/print-happy/codex-radar/search?q=%22Prompt-Id%3A+106%22&type=commits) | 对齐最新主线的数据与安全边界，完善 Windows Fluent 界面、平台隔离和可复现验证。 |
 
 ## Prompts
 
