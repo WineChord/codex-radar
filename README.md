@@ -2,32 +2,17 @@
 
 中文 | [English](README.en.md)
 
-> 一个原生 macOS 菜单栏仪表盘：把 **Codex 本机额度、使用节奏、Model IQ、Radar 信号和重置卡状态** 放进一个随时可看的紧凑面板。
-
-[![Latest Release](https://img.shields.io/github/v/release/WineChord/codex-radar?display_name=tag&sort=semver)](https://github.com/WineChord/codex-radar/releases/latest)
-![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black)
-![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-orange)
-[![MIT License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+一个面向 macOS 13 及以上版本、Windows 10 1809 及以上版本和 Windows 11 的原生状态工具：把本机 Codex 额度、用量节奏、重置卡状态，以及 [CodexRadar](https://codexradar.com/) 的公开模型质量与雷达信号集中到一个紧凑、可配置的面板中。
 
 ![Codex Radar Sentinel 中文状态栏](docs/assets/zh/status-normal.png)
 
-**不用再在多个页面之间来回确认“还有多少额度、现在该不该继续用、模型状态怎么样”。** Codex Radar Sentinel 将本机 Codex 的权威额度数据与 [CodexRadar](https://codexradar.com/) 的公开质量和雷达信号合并展示，同时把敏感凭证留在本机。
+[最新版本](https://github.com/WineChord/codex-radar/releases/latest) · [Windows 指南](windows/README.zh-CN.md) · [功能概览](#核心功能) · [隐私与安全](#隐私与安全) · [从源码运行](#从源码运行)
 
-[下载最新版](https://github.com/WineChord/codex-radar/releases/latest) · [核心功能](#核心功能) · [隐私与安全](#隐私与安全) · [从源码运行](#从源码运行)
+## 让 Codex 帮你安装
 
-## 快速开始
+### macOS：让 Codex 帮你安装
 
-### 方式一：直接安装
-
-1. 从 [最新 GitHub Release](https://github.com/WineChord/codex-radar/releases/latest) 下载 `.dmg`。
-2. 打开镜像，将 **Codex Radar Sentinel.app** 拖入 `Applications`。
-3. 启动应用。首次运行时，macOS 可能询问通知权限；允许后才能收到额度、Model IQ 和重置卡自动使用提醒。
-
-`.zip` 包含同一个应用，适合手动复制或自动化安装。
-
-### 方式二：让 Codex 帮你安装
-
-把下面这段文字交给 Codex 桌面版，它可以完成下载、SHA256 校验、安装、启动和版本确认：
+> **推荐方式：** 把下面这段文字交给 Codex 桌面版，即可完成下载、校验、安装、启动和版本确认。
 
 ```text
 请安装 Codex Radar Sentinel 的最新稳定版。
@@ -36,26 +21,84 @@ https://github.com/WineChord/codex-radar/releases/latest
 下载 macOS 安装包和 SHA256 校验文件，校验通过后将应用安装到 /Applications，启动应用，并确认菜单栏中显示的版本与最新 Release 一致。遇到需要我处理的 macOS 权限提示时，请说明用途后让我确认。
 ```
 
-> 安装需要网络访问和 `/Applications` 写入权限。
+安装需要网络访问和 `/Applications` 写入权限。首次启动时，macOS 可能询问通知权限；允许后才能收到额度、Model IQ 和重置卡自动使用提醒。
 
-## 为什么用它
+不使用 Codex 也可以直接前往 [GitHub Releases](https://github.com/WineChord/codex-radar/releases/latest) 手动安装。
 
-- **额度一眼可见**：周额度常驻菜单栏；Codex 明确返回 5h 短窗时同步展示。
-- **知道“该不该继续用”**：多种节奏策略把当前剩余量和目标剩余量放在一起比较。
-- **模型状态不靠猜**：聚合 Model IQ、多模型费用/耗时/通过数、社区体感与降智预警。
-- **雷达信息集中**：重置雷达、额度雷达、Fast 雷达、场景推荐和公告统一收口。
-- **本机优先**：额度历史和脱敏缓存留在 Mac；登录凭证不会上传到 CodexRadar。
-- **可控自动化**：更新包先做 SHA256 校验；重置卡到期前自动使用严格默认关闭，只有明确授权后才会执行。
+### Windows：让 Codex 帮你安装
 
-## 最新变化
+Windows 包与 macOS 包使用互不重叠的资产名和安装路径。把下面这段文字交给 Windows 上的 Codex 桌面版；默认安装到当前用户目录，不需要管理员权限。
 
-**v0.1.72**
+```text
+只安装 Windows 版 Codex Radar Sentinel：确认本机是 Windows 10 1809+ 或 Windows 11，并识别 x64/ARM64。下载并检查 https://raw.githubusercontent.com/WineChord/codex-radar/main/windows/install.ps1；只允许它从 https://github.com/WineChord/codex-radar/releases/latest 选择与本机唯一匹配的 CodexRadarSentinel-<version>-Windows-<architecture>.zip 和同名 .sha256，严禁使用 .dmg、含 -macOS 的 ZIP 或另一架构。校验 Release SHA256、包内 platform=windows/runtime manifest 和 exe SHA256 后，按当前用户安装到 %LOCALAPPDATA%\Programs\CodexRadarSentinel，创建开始菜单快捷方式，启动并确认进程以及右下角通知区域图标或任务栏文字；找不到唯一匹配的 Windows 包时停止，需权限问我。
+```
 
-- 兼容当前重要公告结构，标题和多段正文都能完整展示。
-- 公告图片的同源链接可安全打开。
-- 旧版重置公告继续保留预计时间、说明和外部来源。
+Windows 版支持两种可选状态位置：普通的“通知区域图标”（可能被 Windows 收进 `^` 溢出区），以及无需点开的“任务栏文字”（常驻输入法/通知区域左侧）。两者都支持左键打开面板和右键退出。直接安装、手动启动、卸载和兼容性验证见 [Windows 专用指南](windows/README.zh-CN.md)。
 
-完整历史见 [GitHub Releases](https://github.com/WineChord/codex-radar/releases)。
+安装后，在 Windows 开始菜单或搜索中输入 `CodexRadarSentinel` 即可打开仪表盘。已经在后台运行时会直接唤出已有窗口，不会重复启动；可选开机启动仍只驻留托盘。
+
+在线安装需要默认分支已经包含 Windows 安装脚本，且最新 Release 同时提供对应 Windows 包和校验文件。任一项缺失时，请使用指南中的源码启动方式，不要替换为 macOS 包。
+
+## News / 最新功能
+
+### v0.1.72：完整的重要公告
+
+- 保留公告标题、多段正文和安全的同源图片来源，同时兼容旧版重置公告。
+
+### v0.1.71：恢复新版 Fast 雷达
+
+- 兼容精简对比表，恢复速度摘要与测试方法，保留旧版数据结构。
+
+### v0.1.70：官方重置公告兼容
+
+- 支持分层公告中的标题、预计时间、说明和安全外部来源。
+
+<details>
+<summary><strong>历史版本</strong> — 展开查看更早的产品里程碑</summary>
+
+- **v0.1.69–v0.1.65**：完善社区指南和来源链接、重置卡发送前恢复与安全关闭说明、只读额度重试、均值降智口径及断连稳定性。
+
+**v0.1.64：升级重启后继续读取本机额度**
+
+- 优先复用 Codex 桌面版已经登录的本机受管会话，避免应用升级或重启后因新会话没有登录态而把额度显示成 `--`。
+- 受管会话不可用时仍会回退到独立的本机 app-server；两种方式都不读取、复制或缓存登录凭证。
+- 如果两条本机通道都确实未登录，连接区会给出清楚的登录与刷新操作，不再直接展示难懂的英文接口错误。
+
+**v0.1.63：恢复新版重置雷达状态**
+
+- 兼容 CodexRadar 最新的重置雷达卡片结构，菜单重新显示“发重置卡”和“硬重置”的当前状态、结论与说明。
+- 新旧网页结构继续同时支持；事件更新时间和雷达来源摘要不会因卡片内部新增状态标签而丢失。
+- 没有活动重置事件时保留正常空状态，不把历史公告误当作当前提醒。
+
+**v0.1.62：额度变化看得见，布局更清爽**
+
+- “额度历史”在本机保留 24 小时、7 天和 30 天周额度余量曲线；悬停或拖动即可逐点查看真实变化、重置跳变和数据断档。
+- “布局”现在统一管理模块与子项的顺序、显示状态和默认展开；隐藏只影响菜单，后台记录与提醒继续运行，关键状态仍会临时显示。
+- “显示”和“默认展开”与对应标题保持同一行，减少滚动和重复留白；中英文及 M/L/XL 字号下都保持清楚完整。
+
+- **v0.1.61**：“布局”入口加入一次性轻提示，可直接进入编辑器并保留关闭选择。
+- **v0.1.60**：布局编辑器可设置“全部模型 IQ”等模块内子项是否默认展开，并在重启后保留。
+- **v0.1.59**：支持调整菜单模块顺序和默认展开状态，同时保持当前结论、关键告警与恢复入口可见。
+- **v0.1.58**：让多模型 IQ 的通过数在 M/L/XL 字号下保持完整，并让 SHA256 清单可在下载目录直接校验。
+- **v0.1.57**：将核心额度与 Codex IQ 前置，把低频信息统一收进清晰的折叠入口，同时保持关键告警可见。
+- **v0.1.56**：兼容没有临时公告的正常空状态，公告变化不再影响其他在线数据更新。
+- **v0.1.55**：加入场景推荐与降智预警，并在网络或数据格式异常时保留上一次有效结果。
+- **v0.1.54**：避免正常系统校时误关重置卡自动使用，并让未决请求优先只读对账。
+- **v0.1.53**：补齐 19 组智力效率数据，改善“超用”表达，并加入默认关闭、需要明确确认的重置卡到期前自动使用。
+- **v0.1.52**：接入分布式 Model IQ，统一单题费用、耗时、通过数和社区体感口径。
+- **v0.1.51**：5h 短窗暂停时自动隐藏，恢复后自动出现。
+- **v0.1.50**：加入 Standard 与 Fast 的 E2E、TTFT、TPS 对比。
+- **v0.1.49–v0.1.45**：完善社区知识卡、官方窗口识别、本机额度定位、恢复提醒和网站公告。
+- **v0.1.44–v0.1.40**：统一长文本展开体验，并加入重置卡过期时间的手动与低频自动查询。
+- **v0.1.39–v0.1.35**：完善重置卡查询入口、重置雷达、额度雷达和多模型 IQ 展示。
+- **v0.1.34–v0.1.30**：增强数据兼容、工作日节奏、通知降噪和网络超时保护。
+- **v0.1.29–v0.1.23**：增加费用、耗时、Cache、体感分，并改善折叠区交互。
+- **v0.1.22–v0.1.17**：加入多种用量节奏策略和更紧凑的状态栏自定义。
+- **v0.1.11–v0.1.0**：建立短窗显示、自动更新和首版菜单栏仪表盘等基础能力。
+
+完整版本记录见 [GitHub Releases](https://github.com/WineChord/codex-radar/releases)。
+
+</details>
 
 ## 核心功能
 
@@ -71,7 +114,7 @@ https://github.com/WineChord/codex-radar/releases/latest
 | 通知与更新 | 提醒低额度、额度恢复、低 IQ 和自动使用结果；自动更新包会先校验 SHA256。 |
 | 个性化 | 支持中英文、字体大小、菜单模块与子项的排序、显示及默认展开状态，以及状态栏片段和显示格式。 |
 
-## 状态栏含义
+## 状态摘要含义
 
 默认标题刻意保持简短：
 
@@ -82,29 +125,31 @@ https://github.com/WineChord/codex-radar/releases/latest
 | 片段 | 含义 |
 | --- | --- |
 | `96%` | 本机 Codex 周额度剩余。 |
-| `112` | Codex IQ；默认显示整数，下拉菜单保留精确值。 |
+| `112` | Codex IQ；默认显示整数，面板保留精确值。 |
 | `正常` | CodexRadar 的模型质量状态；IQ 偏低时显示 `低`。 |
 
 还可以按需打开：
 
 - `5h`：本机 Codex 返回 5 小时短窗时可用；短窗暂停时自动隐藏。
 - `应剩`：显示当前时间点建议保留的周额度，例如 `应80%`。
-- `状态栏 IQ 小数`：在菜单栏里保留精确 IQ。
-- `状态栏高级`：调整分隔符、左右留白、字体比例、`/10` 样式和百分号。
+- `状态摘要 IQ 小数`：在 macOS 菜单栏或 Windows 任务栏文字里保留精确 IQ。
+- `状态摘要高级`：调整分隔符、左右留白、字体比例、`/10` 样式和百分号。
 
 ## 状态展示
 
-以下图片由应用在隔离预览环境中直接渲染，不包含真实账户数据或其他菜单栏内容。
+以下图片由 macOS 应用在隔离预览环境中直接渲染，不包含真实账户数据或其他菜单栏内容。Windows 使用同一组摘要语义，并可在通知区域图标与常驻任务栏文字之间切换。
 
 | 正常 | IQ 偏低 | 本机限额 | 自定义 |
 | --- | --- | --- | --- |
 | ![正常状态](docs/assets/zh/status-normal.png) | ![IQ 偏低状态](docs/assets/zh/status-quality-low.png) | ![限额状态](docs/assets/zh/status-limit.png) | ![自定义状态](docs/assets/zh/status-custom.png) |
 
-## 完整菜单
+## macOS 完整菜单
 
 <img src="docs/assets/zh/menu-full.png" width="390" alt="Codex Radar Sentinel 中文完整菜单">
 
 面板默认依次展示当前结论、本机额度、Codex IQ、重置卡摘要、用量节奏和智能洞察。公告、社区知识、雷达明细和低频设置默认折叠，需要时仍可在原位展开；关键告警保持可见，需要处理的重置卡或更新状态会自动展开。刷新、Radar、Codex、GitHub、布局和退出入口固定在底部；首次展示布局功能时，工具栏上方会显示一条可关闭的轻提示。
+
+Windows 面板采用相同的模块顺序、折叠状态和安全入口；平台原生设置、任务栏交互与截图验证方式见 [Windows 专用指南](windows/README.zh-CN.md)。
 
 ## 使用说明
 
@@ -142,11 +187,11 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 `重置卡到期前自动使用` 是独立开关，并且严格默认关闭。开启前会展示不可撤销说明并要求明确确认；启用后只覆盖确认时可见、受支持且有明确到期时间的卡片。计划检查是只读操作，不会消耗卡。
 
-只有最早到期的目标卡距离到期约 30 分钟时，应用才会自动尝试使用。如果已核对的本机会话在写入请求前中断，本次不会消耗卡片，应用会保留同一份显式授权并自动重新核对后重试。账号、卡片集合或时间连续性发生无法安全确认的变化时，该功能仍会自动关闭，并在本机安全记录中保留关闭原因和时间，不保存原始账号或卡号。断网、关机、休眠、退出应用或服务端没有可重置用量都可能导致未执行，因此这是尽力执行的功能，而不是绝对保证；建议同时开启 `登录时启动`。
+只有最早到期的目标卡距离到期约 30 分钟时，应用才会自动尝试使用。若已验证的本机会话在请求发出前结束，不会消耗重置卡；应用保留同一次明确授权，重新完成全部验证后再试。账号、卡片集合或时间连续性发生无法安全确认的变化时，该功能仍会自动关闭，本机安全记录会保留原因与时间，不保存原始账号或卡片标识。断网、关机、休眠、退出应用或服务端没有可重置用量都可能导致未执行，因此这是尽力执行的功能，而不是绝对保证；建议同时开启 `登录时启动`。
 
 ### 通知
 
-应用可在以下情况发送 macOS 通知：
+应用可在以下情况发送系统通知：
 
 - 周额度低于 30% 或 15%。
 - 周额度从低位恢复。
@@ -164,10 +209,11 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ## 隐私与安全
 
-- 本机额度优先通过当前用户专属、已经登录的 Codex 受管会话读取；不可用时回退到独立的本机 app-server。额度读取链路不会读取、复制或缓存登录凭证，也不会把额度上传到 CodexRadar。
-- 额度历史只在本机保存采样时间、周额度剩余百分比和服务端 reset 时间，最多保留 31 天；不保存账号身份、访问令牌或请求内容，也不会上传。
+- 本机额度优先复用当前用户已经登录、且通过平台安全边界验证的 Codex 受管会话；受管通道不存在或不可用时回退到独立的本机 app-server。Windows 只接受位于当前用户专属 ACL 保护目录内的 AF_UNIX 控制 socket。两条链路都不会读取、复制或缓存登录凭证，也不会把额度上传到 CodexRadar。
+- 额度历史只在本机保存采样时间、周额度剩余百分比和服务端 reset 时间，最多保留 31 天；不保存账号身份、访问令牌或请求内容，也不会上传。Windows 使用当前用户专属 ACL、独占锁和原子替换保护该文件。
 - 重置卡到期查询需要使用本机 Codex 登录态访问 ChatGPT 对应接口；凭证只用于该请求，不会写入缓存、日志或发送给 CodexRadar、GitHub。
 - 本地缓存只保存卡片状态、发放时间、到期时间和脱敏标识，不保存访问令牌、Cookie、邮箱或完整卡片 ID。
+- Windows 缓存把原始卡片 ID 转换为不可逆的完整 SHA-256 指纹，界面最多显示前 8 位；旧版后缀字段会在加载时迁移并覆盖。
 - 到期前自动使用只在明确开启后工作，并将授权绑定到当时的账号与卡片集合。每次写入前会再次核对目标、授权和时间连续性。
 - 不确定的执行结果会优先只读对账；同一次未决操作使用同一个幂等键，避免重复使用。
 - 关闭自动使用后，不会继续重试或切换到其他卡片。重新开启前必须先确认上一笔未决结果。
@@ -184,7 +230,23 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 公开端点暂时不可用或返回未知格式时，应用会保留最后一次有效数据，并让本机额度继续独立刷新。
 
+## 手动安装
+
+### macOS
+
+1. 从 [最新 GitHub Release](https://github.com/WineChord/codex-radar/releases/latest) 下载 `.dmg`。
+2. 打开镜像，把 `Codex Radar Sentinel.app` 拖到 `Applications`。
+3. 启动应用，在菜单的版本更新区确认版本号。
+
+`.zip` 包含同一个应用，适合需要自行复制或自动化安装的场景。
+
+### Windows
+
+从最新 Release 下载与本机唯一匹配的 `CodexRadarSentinel-<version>-Windows-x64.zip` 或 `-Windows-arm64.zip` 以及同名 `.sha256`，校验后解压运行；也可以使用经过检查的 [`windows/install.ps1`](windows/install.ps1) 完成当前用户安装、开始菜单快捷方式和启动检查。不要使用 macOS 资产或另一架构。完整步骤见 [Windows 安装指南](windows/README.zh-CN.md)。
+
 ## 从源码运行
+
+### macOS
 
 构建普通 macOS 应用：
 
@@ -205,9 +267,17 @@ swift run CodexRadarSentinel
 CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```
 
+### Windows
+
+```powershell
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release
+```
+
 ## 开发与验证
 
-云端 macOS 测试、双架构安装包与发布草稿流程见[维护指南](docs/MAINTENANCE.md)。
+macOS 云端测试、通用安装包和发布流程见[维护指南](docs/MAINTENANCE.md)。
+
+macOS：
 
 ```bash
 swift test
@@ -230,8 +300,16 @@ swift build -c release
 
 截图脚本使用隔离的非实时预览，不读取真实账户数据，也不会改变正在运行的正式应用设置。
 
+Windows：
+
+```powershell
+dotnet build .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --self-test
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --ui-self-test
+```
+
 ## 鸣谢
 
-感谢 [CodexRadar](https://codexradar.com/) 持续提供公开的 Codex 雷达、模型质量和社区信号。本应用将这些公开信息与本机 Codex 状态整合为一个 macOS 菜单栏界面。
+感谢 [CodexRadar](https://codexradar.com/) 持续提供公开的 Codex 雷达、模型质量和社区信号。本应用将这些公开信息与本机 Codex 状态整合为 macOS 菜单栏和 Windows 状态界面。
 
 Codex Radar Sentinel 与 CodexRadar 或 OpenAI 没有关联。

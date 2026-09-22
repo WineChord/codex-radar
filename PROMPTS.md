@@ -119,6 +119,13 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 98 | [ff69e39](https://github.com/WineChord/codex-radar/commit/ff69e3905863a41465746f6db56b0d61bbcd3d9d), [`Prompt-Id: 98 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+98%22&type=commits) | 补齐云端 macOS 双架构测试、通用安装包校验与发布草稿流程；兼容 Fast 雷达分档速度摘要。 |
 | 99 | [19fba2f](https://github.com/WineChord/codex-radar/commit/19fba2f1079f07dd8b86adc38e47caf2b129d320), [`Prompt-Id: 99 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+99%22&type=commits) | 支持版本标签和 Actions 按钮正式发布，完整上传校验后发布 Latest，并保留验证与草稿模式。 |
 | 100 | [`Prompt-Id: 100 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+100%22&type=commits) | 对齐服务端用量权限和支出限制，避免受限或权限未知时误报额度恢复。 |
+| 101 | [c4c2d68](https://github.com/print-happy/codex-radar/commit/c4c2d68) | 增加原生 Windows 10/11 版本、平台隔离安装与右键退出，并持续补齐 macOS 数据与安全语义。 |
+| 102 | [ea9a46a](https://github.com/print-happy/codex-radar/commit/ea9a46a) | 完善 Windows 本地启动、额度读取、响应性能、圆角底栏和公开安装说明。 |
+| 103 | [35fdc64](https://github.com/print-happy/codex-radar/commit/35fdc64) | 修复长期运行刷新白屏，并提供通知区域图标与输入法左侧常驻任务栏文字两种状态位置。 |
+| 104 | [35fdc64](https://github.com/print-happy/codex-radar/commit/35fdc64) | 对齐跨平台实时数据、额度历史、布局控制、重置卡安全与隐私边界，并补齐 Windows x64/ARM64 自动化验证。 |
+| 105 | [6887ce3](https://github.com/print-happy/codex-radar/commit/6887ce3) | 同步 Windows v0.1.64，补齐 Reset、Fast 与社区雷达、受管会话、不可逆重置卡指纹及发布生命周期验证。 |
+| 106 | [6887ce3](https://github.com/print-happy/codex-radar/commit/6887ce3), [a490f1f](https://github.com/print-happy/codex-radar/commit/a490f1f), [`Prompt-Id: 106 commits`](https://github.com/print-happy/codex-radar/search?q=%22Prompt-Id%3A+106%22&type=commits) | 对齐最新主线的数据与安全边界，完善 Windows Fluent 界面、平台隔离和可复现验证。 |
+| 107 | [`Prompt-Id: 107 commits`](https://github.com/print-happy/codex-radar/search?q=%22Prompt-Id%3A+107%22&type=commits) | Windows 搜索打开仪表盘、单实例唤醒和开始菜单入口迁移。 |
 
 ## Prompts
 
@@ -778,4 +785,46 @@ commit 要求是可以点击的链接
 
 ```text
 对齐 Codex app-server 的明确用量权限与支出限制信号：即使百分比仍有剩余，也应展示服务端报告的受限状态；权限未知或仍受限时不确认额度恢复。保留旧版接口兼容与已有二次确认，通过离线回归、实时接口和双架构 macOS 验证后整合修复。
+```
+
+### 101. 原生 Windows 版本与完整功能对齐
+
+```text
+为 Windows 10 和 Windows 11 增加原生 Codex Radar 状态应用，完整对齐 macOS 版的数据、布局、通知、更新和安全功能。Windows 与 macOS 的安装包、安装路径和自动选择逻辑必须严格隔离；右键菜单要提供退出。
+```
+
+### 102. Windows 启动、额度与界面体验
+
+```text
+让 Windows 版可以从源码和安装包可靠启动，修复本机周额度与 5h 额度读取，并优化打开面板时的卡顿。底部操作按钮使用文字居中、不溢出的微软圆角风格；安装文档要解释默认分支脚本尚未发布时的 404，并确保公开文件不含开发机路径或账号数据。
+```
+
+### 103. 长期刷新稳定性与可选状态位置
+
+```text
+修复 Windows 版静置后定时刷新导致面板短暂白屏的问题。除可能进入折叠区的通知区域图标外，增加可选的常驻任务栏文字，让三组摘要无需点开即可显示在输入法和通知区域左侧；两种位置都要支持左键打开和右键退出，并进行视觉验证。
+```
+
+### 104. Windows 跨平台维护与发布验证
+
+```text
+以当前 macOS 行为为基准，补齐 Windows 对实时数据契约、19 组 Intelligence Efficiency、智能洞察、可交互额度历史、模块与子项显示控制，以及重置卡到期前自动使用的完整语义。额度历史只记录真实本机观测并采用当前用户专属、原子且损坏不覆盖的存储；隐藏模块不停止后台能力，关键状态仍会临时显示。重置卡持久化只能使用不可逆指纹，自动使用必须默认关闭并在异常时安全撤销；为 Windows 10/11 x64 与 Windows 11 ARM64 提供可复现的构建、视觉、包格式和原生运行验证，保持后续双平台同步维护。
+```
+
+### 105. Windows v0.1.64 兼容维护
+
+```text
+以最新主线重新核对 Windows 版本：统一 v0.1.64 版本与公开文档，兼容 Reset Radar、Fast Radar 和多张社区卡片，优先复用经过当前用户安全边界验证的 Codex 受管会话并安全回退到独立 app-server。离线验证 WebSocket 握手、分帧、掩码、异常回退和写操作会话边界；重置卡只持久化完整 SHA-256 指纹，界面最多显示前八位。提供不会查询或消耗重置卡的真实额度只读验证，并用可复现的 Windows x64/ARM64 包校验及安装、升级、替换后事务回滚、卸载生命周期覆盖发布边界。
+```
+
+### 106. Windows 主线兼容与 Fluent 界面维护
+
+```text
+保持 Windows 版本与当前主线的数据、用量权限、恢复提醒和重置卡安全行为一致，兼容新版 Codex 本地连接与 CodexRadar 公共结构。采用轻透明、圆角、接近任务栏的原生界面，保持中英文及全部字号的文本边界、键盘操作和刷新稳定性。明确区分跨架构构建、自动化测试和实际 Windows 客户端验证；同步双语安装说明及独立平台包，保留可审查的正常合并历史。
+```
+
+### 107. Windows 搜索启动与单实例唤醒
+
+```text
+保留 Windows 10 和 Windows 11 支持，让安装后的应用可以通过 Windows 搜索 CodexRadarSentinel 打开仪表盘，无需日常输入命令。已有后台实例应直接显示原窗口，开机启动仍保持静默。安装、升级、回滚和卸载需正确维护当前用户的开始菜单入口，并验证首次启动、重复启动及旧入口迁移。
 ```

@@ -1,0 +1,107 @@
+name: Windows
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/windows.yml"
+      - "windows/**"
+      - "PROMPTS.md"
+      - "README.md"
+      - "README.en.md"
+      - "skills/codex-radar-sync/**"
+  push:
+    branches:
+      - main
+      - "codex/**"
+      - "feat/windows-version"
+    paths:
+      - ".github/workflows/windows.yml"
+      - "windows/**"
+      - "PROMPTS.md"
+      - "README.md"
+      - "README.en.md"
+      - "skills/codex-radar-sync/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Windows x64 build, self-test, and package
+            runner: windows-2022
+            runtime: win-x64
+            architecture: x64
+          - label: Windows 11 ARM64 native build, self-test, and package
+            runner: windows-11-arm
+            runtime: win-arm64
+            architecture: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj
+
+      - name: Build and run offline regression suite
+        shell: pwsh
+        run: |
+          dotnet build .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-restore
+          if ($LASTEXITCODE -ne 0) { throw "Windows build failed." }
+          dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Windows offline regression failed." }
+          dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --ui-self-test
+          if ($LASTEXITCODE -ne 0) { throw "Windows dashboard smoke test failed." }
+          dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --taskbar-ui-self-test
+          if ($LASTEXITCODE -ne 0) { throw "Windows taskbar smoke test failed." }
+
+      - name: Create self-contained release asset
+        shell: pwsh
+        run: .\windows\build.ps1 -Runtime '${{ matrix.runtime }}'
+
+      - name: Verify release contract and run packaged binary natively
+        shell: pwsh
+        run: .\windows\verify-release.ps1 -Runtime '${{ matrix.runtime }}' -RunSelfTest
+
+      - name: Validate install, upgrade, rollback, and uninstall lifecycle
+        shell: pwsh
+        run: |
+          $architecture = '${{ matrix.architecture }}'
+          $archive = @(Get-ChildItem .\artifacts\windows\release -Filter "*-Windows-$architecture.zip")
+          $checksum = @(Get-ChildItem .\artifacts\windows\release -Filter "*-Windows-$architecture.sha256")
+          if ($archive.Count -ne 1 -or $checksum.Count -ne 1) {
+            throw "Expected exactly one local Windows package pair for $architecture."
+          }
+          .\windows\validate-lifecycle.ps1 `
+            -Runtime '${{ matrix.runtime }}' `
+            -Archive $archive[0].FullName `
+            -Checksum $checksum[0].FullName
+
+      - name: Upload verified package and validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodexRadarSentinel-Windows-${{ matrix.architecture }}
+          path: |
+            artifacts/windows/release/*-Windows-${{ matrix.architecture }}.zip
+            artifacts/windows/release/*-Windows-${{ matrix.architecture }}.sha256
+            artifacts/windows/validation-${{ matrix.architecture }}.json
+            artifacts/windows/lifecycle-${{ matrix.architecture }}.json
+          if-no-files-found: error
