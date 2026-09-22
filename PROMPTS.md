@@ -124,7 +124,8 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 103 | [35fdc64](https://github.com/print-happy/codex-radar/commit/35fdc64) | 修复长期运行刷新白屏，并提供通知区域图标与输入法左侧常驻任务栏文字两种状态位置。 |
 | 104 | [35fdc64](https://github.com/print-happy/codex-radar/commit/35fdc64) | 对齐跨平台实时数据、额度历史、布局控制、重置卡安全与隐私边界，并补齐 Windows x64/ARM64 自动化验证。 |
 | 105 | [6887ce3](https://github.com/print-happy/codex-radar/commit/6887ce3) | 同步 Windows v0.1.64，补齐 Reset、Fast 与社区雷达、受管会话、不可逆重置卡指纹及发布生命周期验证。 |
-| 106 | [6887ce3](https://github.com/print-happy/codex-radar/commit/6887ce3), [`Prompt-Id: 106 commits`](https://github.com/print-happy/codex-radar/search?q=%22Prompt-Id%3A+106%22&type=commits) | 对齐最新主线的数据与安全边界，完善 Windows Fluent 界面、平台隔离和可复现验证。 |
+| 106 | [6887ce3](https://github.com/print-happy/codex-radar/commit/6887ce3), [a490f1f](https://github.com/print-happy/codex-radar/commit/a490f1f), [`Prompt-Id: 106 commits`](https://github.com/print-happy/codex-radar/search?q=%22Prompt-Id%3A+106%22&type=commits) | 对齐最新主线的数据与安全边界，完善 Windows Fluent 界面、平台隔离和可复现验证。 |
+| 107 | [`Prompt-Id: 107 commits`](https://github.com/print-happy/codex-radar/search?q=%22Prompt-Id%3A+107%22&type=commits) | Windows 搜索打开仪表盘、单实例唤醒和开始菜单入口迁移。 |
 
 ## Prompts
 
@@ -820,4 +821,10 @@ commit 要求是可以点击的链接
 
 ```text
 保持 Windows 版本与当前主线的数据、用量权限、恢复提醒和重置卡安全行为一致，兼容新版 Codex 本地连接与 CodexRadar 公共结构。采用轻透明、圆角、接近任务栏的原生界面，保持中英文及全部字号的文本边界、键盘操作和刷新稳定性。明确区分跨架构构建、自动化测试和实际 Windows 客户端验证；同步双语安装说明及独立平台包，保留可审查的正常合并历史。
+```
+
+### 107. Windows 搜索启动与单实例唤醒
+
+```text
+保留 Windows 10 和 Windows 11 支持，让安装后的应用可以通过 Windows 搜索 CodexRadarSentinel 打开仪表盘，无需日常输入命令。已有后台实例应直接显示原窗口，开机启动仍保持静默。安装、升级、回滚和卸载需正确维护当前用户的开始菜单入口，并验证首次启动、重复启动及旧入口迁移。
 ```

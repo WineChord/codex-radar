@@ -35,6 +35,8 @@ Install Codex Radar Sentinel for Windows only: confirm this PC runs Windows 10 v
 
 Windows offers two optional status locations: a normal notification-area icon, which Windows may place in the `^` overflow, and always-visible taskbar text immediately left of the input/notification area. Both support left-click to open the panel and right-click to exit. See the [Windows guide](windows/README.md) for direct installation, local launch, uninstall, and compatibility validation.
 
+After installation, search for `CodexRadarSentinel` in Windows Start or Search to open the dashboard. If it is already running, the existing window opens without another instance. Optional startup at sign-in remains quiet in the tray.
+
 Online installation requires the Windows installer on the default branch and the matching Windows package plus checksum in the latest Release. If either is missing, use the guide's source-launch instructions; never substitute a macOS package.
 
 ## News

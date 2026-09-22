@@ -191,6 +191,80 @@ function Invoke-Installer {
     return [int]$exitCode
 }
 
+function Assert-SearchShortcut {
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $null
+    try {
+        if (-not (Test-Path -LiteralPath $ShortcutPath -PathType Leaf)) {
+            throw "The searchable Start Menu shortcut is missing."
+        }
+        $shortcut = $shell.CreateShortcut($ShortcutPath)
+        if (-not $shortcut.TargetPath.Equals($InstalledExecutable, [StringComparison]::OrdinalIgnoreCase) -or
+            $shortcut.Arguments -ne "--show-dashboard") {
+            throw "The Search shortcut must open the installed dashboard."
+        }
+    }
+    finally {
+        if ($shortcut) { [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) | Out-Null }
+        [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) | Out-Null
+    }
+}
+
+function Start-ActivationClient {
+    param([string]$Argument)
+
+    # Own the process handle from creation. Windows PowerShell's Start-Process
+    # can lose the exit status of a very short-lived activation process.
+    $info = New-Object Diagnostics.ProcessStartInfo
+    $info.FileName = $InstalledExecutable
+    $info.Arguments = $Argument
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+    $info.RedirectStandardError = $true
+    return [Diagnostics.Process]::Start($info)
+}
+
+function Assert-DashboardVisibility {
+    param([Parameter(Mandatory = $true)][bool]$Visible)
+
+    # A tray window has an invisible owner and is not Process.MainWindowHandle.
+    # Ask its UI thread without changing visibility or reading account data.
+    $probe = Start-ActivationClient -Argument "--dashboard-visible-self-test"
+    try {
+        if (-not $probe.WaitForExit(15000)) {
+            Stop-Process -Id $probe.Id -Force
+            throw "Dashboard visibility probe timed out."
+        }
+        $expectedExit = if ($Visible) { 0 } else { 1 }
+        if ($probe.ExitCode -ne $expectedExit) {
+            throw "Dashboard visibility did not match the expected startup behavior (exit $($probe.ExitCode)): $($probe.StandardError.ReadToEnd())"
+        }
+    }
+    finally { $probe.Dispose() }
+}
+
+function Assert-ExistingInstanceActivation {
+    param([Parameter(Mandatory = $true)]$Process)
+
+    $launcher = Start-ActivationClient -Argument "--show-dashboard"
+    try {
+        if (-not $launcher.WaitForExit(15000)) {
+            Stop-Process -Id $launcher.Id -Force
+            $launcher.WaitForExit()
+            $detail = $launcher.StandardError.ReadToEnd().Trim()
+            throw "The second Search launch did not exit within its activation deadline. $detail"
+        }
+        if ($launcher.ExitCode -ne 0) { throw "The second Search launch failed (exit $($launcher.ExitCode)): $($launcher.StandardError.ReadToEnd())" }
+        Assert-DashboardVisibility -Visible $true
+        $running = @(Get-InstallProcesses -Directory $InstallDirectory)
+        if ($running.Count -ne 1 -or $running[0].Id -ne $Process.Id) {
+            throw "Search must reuse the existing process without creating another instance."
+        }
+    }
+    finally { $launcher.Dispose() }
+}
+
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
     throw "Lifecycle validation must run on Windows."
 }
@@ -248,8 +322,9 @@ New-Item -ItemType Directory -Path $ValidationDataRoot -Force | Out-Null
 $ProgramsDirectory = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::Programs
 )
-$ShortcutPath = Join-Path $ProgramsDirectory "Codex Radar Sentinel.lnk"
-if (Test-Path -LiteralPath $ShortcutPath) {
+$ShortcutPath = Join-Path $ProgramsDirectory "CodexRadarSentinel.lnk"
+$LegacyShortcutPath = Join-Path $ProgramsDirectory "Codex Radar Sentinel.lnk"
+if ((Test-Path -LiteralPath $ShortcutPath) -or (Test-Path -LiteralPath $LegacyShortcutPath)) {
     throw "Lifecycle validation refuses to replace an existing Codex Radar Sentinel Start Menu shortcut."
 }
 
@@ -275,6 +350,19 @@ try {
     $Installed = $true
     $InstalledExecutable = Join-Path $InstallDirectory "CodexRadarSentinel.exe"
     $InitialProcess = Wait-ForInstallProcess -Directory $InstallDirectory
+    Assert-SearchShortcut
+    Assert-DashboardVisibility -Visible $false
+    Write-Host "Background startup stays hidden."
+    Assert-ExistingInstanceActivation -Process $InitialProcess
+    Write-Host "First Search launch opened the running dashboard."
+    Assert-ExistingInstanceActivation -Process $InitialProcess
+    Write-Host "Repeated Search launches reuse and show the existing dashboard."
+    Stop-Process -Id $InitialProcess.Id -Force
+    $InitialProcess.WaitForExit(5000) | Out-Null
+    $SearchProcess = Start-Process -FilePath $InstalledExecutable -ArgumentList "--show-dashboard" -WindowStyle Hidden -PassThru
+    $SearchProcess = Wait-ForInstallProcess -Directory $InstallDirectory
+    Assert-DashboardVisibility -Visible $true
+    Write-Host "Cold Search launch shows the dashboard."
     $InitialExecutableHash = (
         Get-FileHash -LiteralPath $InstalledExecutable -Algorithm SHA256
     ).Hash.ToLowerInvariant()
@@ -303,6 +391,26 @@ try {
             -Attempts 3
     }
 
+    # Simulate a previous installer, then verify migration rolls back atomically.
+    Move-Item -LiteralPath $ShortcutPath -Destination $LegacyShortcutPath
+    $shell = New-Object -ComObject WScript.Shell
+    try {
+        $legacy = $shell.CreateShortcut($LegacyShortcutPath)
+        $legacy.Arguments = ""
+        $legacy.Save()
+        [Runtime.InteropServices.Marshal]::FinalReleaseComObject($legacy) | Out-Null
+    }
+    finally { [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) | Out-Null }
+    $LegacyShortcutHash = (Get-FileHash -LiteralPath $LegacyShortcutPath -Algorithm SHA256).Hash
+    if ((Invoke-Installer -PackageArchive $Archive -PackageChecksum $Checksum -FailAfterReplace) -eq 0) {
+        throw "The intentionally failing shortcut migration unexpectedly succeeded."
+    }
+    if ((Test-Path -LiteralPath $ShortcutPath) -or
+        -not (Test-Path -LiteralPath $LegacyShortcutPath) -or
+        (Get-FileHash -LiteralPath $LegacyShortcutPath -Algorithm SHA256).Hash -ne $LegacyShortcutHash) {
+        throw "Failed migration did not restore the exact legacy shortcut."
+    }
+
     $PreUpgradeVersion = "$BaseVersion-validation.base"
     $SourceManifest.version = $PreUpgradeVersion
     [IO.File]::WriteAllText(
@@ -316,6 +424,11 @@ try {
         throw "Isolated package upgrade failed."
     }
     $UpgradeProcess = Wait-ForInstallProcess -Directory $InstallDirectory
+    Assert-SearchShortcut
+    if (Test-Path -LiteralPath $LegacyShortcutPath) {
+        throw "Upgrade left a duplicate legacy Search entry."
+    }
+    $ShortcutHash = (Get-FileHash -LiteralPath $ShortcutPath -Algorithm SHA256).Hash
     $UpgradeManifest = [IO.File]::ReadAllText(
         (Join-Path $InstallDirectory "release-manifest.json")
     ) | ConvertFrom-Json
@@ -335,6 +448,11 @@ try {
         throw "The intentionally failing upgrade unexpectedly succeeded."
     }
     $RollbackProcess = Wait-ForInstallProcess -Directory $InstallDirectory
+    Assert-SearchShortcut
+    if ((Get-FileHash -LiteralPath $ShortcutPath -Algorithm SHA256).Hash -ne $ShortcutHash) {
+        throw "Rollback did not preserve the existing Search shortcut."
+    }
+    Assert-ExistingInstanceActivation -Process $RollbackProcess
     $RollbackManifest = [IO.File]::ReadAllText(
         (Join-Path $InstallDirectory "release-manifest.json")
     ) | ConvertFrom-Json
@@ -364,7 +482,7 @@ try {
     if (Test-Path -LiteralPath $InstallDirectory) {
         throw "Uninstall left the isolated installation directory behind."
     }
-    if (Test-Path -LiteralPath $ShortcutPath) {
+    if ((Test-Path -LiteralPath $ShortcutPath) -or (Test-Path -LiteralPath $LegacyShortcutPath)) {
         throw "Uninstall left the validation Start Menu shortcut behind."
     }
 
@@ -383,6 +501,11 @@ try {
         ).Hash.ToLowerInvariant()
         installed = $true
         launched = $InitialProcess.Id -gt 0
+        search_shortcut = $true
+        search_opens_dashboard = $SearchProcess.Id -gt 0
+        search_reuses_existing_instance = $true
+        background_start_is_quiet = $true
+        legacy_shortcut_migration_and_rollback = $true
         offline_refresh_contract = $true
         live_public_radar_read = [bool]$RunLiveRadarRead
         live_quota_read = [bool]$RunLiveQuotaRead

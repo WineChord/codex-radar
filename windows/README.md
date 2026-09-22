@@ -22,6 +22,14 @@ Install Codex Radar Sentinel for Windows only: first confirm this PC runs Window
 
 Codex can use the repository-managed [`windows/install.ps1`](install.ps1), which implements those checks, rollback, and process verification.
 
+## Everyday launch: Windows Search
+
+After installation, open Start or taskbar Search, type `CodexRadarSentinel`, and select the app or press Enter to open the dashboard. No command line is needed. You can also right-click the result to pin it to Start or the taskbar.
+
+If the app is stopped, this starts it and shows the dashboard. If it is already in the tray, this opens the existing window without another instance. Closing the panel leaves the app running; to quit completely, right-click its status icon or taskbar text and choose Exit. Optional startup at sign-in stays in the background without opening the panel.
+
+The installer creates a per-user `CodexRadarSentinel` Start Menu shortcut. Upgrades migrate the old `Codex Radar Sentinel` entry without duplicates and restore it if installation fails. Simply extracting the ZIP or running a development build does not register a Search entry.
+
 ## Install directly
 
 Download the installer script first so it can be inspected, then run it with Windows PowerShell:
@@ -52,7 +60,18 @@ The way to run locally while developing is:
 ```powershell
 Set-Location Path\to\your\codex-radar
 
-dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release -- --show-dashboard
+```
+
+Before a Windows release is published, you can also build from source and install for the current user to register Search. This example is for x64; on an ARM64 PC, replace `win-x64` and `Windows-x64` with `win-arm64` and `Windows-arm64`. Building requires the .NET 8 SDK; everyday launch does not:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build.ps1 -Runtime win-x64
+if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\install.ps1 `
+  -PackageArchive .\artifacts\windows\release\CodexRadarSentinel-0.1.72-Windows-x64.zip `
+  -PackageChecksum .\artifacts\windows\release\CodexRadarSentinel-0.1.72-Windows-x64.sha256
+if ($LASTEXITCODE -ne 0) { throw "Windows installation failed" }
 ```
 
 ## Uninstall

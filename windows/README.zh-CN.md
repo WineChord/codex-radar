@@ -22,6 +22,14 @@
 
 Codex 可以直接使用仓库维护的 [`windows/install.ps1`](install.ps1)，其中已经实现平台/架构隔离、校验、回滚和进程检查。
 
+## 日常打开：Windows 搜索
+
+安装完成后，打开开始菜单或任务栏搜索，输入 `CodexRadarSentinel`，点击应用或按回车即可打开仪表盘，不需要命令行。也可以右键搜索结果，将它固定到开始菜单或任务栏。
+
+程序尚未运行时会启动并显示仪表盘；已经在托盘运行时会唤出已有窗口，不会再开一个实例。关闭面板不会退出后台应用；需要完全退出时，右键状态图标或任务栏文字并选择“退出”。可选开机启动只在后台驻留，不自动弹出面板。
+
+安装器创建当前用户的 `CodexRadarSentinel` 开始菜单快捷方式。升级会迁移旧的 `Codex Radar Sentinel` 入口，避免重复；失败时恢复原快捷方式。仅解压 ZIP 或运行开发构建不会注册搜索入口。
+
 ## 直接安装
 
 先下载脚本以便检查，再通过 Windows PowerShell 运行：
@@ -52,7 +60,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer -StartWithWin
 ```powershell
 Set-Location Path\to\your\codex-radar
 
-dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release -- --show-dashboard
+```
+
+在尚未发布 Windows 安装包时，也可以从源码构建后安装到当前用户，从而使用搜索入口。以下为 x64 示例；ARM64 电脑将 `win-x64` 和 `Windows-x64` 分别改为 `win-arm64` 和 `Windows-arm64`。构建需要 .NET 8 SDK，日常打开不需要：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build.ps1 -Runtime win-x64
+if ($LASTEXITCODE -ne 0) { throw "Windows 构建失败" }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\install.ps1 `
+  -PackageArchive .\artifacts\windows\release\CodexRadarSentinel-0.1.72-Windows-x64.zip `
+  -PackageChecksum .\artifacts\windows\release\CodexRadarSentinel-0.1.72-Windows-x64.sha256
+if ($LASTEXITCODE -ne 0) { throw "Windows 安装失败" }
 ```
 
 ## 卸载

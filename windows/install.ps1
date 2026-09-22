@@ -367,12 +367,29 @@ function New-StartMenuShortcut {
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($ShortcutPath)
     $shortcut.TargetPath = $Executable
+    $shortcut.Arguments = "--show-dashboard"
     $shortcut.WorkingDirectory = [IO.Path]::GetDirectoryName($Executable)
     $shortcut.IconLocation = "$Executable,0"
     $shortcut.Description = "Codex Radar Sentinel for Windows"
     $shortcut.Save()
     [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) | Out-Null
     [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) | Out-Null
+}
+
+function Test-StartMenuShortcutForDirectory {
+    param([string]$Path, [string]$Directory)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $null
+    try {
+        $shortcut = $shell.CreateShortcut($Path)
+        return Test-RunCommandForDirectory -Command ('"{0}"' -f $shortcut.TargetPath) -Directory $Directory
+    }
+    finally {
+        if ($shortcut) { [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) | Out-Null }
+        [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) | Out-Null
+    }
 }
 
 $TempRoot = $null
@@ -387,6 +404,9 @@ $StartupSnapshot = $null
 $ShortcutPath = $null
 $ShortcutBackup = $null
 $ShortcutExisted = $false
+$LegacyShortcutPath = $null
+$LegacyShortcutBackup = $null
+$LegacyShortcutWasChanged = $false
 
 try {
     Assert-WindowsPlatform
@@ -580,11 +600,22 @@ try {
     if ([string]::IsNullOrWhiteSpace($ProgramsDirectory)) {
         throw "The current user's Start Menu Programs directory is unavailable."
     }
-    $ShortcutPath = Join-Path $ProgramsDirectory "$ProductName.lnk"
+    $ShortcutPath = Join-Path $ProgramsDirectory "CodexRadarSentinel.lnk"
     $ShortcutBackup = Join-Path $TempRoot "previous-shortcut.lnk"
     $ShortcutExisted = Test-Path -LiteralPath $ShortcutPath -PathType Leaf
+    if ((Test-Path -LiteralPath $ShortcutPath) -and -not $ShortcutExisted) {
+        throw "The Start Menu shortcut path is not a file. Refusing to replace it."
+    }
     if ($ShortcutExisted) {
+        if (-not (Test-StartMenuShortcutForDirectory -Path $ShortcutPath -Directory $InstallDir)) {
+            throw "The Start Menu entry belongs to a different installation. Refusing to replace it."
+        }
         Copy-Item -LiteralPath $ShortcutPath -Destination $ShortcutBackup
+    }
+    $LegacyShortcutPath = Join-Path $ProgramsDirectory "$ProductName.lnk"
+    $LegacyShortcutBackup = Join-Path $TempRoot "previous-legacy-shortcut.lnk"
+    if (Test-StartMenuShortcutForDirectory -Path $LegacyShortcutPath -Directory $InstallDir) {
+        Copy-Item -LiteralPath $LegacyShortcutPath -Destination $LegacyShortcutBackup
     }
     $StartupSnapshot = Get-StartupSnapshot
     $PreserveExistingStartup = $StartupSnapshot.Exists -and
@@ -619,6 +650,10 @@ try {
 
     $ShortcutWasChanged = $true
     New-StartMenuShortcut -ShortcutPath $ShortcutPath -Executable $InstalledExecutable
+    if (Test-Path -LiteralPath $LegacyShortcutBackup -PathType Leaf) {
+        $LegacyShortcutWasChanged = $true
+        Remove-Item -LiteralPath $LegacyShortcutPath -Force
+    }
     if ($StartWithWindows -or $PreserveExistingStartup) {
         $StartupWasChanged = $true
         Set-StartupValue -Executable $InstalledExecutable
@@ -658,6 +693,7 @@ try {
     Write-Host "$ProductName $PackageVersion is installed for the current user."
     Write-Host "Install directory: $InstallDir"
     Write-Host "Start Menu shortcut: $ShortcutPath"
+    Write-Host "Search Windows for CodexRadarSentinel to open the dashboard, including when it is already running."
     if ($StartWithWindows -or $PreserveExistingStartup) {
         Write-Host "Start with Windows: enabled"
     }
@@ -708,6 +744,14 @@ catch {
         }
         catch {
             $RollbackErrors += "restore Start Menu shortcut: $($_.Exception.Message)"
+        }
+        try {
+            if ($LegacyShortcutWasChanged) {
+                Copy-Item -LiteralPath $LegacyShortcutBackup -Destination $LegacyShortcutPath -Force
+            }
+        }
+        catch {
+            $RollbackErrors += "restore legacy Start Menu shortcut: $($_.Exception.Message)"
         }
         try {
             if ($StartupWasChanged -and $StartupSnapshot) {

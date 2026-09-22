@@ -166,19 +166,21 @@ try {
     Remove-StartupValue -Directory $InstallDir
 
     $ProgramsDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)
-    $ShortcutPath = Join-Path $ProgramsDirectory "$ProductName.lnk"
-    if (Test-Path -LiteralPath $ShortcutPath -PathType Leaf) {
-        $shell = New-Object -ComObject WScript.Shell
-        try {
-            $shortcut = $shell.CreateShortcut($ShortcutPath)
-            $shortcutTarget = $shortcut.TargetPath
-            [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) | Out-Null
-            if (Test-ProductExecutableForDirectory -Executable $shortcutTarget -Directory $InstallDir) {
-                Remove-Item -LiteralPath $ShortcutPath -Force
+    foreach ($shortcutName in @("CodexRadarSentinel.lnk", "$ProductName.lnk")) {
+        $ShortcutPath = Join-Path $ProgramsDirectory $shortcutName
+        if (Test-Path -LiteralPath $ShortcutPath -PathType Leaf) {
+            $shell = New-Object -ComObject WScript.Shell
+            try {
+                $shortcut = $shell.CreateShortcut($ShortcutPath)
+                $shortcutTarget = $shortcut.TargetPath
+                [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) | Out-Null
+                if (Test-ProductExecutableForDirectory -Executable $shortcutTarget -Directory $InstallDir) {
+                    Remove-Item -LiteralPath $ShortcutPath -Force
+                }
             }
-        }
-        finally {
-            [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) | Out-Null
+            finally {
+                [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) | Out-Null
+            }
         }
     }
 

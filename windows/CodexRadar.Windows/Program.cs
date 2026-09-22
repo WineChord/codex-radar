@@ -80,9 +80,29 @@ internal static class Program
             return;
         }
 
+        if (args.Contains("--dashboard-visible-self-test", StringComparer.OrdinalIgnoreCase))
+        {
+            var visible = DashboardActivation.RequestAsync(show: false).GetAwaiter().GetResult();
+            if (visible is null) Console.Error.WriteLine("Dashboard visibility channel is unavailable.");
+            Environment.ExitCode = visible switch { true => 0, false => 1, null => 2 };
+            return;
+        }
+
+        var showDashboard = args.Contains("--show-dashboard", StringComparer.OrdinalIgnoreCase);
         using var mutex = new Mutex(true, @"Local\CodexRadarSentinel.Windows", out var firstInstance);
         if (!firstInstance)
         {
+            if (showDashboard)
+            {
+                if (DashboardActivation.RequestAsync().GetAwaiter().GetResult() == true) return;
+                Environment.ExitCode = 1;
+                Console.Error.WriteLine("The running dashboard did not acknowledge activation.");
+                MessageBox.Show(
+                    "无法打开已有窗口，请从托盘退出后重新打开。\n"
+                    + "Could not open the running dashboard. Exit from the tray and open it again.",
+                    "Codex Radar Sentinel", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             MessageBox.Show("Codex Radar Sentinel 已经在系统托盘中运行。", "Codex Radar Sentinel",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
@@ -90,6 +110,8 @@ internal static class Program
 
         ApplicationConfiguration.Initialize();
         using var context = new TrayApplicationContext();
+        using var activation = new DashboardActivation(context.HandleDashboardRequestAsync);
+        if (showDashboard) _ = context.HandleDashboardRequestAsync(show: true);
         Application.Run(context);
     }
 
@@ -173,6 +195,7 @@ internal static class SelfTest
     public static void Run()
     {
         WindowsUpdateSelfTest.Run();
+        DashboardActivationSelfTest.RunAsync().GetAwaiter().GetResult();
         static void Assert(bool value, string message)
         {
             if (!value) throw new InvalidOperationException(message);

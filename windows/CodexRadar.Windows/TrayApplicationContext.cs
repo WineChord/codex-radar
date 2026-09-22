@@ -18,6 +18,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly Queue<QueuedBalloon> _balloonQueue = [];
     private readonly System.Windows.Forms.Timer _balloonTimer = new() { Interval = 6_500 };
     private readonly DashboardForm _dashboard;
+    private readonly Control _activationDispatcher = new();
     private readonly System.Windows.Forms.Timer _refreshTimer = new() { Interval = 60_000 };
     private readonly CancellationTokenSource _lifetime = new();
     private readonly List<Task> _retiredLoops = [];
@@ -60,6 +61,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _protection = new ResetCreditProtectionService(_settings);
         _dashboard = new DashboardForm(_settings);
         _ = _dashboard.Handle;
+        _ = _activationDispatcher.Handle;
         _dashboard.RefreshRequested += (_, _) => StartRefresh(true);
         _dashboard.ResetCreditsRequested += (_, _) => StartResetCreditRefresh(true);
         _dashboard.SettingsRequested += (_, _) => ShowSettings();
@@ -572,6 +574,29 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (_dashboard.Visible) _dashboard.Hide(); else ShowDashboard();
     }
 
+    internal Task<bool> HandleDashboardRequestAsync(bool show)
+    {
+        // Search may request activation before the message loop starts. Queue
+        // onto the existing UI handle instead of building another dashboard.
+        if (_activationDispatcher.IsDisposed || !_activationDispatcher.IsHandleCreated) return Task.FromResult(false);
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            // Showing a tool window can recreate its native handle. Keep launch
+            // messages on a separate, stable handle so none are lost mid-show.
+            _activationDispatcher.BeginInvoke(() =>
+            {
+                if (!_exiting && show) ShowDashboard();
+                completion.TrySetResult(!_exiting && _dashboard.Visible);
+            });
+        }
+        catch (InvalidOperationException) when (_exiting || _activationDispatcher.IsDisposed)
+        {
+            completion.TrySetResult(false);
+        }
+        return completion.Task;
+    }
+
     private void ShowDashboard()
     {
         if (_dashboard.Visible)
@@ -918,6 +943,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _dynamicIcon?.Dispose();
             _settingsForm?.Dispose();
             _dashboard.Dispose();
+            _activationDispatcher.Dispose();
             _updater.Dispose();
             _protection.StatusChanged -= OnProtectionStatusChanged;
             _protection.CreditsChanged -= OnProtectionCreditsChanged;
