@@ -3,6 +3,9 @@ param(
     [ValidateSet("auto", "win-x64", "win-arm64")]
     [string]$Runtime = "auto",
     [string]$InstallDir,
+    [string]$PackageArchive,
+    [string]$PackageChecksum,
+    [switch]$FailAfterReplaceForValidation,
     [switch]$StartWithWindows
 )
 
@@ -411,8 +414,8 @@ try {
 
     $TempRoot = Join-Path ([IO.Path]::GetTempPath()) ("CodexRadar-install-{0}" -f [Guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $TempRoot | Out-Null
-    $ArchivePath = Join-Path $TempRoot "package.zip"
-    $ChecksumPath = Join-Path $TempRoot "package.sha256"
+    $DownloadedArchivePath = Join-Path $TempRoot "package.zip"
+    $DownloadedChecksumPath = Join-Path $TempRoot "package.sha256"
     $ExtractPath = Join-Path $TempRoot "extracted"
     New-Item -ItemType Directory -Path $ExtractPath | Out-Null
 
@@ -432,53 +435,86 @@ try {
         "User-Agent" = "CodexRadarSentinel-Windows-Installer"
     }
 
-    Write-Host "Reading the latest $Repository release..."
-    $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases/latest" -Headers $ApiHeaders -TimeoutSec 30
-    if ([bool]$Release.draft -or [bool]$Release.prerelease) {
-        throw "The latest GitHub response is not a stable published release."
-    }
     $VersionPattern = '\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?'
     $ArchivePattern = '^CodexRadarSentinel-(?<version>' + $VersionPattern + ')-Windows-' + [Regex]::Escape($Architecture) + '\.zip$'
-    $ArchiveAssets = @($Release.assets | Where-Object { ([string]$_.name) -match $ArchivePattern })
-    if ($ArchiveAssets.Count -ne 1) {
-        throw "Latest release '$($Release.tag_name)' must contain exactly one '$Architecture' Windows asset named CodexRadarSentinel-{version}-Windows-$Architecture.zip. Found $($ArchiveAssets.Count)."
-    }
-    $ArchiveAsset = $ArchiveAssets[0]
-    if (-not ([string]$ArchiveAsset.name -match $ArchivePattern)) {
-        throw "Internal asset-selection error."
-    }
-    $PackageVersion = $Matches.version
-    $NormalizedTag = ([string]$Release.tag_name) -replace '^v', ''
-    if (-not $NormalizedTag.Equals($PackageVersion, [StringComparison]::OrdinalIgnoreCase)) {
-        throw "Windows asset version '$PackageVersion' does not match release tag '$($Release.tag_name)'."
-    }
-    $AssetBaseName = "CodexRadarSentinel-$PackageVersion-Windows-$Architecture"
-    $ExpectedArchiveName = "$AssetBaseName.zip"
-    $ExpectedChecksumName = "$AssetBaseName.sha256"
-    if (-not ([string]$ArchiveAsset.name).Equals($ExpectedArchiveName, [StringComparison]::Ordinal)) {
-        throw "Refusing non-canonical Windows asset '$($ArchiveAsset.name)'."
-    }
-
-    $ChecksumAssets = @($Release.assets | Where-Object { ([string]$_.name).Equals($ExpectedChecksumName, [StringComparison]::Ordinal) })
-    if ($ChecksumAssets.Count -ne 1) {
-        throw "Release must contain exactly one checksum asset named $ExpectedChecksumName. Found $($ChecksumAssets.Count)."
-    }
-
-    Write-Host "Downloading $ExpectedArchiveName..."
-    $ArchiveUri = Get-VerifiedGitHubAssetUri -Value ([string]$ArchiveAsset.browser_download_url)
-    Invoke-Download -Uri $ArchiveUri.AbsoluteUri -OutFile $ArchivePath -Headers $DownloadHeaders
-    if ([long]$ArchiveAsset.size -gt 0 -and (Get-Item -LiteralPath $ArchivePath).Length -ne [long]$ArchiveAsset.size) {
-        throw "Downloaded archive size does not match the GitHub release metadata."
+    $UsesLocalPackage = -not [string]::IsNullOrWhiteSpace($PackageArchive) -or
+        -not [string]::IsNullOrWhiteSpace($PackageChecksum)
+    if ($UsesLocalPackage -and
+        ([string]::IsNullOrWhiteSpace($PackageArchive) -or
+         [string]::IsNullOrWhiteSpace($PackageChecksum))) {
+        throw "PackageArchive and PackageChecksum must be supplied together."
     }
 
     $ExpectedHash = $null
-    if ($ArchiveAsset.PSObject.Properties.Name -contains "digest" -and
-        ([string]$ArchiveAsset.digest) -match '^sha256:([0-9A-Fa-f]{64})$') {
-        $ExpectedHash = $Matches[1].ToLowerInvariant()
+    if ($UsesLocalPackage) {
+        $ArchivePath = [IO.Path]::GetFullPath($PackageArchive)
+        $ChecksumPath = [IO.Path]::GetFullPath($PackageChecksum)
+        if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $ChecksumPath -PathType Leaf)) {
+            throw "The local Windows package archive or checksum does not exist."
+        }
+        $LocalArchiveName = [IO.Path]::GetFileName($ArchivePath)
+        if ($LocalArchiveName -notmatch $ArchivePattern) {
+            throw "Local package '$LocalArchiveName' is not a canonical $Architecture Windows release asset."
+        }
+        $PackageVersion = $Matches.version
+        $AssetBaseName = "CodexRadarSentinel-$PackageVersion-Windows-$Architecture"
+        $ExpectedArchiveName = "$AssetBaseName.zip"
+        $ExpectedChecksumName = "$AssetBaseName.sha256"
+        if (-not $LocalArchiveName.Equals($ExpectedArchiveName, [StringComparison]::Ordinal) -or
+            -not ([IO.Path]::GetFileName($ChecksumPath)).Equals($ExpectedChecksumName, [StringComparison]::Ordinal)) {
+            throw "The local archive and checksum must use the canonical matching asset names."
+        }
+        Write-Host "Using local package $ExpectedArchiveName..."
     }
-    Write-Host "Downloading $ExpectedChecksumName..."
-    $ChecksumUri = Get-VerifiedGitHubAssetUri -Value ([string]$ChecksumAssets[0].browser_download_url)
-    Invoke-Download -Uri $ChecksumUri.AbsoluteUri -OutFile $ChecksumPath -Headers $DownloadHeaders
+    else {
+        Write-Host "Reading the latest $Repository release..."
+        $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases/latest" -Headers $ApiHeaders -TimeoutSec 30
+        if ([bool]$Release.draft -or [bool]$Release.prerelease) {
+            throw "The latest GitHub response is not a stable published release."
+        }
+        $ArchiveAssets = @($Release.assets | Where-Object { ([string]$_.name) -match $ArchivePattern })
+        if ($ArchiveAssets.Count -ne 1) {
+            throw "Latest release '$($Release.tag_name)' must contain exactly one '$Architecture' Windows asset named CodexRadarSentinel-{version}-Windows-$Architecture.zip. Found $($ArchiveAssets.Count)."
+        }
+        $ArchiveAsset = $ArchiveAssets[0]
+        if (-not ([string]$ArchiveAsset.name -match $ArchivePattern)) {
+            throw "Internal asset-selection error."
+        }
+        $PackageVersion = $Matches.version
+        $NormalizedTag = ([string]$Release.tag_name) -replace '^v', ''
+        if (-not $NormalizedTag.Equals($PackageVersion, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Windows asset version '$PackageVersion' does not match release tag '$($Release.tag_name)'."
+        }
+        $AssetBaseName = "CodexRadarSentinel-$PackageVersion-Windows-$Architecture"
+        $ExpectedArchiveName = "$AssetBaseName.zip"
+        $ExpectedChecksumName = "$AssetBaseName.sha256"
+        if (-not ([string]$ArchiveAsset.name).Equals($ExpectedArchiveName, [StringComparison]::Ordinal)) {
+            throw "Refusing non-canonical Windows asset '$($ArchiveAsset.name)'."
+        }
+
+        $ChecksumAssets = @($Release.assets | Where-Object { ([string]$_.name).Equals($ExpectedChecksumName, [StringComparison]::Ordinal) })
+        if ($ChecksumAssets.Count -ne 1) {
+            throw "Release must contain exactly one checksum asset named $ExpectedChecksumName. Found $($ChecksumAssets.Count)."
+        }
+
+        $ArchivePath = $DownloadedArchivePath
+        $ChecksumPath = $DownloadedChecksumPath
+        Write-Host "Downloading $ExpectedArchiveName..."
+        $ArchiveUri = Get-VerifiedGitHubAssetUri -Value ([string]$ArchiveAsset.browser_download_url)
+        Invoke-Download -Uri $ArchiveUri.AbsoluteUri -OutFile $ArchivePath -Headers $DownloadHeaders
+        if ([long]$ArchiveAsset.size -gt 0 -and (Get-Item -LiteralPath $ArchivePath).Length -ne [long]$ArchiveAsset.size) {
+            throw "Downloaded archive size does not match the GitHub release metadata."
+        }
+
+        if ($ArchiveAsset.PSObject.Properties.Name -contains "digest" -and
+            ([string]$ArchiveAsset.digest) -match '^sha256:([0-9A-Fa-f]{64})$') {
+            $ExpectedHash = $Matches[1].ToLowerInvariant()
+        }
+        Write-Host "Downloading $ExpectedChecksumName..."
+        $ChecksumUri = Get-VerifiedGitHubAssetUri -Value ([string]$ChecksumAssets[0].browser_download_url)
+        Invoke-Download -Uri $ChecksumUri.AbsoluteUri -OutFile $ChecksumPath -Headers $DownloadHeaders
+    }
     $ChecksumHash = Get-HashFromChecksumFile -Path $ChecksumPath -ArchiveName $ExpectedArchiveName
     if ($ExpectedHash -and -not $ExpectedHash.Equals($ChecksumHash, [StringComparison]::OrdinalIgnoreCase)) {
         throw "GitHub's asset digest conflicts with the published checksum file."
@@ -573,9 +609,12 @@ try {
     New-Item -ItemType Directory -Path $InstallDir | Out-Null
     $InstallWasReplaced = $true
 
-    Copy-Item -LiteralPath $ExtractedExecutable -Destination (Join-Path $InstallDir "CodexRadarSentinel.exe")
-    Copy-Item -LiteralPath $ExtractedUninstaller -Destination (Join-Path $InstallDir "uninstall.ps1")
-    Copy-Item -LiteralPath $ManifestPath -Destination (Join-Path $InstallDir "release-manifest.json")
+    # The extracted files are already verified and live on the same per-user
+    # volume in the normal install path. Moving them avoids holding a third
+    # full executable copy during upgrade on space-constrained machines.
+    Move-Item -LiteralPath $ExtractedExecutable -Destination (Join-Path $InstallDir "CodexRadarSentinel.exe")
+    Move-Item -LiteralPath $ExtractedUninstaller -Destination (Join-Path $InstallDir "uninstall.ps1")
+    Move-Item -LiteralPath $ManifestPath -Destination (Join-Path $InstallDir "release-manifest.json")
     $InstalledExecutable = Join-Path $InstallDir "CodexRadarSentinel.exe"
 
     $ShortcutWasChanged = $true
@@ -585,8 +624,16 @@ try {
         Set-StartupValue -Executable $InstalledExecutable
     }
 
+    if ($FailAfterReplaceForValidation) {
+        if (-not $UsesLocalPackage -or
+            $env:CODEX_RADAR_LIFECYCLE_VALIDATION -ne "1") {
+            throw "Post-replacement failure injection is restricted to local lifecycle validation."
+        }
+        throw "Lifecycle validation requested a post-replacement rollback."
+    }
+
     Write-Host "Starting $ProductName..."
-    $NewProcess = Start-Process -FilePath $InstalledExecutable -PassThru
+    $NewProcess = Start-Process -FilePath $InstalledExecutable -WindowStyle Hidden -PassThru
     Start-Sleep -Milliseconds 2000
     $NewProcess.Refresh()
     if ($NewProcess.HasExited) {
@@ -677,7 +724,23 @@ catch {
                     (Join-Path $InstallDir "CodexRadar.Windows.exe")
                 ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
                 if ($RestoredExecutable) {
-                    Start-Process -FilePath $RestoredExecutable | Out-Null
+                    $RestoredProcessRunning = $false
+                    for ($attempt = 1; $attempt -le 5; $attempt++) {
+                        $RestoredProcess = Start-Process `
+                            -FilePath $RestoredExecutable `
+                            -WindowStyle Hidden `
+                            -PassThru
+                        Start-Sleep -Milliseconds 750
+                        $RestoredProcess.Refresh()
+                        if (-not $RestoredProcess.HasExited) {
+                            $RestoredProcessRunning = $true
+                            break
+                        }
+                        Start-Sleep -Milliseconds 250
+                    }
+                    if (-not $RestoredProcessRunning) {
+                        throw "The restored application did not remain running after rollback."
+                    }
                 }
             }
         }

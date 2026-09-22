@@ -7,7 +7,11 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Executable,
 
-    [string]$EvidencePath
+    [string]$EvidencePath,
+
+    [switch]$RunLiveRadarRead,
+
+    [switch]$RunLiveQuotaRead
 )
 
 $ErrorActionPreference = "Stop"
@@ -58,6 +62,11 @@ if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
 }
 
 $Build = [Environment]::OSVersion.Version.Build
+$ProductName = Get-WindowsProductName
+if ($ProductName.IndexOf(
+        "Server", [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    throw "$Target requires Windows client; detected '$ProductName'."
+}
 $HostArchitecture = (
     [Runtime.InteropServices.RuntimeInformation]::OSArchitecture
 ).ToString().ToLowerInvariant()
@@ -91,6 +100,26 @@ $CoreTestExitCode = Invoke-ValidationExecutable `
 if ($CoreTestExitCode -ne 0) {
     throw "Offline regression suite failed with exit code $CoreTestExitCode."
 }
+$LiveRadarReadPassed = $false
+if ($RunLiveRadarRead) {
+    $LiveRadarExitCode = Invoke-ValidationExecutable `
+        -Path $Executable `
+        -Argument "--live-radar-self-test"
+    if ($LiveRadarExitCode -ne 0) {
+        throw "Read-only live public-radar validation failed with exit code $LiveRadarExitCode."
+    }
+    $LiveRadarReadPassed = $true
+}
+$LiveQuotaReadPassed = $false
+if ($RunLiveQuotaRead) {
+    $LiveQuotaExitCode = Invoke-ValidationExecutable `
+        -Path $Executable `
+        -Argument "--live-quota-self-test"
+    if ($LiveQuotaExitCode -ne 0) {
+        throw "Read-only live quota validation failed with exit code $LiveQuotaExitCode."
+    }
+    $LiveQuotaReadPassed = $true
+}
 $VisualTestExitCode = Invoke-ValidationExecutable `
     -Path $Executable `
     -Argument "--ui-self-test" `
@@ -121,12 +150,14 @@ $ExecutableHash = (
 $Evidence = [ordered]@{
     schema_version = 1
     target = $Target
-    product_name = Get-WindowsProductName
+    product_name = $ProductName
     os_description = [Runtime.InteropServices.RuntimeInformation]::OSDescription
     build = $Build
     architecture = $HostArchitecture
     executable_sha256 = $ExecutableHash
     offline_self_test = $true
+    live_public_radar_read = $LiveRadarReadPassed
+    live_quota_read = $LiveQuotaReadPassed
     winforms_visual_smoke = $true
     taskbar_status_smoke = $true
     verified_utc = [DateTimeOffset]::UtcNow.ToString("O")

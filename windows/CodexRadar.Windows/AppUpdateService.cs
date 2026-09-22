@@ -38,7 +38,7 @@ internal sealed class AppUpdateService : IDisposable
             if (informational is not null && Regex.IsMatch(informational, @"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$"))
                 return informational;
             return Assembly.GetExecutingAssembly().GetName().Version is { } version
-                ? $"{version.Major}.{version.Minor}.{version.Build}" : "0.1.62";
+                ? $"{version.Major}.{version.Minor}.{version.Build}" : "0.1.72";
         }
     }
     public static string Runtime => RuntimeInformation.OSArchitecture switch

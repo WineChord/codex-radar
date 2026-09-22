@@ -91,7 +91,8 @@ internal sealed class ResetCreditProtectionService : IDisposable
 
                 try
                 {
-                    await using var client = new AppServerClient();
+                    await using var client = new AppServerClient(
+                        allowsAutomaticRestart: false);
                     var accountFingerprint =
                         await ReadAccountFingerprintAsync(client, token)
                             .ConfigureAwait(false);
@@ -222,7 +223,8 @@ internal sealed class ResetCreditProtectionService : IDisposable
                     ResetCreditProtectionStatusKind.Checking));
                 try
                 {
-                    await using var client = new AppServerClient();
+                    await using var client = new AppServerClient(
+                        allowsAutomaticRestart: false);
                     var accountFingerprint =
                         await ReadAccountFingerprintAsync(client, token)
                             .ConfigureAwait(false);
@@ -346,7 +348,9 @@ internal sealed class ResetCreditProtectionService : IDisposable
         if (!_settings.ResetCreditProtectionEnabled)
         {
             _consent = null;
-            SetStatus(ResetCreditProtectionStatus.Disabled);
+            if (RevocationBlockReason(_authorizationStore.LastRevocation()) is { } blocked)
+                SetBlocked(blocked);
+            else SetStatus(ResetCreditProtectionStatus.Disabled);
             return;
         }
 
@@ -381,7 +385,8 @@ internal sealed class ResetCreditProtectionService : IDisposable
 
         try
         {
-            await using var client = new AppServerClient();
+            await using var client = new AppServerClient(
+                allowsAutomaticRestart: false);
             var response = await ReadBoundRateLimitsAsync(
                     client, consent.AccountFingerprint, token)
                 .ConfigureAwait(false);
@@ -403,7 +408,7 @@ internal sealed class ResetCreditProtectionService : IDisposable
                     consent,
                     selected.CreditFingerprint))
             {
-                RevokeExpected(consent);
+                RevokeExpected(consent, ResetCreditRevocationReason.CreditNotAuthorized);
                 SetBlocked(
                     ResetCreditProtectionBlockReason.CreditNotAuthorized);
                 return;
@@ -415,8 +420,9 @@ internal sealed class ResetCreditProtectionService : IDisposable
                 if (_nextRetryAt > DateTimeOffset.UtcNow)
                 {
                     SetStatus(new ResetCreditProtectionStatus(
-                        ResetCreditProtectionStatusKind.WaitingForUsage,
-                        ExpiresAt: target.ExpiresAt));
+                        _status.Kind == ResetCreditProtectionStatusKind.Retrying
+                            ? ResetCreditProtectionStatusKind.Retrying : ResetCreditProtectionStatusKind.WaitingForUsage,
+                        ActionAt: _nextRetryAt, ExpiresAt: target.ExpiresAt));
                     return;
                 }
                 await AttemptWithProcessLockAsync(target, token)
@@ -462,7 +468,8 @@ internal sealed class ResetCreditProtectionService : IDisposable
                 .ConfigureAwait(false);
             return;
         }
-        await using var client = new AppServerClient();
+        await using var client = new AppServerClient(
+            allowsAutomaticRestart: false);
         await AttemptWhileLockedAsync(
                 target,
                 null,
@@ -505,7 +512,7 @@ internal sealed class ResetCreditProtectionService : IDisposable
                 consent,
                 target.CreditFingerprint))
         {
-            RevokeExpected(consent);
+            RevokeExpected(consent, ResetCreditRevocationReason.CreditNotAuthorized);
             if (existingJournal is null)
                 SetBlocked(
                     ResetCreditProtectionBlockReason.CreditNotAuthorized);
@@ -577,7 +584,7 @@ internal sealed class ResetCreditProtectionService : IDisposable
                     consent,
                     validatedTarget.CreditFingerprint))
             {
-                RevokeExpected(consent);
+                RevokeExpected(consent, ResetCreditRevocationReason.CreditNotAuthorized);
                 SetBlocked(
                     ResetCreditProtectionBlockReason.CreditNotAuthorized);
                 return;
@@ -593,7 +600,7 @@ internal sealed class ResetCreditProtectionService : IDisposable
             if (currentFingerprints is null
                 || !currentFingerprints.SetEquals(remainingAuthorized))
             {
-                RevokeExpected(consent);
+                RevokeExpected(consent, ResetCreditRevocationReason.CreditNotAuthorized);
                 SetBlocked(
                     ResetCreditProtectionBlockReason.CreditNotAuthorized);
                 return;
@@ -684,18 +691,15 @@ internal sealed class ResetCreditProtectionService : IDisposable
                 if (!dispatched)
                 {
                     RestorePreDispatchJournal(existingJournal);
-                    if (ex is ResetCreditAuthorizationException
-                        || ex is ResetCreditPreDispatchException
-                        || ex is OperationCanceledException)
+                    if (ex is ResetCreditPreDispatchException or OperationCanceledException)
                     {
-                        if (_settings.ResetCreditProtectionEnabled)
-                            RevokeExpected(consent);
-                        SetStatus(_settings.ResetCreditProtectionEnabled
-                            ? new ResetCreditProtectionStatus(
-                                ResetCreditProtectionStatusKind.Blocked,
-                                BlockReason:
-                                ResetCreditProtectionBlockReason.RequestFailed)
-                            : ResetCreditProtectionStatus.Disabled);
+                        HandlePreDispatchInterruption(consent, existingJournal, validatedTarget.ExpiresAt);
+                        return;
+                    }
+                    if (ex is ResetCreditAuthorizationException)
+                    {
+                        RevokeExpected(consent, ResetCreditRevocationReason.CreditNotAuthorized);
+                        SetBlocked(ResetCreditProtectionBlockReason.CreditNotAuthorized);
                         return;
                     }
                     if (ex
@@ -726,14 +730,14 @@ internal sealed class ResetCreditProtectionService : IDisposable
                 }
                 if (IsUnsupported(ex))
                 {
-                    RevokeExpected(consent);
+                    RevokeExpected(consent, ResetCreditRevocationReason.UnsupportedCodex);
                     SetBlocked(
                         ResetCreditProtectionBlockReason.UnsupportedCodex);
                     return;
                 }
                 if (IsAuthenticationFailure(ex))
                 {
-                    RevokeExpected(consent);
+                    RevokeExpected(consent, ResetCreditRevocationReason.SignedOut);
                     SetBlocked(
                         ResetCreditProtectionBlockReason.SignedOut);
                     return;
@@ -781,6 +785,7 @@ internal sealed class ResetCreditProtectionService : IDisposable
             else
             {
                 RestorePreDispatchJournal(existingJournal);
+                HandlePreDispatchInterruption(consent, existingJournal, target.ExpiresAt);
             }
         }
         catch (ResetCreditProtectionAccountBindingException ex)
@@ -793,13 +798,35 @@ internal sealed class ResetCreditProtectionService : IDisposable
         }
     }
 
+    private void HandlePreDispatchInterruption(ResetCreditProtectionConsent consent,
+        ResetCreditProtectionAttemptJournal? existingJournal, DateTimeOffset expiresAt)
+    {
+        var current = _authorizationStore.Load();
+        if (current.State == ProtectionStorageState.Corrupt)
+        {
+            FailClosed();
+            return;
+        }
+        var canRetry = _settings.ResetCreditProtectionEnabled
+                       && ResetCreditProtectionAuthorizationStore.Equivalent(_consent, consent)
+                       && ResetCreditProtectionAuthorizationStore.Equivalent(current.Value, consent);
+        _nextRetryAt = canRetry ? DateTimeOffset.UtcNow + RetryDelay : null;
+        SetStatus(existingJournal is not null
+            ? new ResetCreditProtectionStatus(ResetCreditProtectionStatusKind.Reconciling, ExpiresAt: expiresAt)
+            : canRetry
+                ? new ResetCreditProtectionStatus(ResetCreditProtectionStatusKind.Retrying,
+                    ActionAt: _nextRetryAt, ExpiresAt: expiresAt)
+                : ResetCreditProtectionStatus.Disabled);
+    }
+
     private async Task ReconcileJournalWhileLockedAsync(
         ResetCreditProtectionAttemptJournal journal,
         CancellationToken token)
     {
         try
         {
-            await using var client = new AppServerClient();
+            await using var client = new AppServerClient(
+                allowsAutomaticRestart: false);
             var response = await ReadBoundRateLimitsAsync(
                     client, journal.AccountFingerprint, token)
                 .ConfigureAwait(false);
@@ -995,6 +1022,8 @@ internal sealed class ResetCreditProtectionService : IDisposable
             failure = ex;
         }
 
+        if (failure is ResetCreditPreDispatchException or OperationCanceledException or ResetCreditAuthorizationException)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
         await VerifyAccountAsync(
                 client, consent.AccountFingerprint, token)
             .ConfigureAwait(false);
@@ -1230,7 +1259,8 @@ internal sealed class ResetCreditProtectionService : IDisposable
             return;
         }
         if (revoke && _consent is { } consent)
-            RevokeExpected(consent);
+            RevokeExpected(consent, exception.Failure == ResetCreditProtectionAccountBindingFailure.AccountChanged
+                ? ResetCreditRevocationReason.AccountChanged : ResetCreditRevocationReason.SignedOut);
         SetBlocked(
             exception.Failure
             == ResetCreditProtectionAccountBindingFailure.AccountChanged
@@ -1246,13 +1276,13 @@ internal sealed class ResetCreditProtectionService : IDisposable
     }
 
     private void RevokeExpected(
-        ResetCreditProtectionConsent consent)
+        ResetCreditProtectionConsent consent, ResetCreditRevocationReason reason)
     {
         try
         {
             if (_authorizationStore.ClearIfCurrent(
                     consent,
-                    DisableRequestedWithoutAuthorizationWrite))
+                    DisableRequestedWithoutAuthorizationWrite, reason))
             {
                 if (ReferenceEquals(_consent, consent)
                     || ResetCreditProtectionAuthorizationStore.Equivalent(
@@ -1274,7 +1304,7 @@ internal sealed class ResetCreditProtectionService : IDisposable
         try
         {
             _authorizationStore.Clear(
-                DisableRequestedWithoutAuthorizationWrite);
+                DisableRequestedWithoutAuthorizationWrite, ResetCreditRevocationReason.RuntimeUnavailable);
         }
         catch
         {
@@ -1356,7 +1386,23 @@ internal sealed class ResetCreditProtectionService : IDisposable
                 ResetCreditProtectionBlockReason.ClockChanged,
                 detail: reason.ToString());
         }
+        else if (RevocationBlockReason(_authorizationStore.LastRevocation()) is { } blockReason)
+        {
+            SetBlocked(blockReason);
+        }
     }
+
+    internal static ResetCreditProtectionBlockReason? RevocationBlockReason(ResetCreditRevocationReason? reason) =>
+        reason switch
+        {
+            ResetCreditRevocationReason.AccountChanged => ResetCreditProtectionBlockReason.AccountChanged,
+            ResetCreditRevocationReason.SignedOut => ResetCreditProtectionBlockReason.SignedOut,
+            ResetCreditRevocationReason.ClockChanged => ResetCreditProtectionBlockReason.ClockChanged,
+            ResetCreditRevocationReason.CreditNotAuthorized => ResetCreditProtectionBlockReason.CreditNotAuthorized,
+            ResetCreditRevocationReason.UnsupportedCodex => ResetCreditProtectionBlockReason.UnsupportedCodex,
+            ResetCreditRevocationReason.RuntimeUnavailable => ResetCreditProtectionBlockReason.JournalUnavailable,
+            _ => null
+        };
 
     private async Task RunExclusiveAsync(
         Func<CancellationToken, Task> operation,
@@ -1395,6 +1441,9 @@ internal sealed class ResetCreditProtectionService : IDisposable
         Exception exception,
         DateTimeOffset? expiresAt = null)
     {
+        if (_consent is { } consent && (IsUnsupported(exception) || IsAuthenticationFailure(exception)))
+            RevokeExpected(consent, IsUnsupported(exception)
+                ? ResetCreditRevocationReason.UnsupportedCodex : ResetCreditRevocationReason.SignedOut);
         var reason = exception switch
         {
             FileNotFoundException =>

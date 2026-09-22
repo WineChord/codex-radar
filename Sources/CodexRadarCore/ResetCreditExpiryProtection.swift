@@ -634,6 +634,26 @@ public struct ResetCreditProtectionLedgerStore {
 }
 
 public struct ResetCreditProtectionAuthorizationStore {
+    public enum RevocationReason: String, Codable, Equatable, Sendable {
+        case userDisabled
+        case accountChanged
+        case signedOut
+        case clockChanged
+        case creditNotAuthorized
+        case unsupportedCodex
+        case runtimeUnavailable
+    }
+
+    public struct RevocationRecord: Equatable, Sendable {
+        public let reason: RevocationReason
+        public let revokedAt: Date
+
+        public init(reason: RevocationReason, revokedAt: Date) {
+            self.reason = reason
+            self.revokedAt = revokedAt
+        }
+    }
+
     public enum LoadResult: Equatable {
         case absent
         case loaded(ResetCreditProtectionConsent)
@@ -659,8 +679,24 @@ public struct ResetCreditProtectionAuthorizationStore {
     private struct RevocationMarker: Codable, Equatable {
         let version: Int
         let revoked: Bool
+        let reason: RevocationReason?
+        let revokedAt: Date?
 
-        static let current = RevocationMarker(version: 1, revoked: true)
+        static func current(
+            reason: RevocationReason,
+            revokedAt: Date = Date()
+        ) -> RevocationMarker {
+            RevocationMarker(
+                version: 2,
+                revoked: true,
+                reason: reason,
+                revokedAt: revokedAt
+            )
+        }
+
+        var isRecognized: Bool {
+            revoked && (version == 1 || version == 2)
+        }
     }
 
     public let url: URL
@@ -680,7 +716,7 @@ public struct ResetCreditProtectionAuthorizationStore {
         if let marker = try? JSONDecoder().decode(
             RevocationMarker.self,
             from: data
-        ), marker == .current {
+        ), marker.isRecognized {
             return .absent
         }
         guard let consent = try? JSONDecoder().decode(
@@ -692,6 +728,20 @@ public struct ResetCreditProtectionAuthorizationStore {
             return .corrupt
         }
         return .loaded(consent)
+    }
+
+    public func lastRevocation() -> RevocationRecord? {
+        guard let data = try? Data(contentsOf: url),
+              let marker = try? JSONDecoder().decode(
+                  RevocationMarker.self,
+                  from: data
+              ),
+              marker.isRecognized,
+              let reason = marker.reason,
+              let revokedAt = marker.revokedAt else {
+            return nil
+        }
+        return RevocationRecord(reason: reason, revokedAt: revokedAt)
     }
 
     public func save(
@@ -714,7 +764,10 @@ public struct ResetCreditProtectionAuthorizationStore {
         onSaved()
     }
 
-    public func clear(onCleared: () -> Void = {}) throws {
+    public func clear(
+        reason: RevocationReason = .userDisabled,
+        onCleared: () -> Void = {}
+    ) throws {
         let lock = try ResetCreditProtectionProcessLock(
             url: dispatchLockURL,
             nonBlocking: false
@@ -722,12 +775,13 @@ public struct ResetCreditProtectionAuthorizationStore {
         defer {
             lock.release()
         }
-        try writeRevocationMarker()
+        try writeRevocationMarker(reason: reason)
         onCleared()
     }
 
     public func clear(
         ifCurrent expectedConsent: ResetCreditProtectionConsent,
+        reason: RevocationReason = .userDisabled,
         onCleared: () -> Void = {}
     ) throws -> ConditionalClearResult {
         let lock = try ResetCreditProtectionProcessLock(
@@ -739,7 +793,7 @@ public struct ResetCreditProtectionAuthorizationStore {
         }
         switch load() {
         case .loaded(let current) where current == expectedConsent:
-            try writeRevocationMarker()
+            try writeRevocationMarker(reason: reason)
             onCleared()
             return .cleared
         case .absent:
@@ -772,14 +826,14 @@ public struct ResetCreditProtectionAuthorizationStore {
             ) else {
                 return .continuous(consent)
             }
-            try writeRevocationMarker()
+            try writeRevocationMarker(reason: .clockChanged)
             onInvalidAuthorization()
             return .revoked(consent, reason)
         case .absent:
             onInvalidAuthorization()
             return .absent
         case .corrupt:
-            try writeRevocationMarker()
+            try writeRevocationMarker(reason: .runtimeUnavailable)
             onInvalidAuthorization()
             return .corrupt
         }
@@ -813,8 +867,12 @@ public struct ResetCreditProtectionAuthorizationStore {
         }
     }
 
-    private func writeRevocationMarker() throws {
-        guard let data = try? JSONEncoder().encode(RevocationMarker.current) else {
+    private func writeRevocationMarker(
+        reason: RevocationReason
+    ) throws {
+        guard let data = try? JSONEncoder().encode(
+            RevocationMarker.current(reason: reason)
+        ) else {
             throw ResetCreditProtectionStorageError.cannotEncode
         }
         try ResetCreditProtectionAtomicFile.write(data, to: url)

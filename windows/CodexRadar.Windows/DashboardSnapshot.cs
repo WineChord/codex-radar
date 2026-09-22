@@ -15,6 +15,7 @@ internal sealed record DashboardSnapshot
     public string? PlanType { get; init; }
     public string? CreditsBalance { get; init; }
     public bool LimitReached { get; init; }
+    public bool CanConfirmWeeklyRecovery { get; init; } = true;
     public double? IqScore { get; init; }
     public string? IqDate { get; init; }
     public string? IqStatus { get; init; }
@@ -60,6 +61,8 @@ internal sealed record DashboardSnapshot
     public IReadOnlyList<string> ResetRadarReasons { get; init; } = [];
     public string? CommunityKnowledge { get; init; }
     public string? CommunityPrompt { get; init; }
+    public IReadOnlyList<CommunityKnowledgeInfo> CommunityKnowledges { get; init; } = [];
+    public FastRadarInfo? FastRadar { get; init; }
     public IReadOnlyList<QuotaEstimate> QuotaRadar { get; init; } = [];
     public string? QuotaRadarDate { get; init; }
     public DateTimeOffset? QuotaRadarUpdatedAt { get; init; }

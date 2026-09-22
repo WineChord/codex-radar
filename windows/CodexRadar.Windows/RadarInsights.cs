@@ -51,9 +51,17 @@ internal sealed record RadarDegradationAlert(
     string? Effort,
     double? Iq,
     double? From24HourHighIq,
-    double? From48HourHighIq)
+    double? From48HourHighIq,
+    double? Average24HourIq = null,
+    double? Average48HourIq = null,
+    double? From24HourAverageIq = null,
+    double? From48HourAverageIq = null)
 {
-    public double LargestDrop => new[] { From24HourHighIq, From48HourHighIq }
+    public double? Preferred24HourDrop => From24HourAverageIq ?? (Average24HourIq - Iq) ?? From24HourHighIq;
+    public double? Preferred48HourDrop => From48HourAverageIq ?? (Average48HourIq - Iq) ?? From48HourHighIq;
+    public bool Uses24HourAverage => From24HourAverageIq is not null || (Average24HourIq is not null && Iq is not null);
+    public bool Uses48HourAverage => From48HourAverageIq is not null || (Average48HourIq is not null && Iq is not null);
+    public double LargestDrop => new[] { Preferred24HourDrop, Preferred48HourDrop }
         .Where(value => value is double number && double.IsFinite(number))
         .Select(value => value!.Value)
         .DefaultIfEmpty(0)
@@ -63,7 +71,8 @@ internal sealed record RadarDegradationAlert(
     {
         get
         {
-            var drops = new[] { From24HourHighIq, From48HourHighIq }
+            var drops = new[] { From24HourHighIq, From48HourHighIq,
+                    From24HourAverageIq, From48HourAverageIq, Average24HourIq, Average48HourIq }
                 .Where(value => value is not null)
                 .Select(value => value!.Value)
                 .ToArray();
@@ -218,7 +227,11 @@ internal static class RadarInsightsParser
                 "from_48h_high_iq",
                 "degradation_48h_iq",
                 "drop_48h",
-                "drop48h"));
+                "drop48h"),
+            Number(item, "average_iq_24h"),
+            Number(item, "average_iq_48h"),
+            Number(item, "from_24h_average_iq"),
+            Number(item, "from_48h_average_iq"));
     }
 
     private static ParsedBody ParseBody(JsonElement element)

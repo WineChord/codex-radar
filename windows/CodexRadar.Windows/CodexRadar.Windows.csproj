@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>CodexRadar.Windows</AssemblyName>
     <RootNamespace>CodexRadar.Windows</RootNamespace>
-    <Version>0.1.62</Version>
+    <Version>0.1.72</Version>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <WarningsAsErrors>$(WarningsAsErrors);CA1416</WarningsAsErrors>
   </PropertyGroup>

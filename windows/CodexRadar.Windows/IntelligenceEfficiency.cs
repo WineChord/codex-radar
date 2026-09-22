@@ -56,7 +56,8 @@ internal static class IntelligenceEfficiencyParser
             if (values.ValueKind != JsonValueKind.Array)
                 throw new JsonException(
                     "Intelligence Efficiency points must be an array.");
-            points = values.EnumerateArray().Select(ParsePoint).ToArray();
+            var schema = StrictNullableInt(root, "schema");
+            points = values.EnumerateArray().Select(item => ParsePoint(item, schema)).ToArray();
         }
         return new IntelligenceEfficiencyEnvelope(
             StrictNullableInt(root, "schema"),
@@ -145,6 +146,7 @@ internal static class IntelligenceEfficiencyParser
             return current with
             {
                 Comparisons = mergedComparisons,
+                IntelligenceEfficiencyPairKeys = points.Select(point => point.PairKey!).ToHashSet(StringComparer.Ordinal),
                 IqDataSourceUrl = current.IqDataSourceUrl ?? DistributedSourceUrl,
                 IqValidCells = validCells ?? current.IqValidCells,
                 IqSourceUpdatedAt = RadarJson.Date(envelope.SourceUpdatedAt) ?? current.IqSourceUpdatedAt
@@ -168,13 +170,14 @@ internal static class IntelligenceEfficiencyParser
             AverageTaskMinutes = primaryPoint.AverageMinutes ?? current.AverageTaskMinutes,
             CacheHitRate = CacheRate(primaryPoint.CacheHitRate) ?? current.CacheHitRate,
             Comparisons = mergedComparisons,
+            IntelligenceEfficiencyPairKeys = points.Select(point => point.PairKey!).ToHashSet(StringComparer.Ordinal),
             IqDataSourceUrl = current.IqDataSourceUrl ?? DistributedSourceUrl,
             IqValidCells = validCells ?? current.IqValidCells,
             IqSourceUpdatedAt = RadarJson.Date(envelope.SourceUpdatedAt) ?? current.IqSourceUpdatedAt
         };
     }
 
-    private static IntelligenceEfficiencyPoint ParsePoint(JsonElement item)
+    private static IntelligenceEfficiencyPoint ParsePoint(JsonElement item, int? schema)
     {
         if (item.ValueKind != JsonValueKind.Object)
             throw new JsonException(
@@ -188,8 +191,11 @@ internal static class IntelligenceEfficiencyParser
             StrictNullableDouble(item, "average_price_usd"),
             StrictNullableDouble(item, "average_minutes"),
             StrictNullableString(item, "latest_graded_at"),
-            StrictNullableDouble(item, "cache_hit_rate"));
+            CachePercent(StrictNullableDouble(item, "cache_hit_rate"), schema));
     }
+
+    private static double? CachePercent(double? value, int? schema) =>
+        schema == 2 && value is >= 0 and <= 1 ? value * 100 : value;
 
     private static ModelComparison MergeComparison(
         ModelComparison existing,
@@ -266,6 +272,11 @@ internal static class IntelligenceEfficiencyParser
         if (!element.TryGetProperty(name, out var value)) return null;
         if (value.ValueKind == JsonValueKind.Null) return null;
         if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number)) return number;
+        // JSON permits integral values such as 98.0. Accept them without
+        // rounding fractional counts or overflowing the supported range.
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var integral)
+            && integral == decimal.Truncate(integral) && integral is >= int.MinValue and <= int.MaxValue)
+            return (int)integral;
         throw new JsonException($"{name} must be an integer.");
     }
 

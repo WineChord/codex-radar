@@ -12,6 +12,8 @@ enum DocumentationScreenshotRenderer {
         "CODEX_RADAR_VISUAL_TEST_EXPAND_MODEL_IQ"
     private static let quotaHistoryEnvironmentKey =
         "CODEX_RADAR_VISUAL_TEST_EXPAND_QUOTA_HISTORY"
+    private static let radarInsightsEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_EXPAND_RADAR_INSIGHTS"
     private static let quotaHistoryRangeEnvironmentKey =
         "CODEX_RADAR_VISUAL_TEST_QUOTA_HISTORY_RANGE"
     private static let layoutEditorEnvironmentKey =
@@ -22,6 +24,8 @@ enum DocumentationScreenshotRenderer {
         "CODEX_RADAR_VISUAL_TEST_LAYOUT_PROFILE"
     private static let attentionEnvironmentKey =
         "CODEX_RADAR_VISUAL_TEST_ATTENTION"
+    private static let resetRetryEnvironmentKey =
+        "CODEX_RADAR_VISUAL_TEST_RESET_RETRYING"
     private static let defaultsSuitePrefix = "com.codexradar.sentinel.docs"
     private static let layoutProbeHeight: CGFloat = 10
     private static let captureSettleSeconds: TimeInterval = 0.2
@@ -118,11 +122,37 @@ enum DocumentationScreenshotRenderer {
         ].flatMap(QuotaHistoryRange.init(rawValue:)) {
             store.quotaHistoryRange = historyRange
         }
+        if ProcessInfo.processInfo.environment[
+            radarInsightsEnvironmentKey
+        ] == "1" {
+            store.moveDashboardSection(.insights, to: 0)
+            for section in DashboardSection.allCases
+                where section != .insights {
+                store.setDashboardSection(section, visible: false)
+            }
+            store.dismissLayoutDiscoveryTip()
+            store.setDashboardDisclosure(
+                .radarInsightsDetails,
+                expanded: true
+            )
+        }
         configureLayoutProfileIfRequested(store)
         if ProcessInfo.processInfo.environment[
             attentionEnvironmentKey
         ] == "1" {
             store.configureForDocumentationAttention()
+        }
+        if ProcessInfo.processInfo.environment[
+            resetRetryEnvironmentKey
+        ] == "1" {
+            store.configureForDocumentationResetRetry()
+            store.moveDashboardSection(.resetCredits, to: 0)
+            for section in DashboardSection.allCases
+                where section != .resetCredits {
+                store.setDashboardSection(section, visible: false)
+            }
+            store.setDashboardSection(.resetCredits, expanded: true)
+            store.dismissLayoutDiscoveryTip()
         }
 
         let showsLayoutEditor = ProcessInfo.processInfo.environment[
@@ -209,6 +239,21 @@ enum DocumentationScreenshotRenderer {
         window.orderFrontRegardless()
         window.displayIfNeeded()
         RunLoop.current.run(until: Date().addingTimeInterval(captureSettleSeconds))
+
+        if let bitmap = hostingView.bitmapImageRepForCachingDisplay(
+            in: hostingView.bounds
+        ) {
+            hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
+            let image = NSImage(
+                size: NSSize(
+                    width: bitmap.pixelsWide,
+                    height: bitmap.pixelsHigh
+                )
+            )
+            image.addRepresentation(bitmap)
+            window.close()
+            return image
+        }
 
         guard let cgImage = CGWindowListCreateImage(
             .null,

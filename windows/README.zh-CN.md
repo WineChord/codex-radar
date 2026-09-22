@@ -1,6 +1,6 @@
 # Codex Radar Sentinel Windows 版
 
-这是 Codex Radar Sentinel 的原生 Windows 10 1809+/11 状态版本，使用 .NET 8 WinForms 和 Windows API。正式包是自包含应用，用户不需要另外安装 .NET。数据口径、模块顺序、19 组 Intelligence Efficiency、Insights、重置卡保护和降级行为与 macOS 版对齐；窗口和任务栏交互遵循 Windows 习惯。
+这是 Codex Radar Sentinel 的原生 Windows 10 1809+/11 状态版本，使用 .NET 8 WinForms 和 Windows API。正式包是自包含应用，用户不需要另外安装 .NET。数据口径、模块顺序、全部已发布 Intelligence Efficiency 配置、Insights、重置卡保护和降级行为与 macOS 版对齐；窗口和任务栏交互遵循 Windows 习惯。
 
 ## Windows 与 macOS 包严格隔离
 
@@ -27,8 +27,9 @@ Codex 可以直接使用仓库维护的 [`windows/install.ps1`](install.ps1)，�
 先下载脚本以便检查，再通过 Windows PowerShell 运行：
 
 ```powershell
+$ErrorActionPreference = "Stop"
 $installer = Join-Path $env:TEMP "install-codex-radar.ps1"
-Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/WineChord/codex-radar/main/windows/install.ps1" -OutFile $installer
+Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/WineChord/codex-radar/main/windows/install.ps1" -OutFile $installer -ErrorAction Stop
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer
 if ($LASTEXITCODE -ne 0) { throw "Codex Radar Sentinel 安装失败，退出码：$LASTEXITCODE" }
 ```
@@ -69,21 +70,24 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Progr
 - 可在“通知区域图标（当前位置）”和“任务栏文字（输入法/通知区域左侧）”之间切换；默认沿用通知区域图标。
 - 任务栏文字直接常驻显示与 macOS 相同的可配置摘要段；它是安全的无激活圆角窗口，不注入或修改 Explorer。
 - 两种位置都支持左键打开或收起雷达面板，以及右键打开包含退出的完整菜单。
-- 通过 `codex app-server --listen stdio://` 读取本机周额度和 5 小时额度。
+- 检测到由当前用户专属 ACL 保护的 Codex 受管控制 socket 时，优先通过 `codex app-server proxy --sock` 复用已经登录的会话；握手、认证或传输不可用时安全回退到 `codex app-server --listen stdio://`，读取本机周额度和 5 小时额度。
 - 在 `Codex 额度` 中记录真实本机周额度余量，提供 24 小时、7 天和 30 天曲线；支持鼠标悬停/拖动、左右键逐点查看，明确标出观测到的重置和数据断档。历史默认显示但折叠，隐藏后仍继续后台采样。
 - 点击底部 `布局` 会在当前雷达窗口内进入紧凑编辑器；可拖动或用箭头排序，并分别设置模块及子项是否显示、是否默认展开。当前结论、紧急提示和连接错误始终保留，需要处理的重置卡或失败更新会临时置顶且不能隐藏。
-- 展示 CodexRadar 公告、分布式 Model IQ、逐任务成本/耗时/通过数/体感、19 组 Intelligence Efficiency、额度雷达、重置雷达、Fast 雷达、社区 Prompt、场景建议与降智预警，并保留旧数据契约兼容。
+- 展示 CodexRadar 公告、分布式 Model IQ、逐任务成本/耗时/通过数/体感、全部已发布 Intelligence Efficiency 配置、额度雷达、重置雷达、Fast 雷达、社区 Prompt、场景建议与降智预警，并保留旧数据契约兼容。
 - Insights 只接受已知 schema 和合法时间戳；网络、空数据、格式错误或时间回退时保留最近一次有效结果，不用损坏的新响应覆盖界面。
 - “到期前自动使用重置卡”严格默认关闭。只有用户确认授权、账号与完整卡片集合仍一致、时钟连续、目标唯一且进入到期前约 30 分钟窗口时才会发送请求；未决请求先只读对账，账号/卡片/时钟变化或存储异常会撤销授权并安全关闭。
 - 60 秒自动刷新、Windows 通知、中英文界面、多显示器定位、Per-Monitor DPI 和单实例保护；面板卡片采用原子替换，相同数据只更新时间，不会在后台刷新时清空成白屏。
+- 轻透明、接近任务栏配色的面板，采用圆角卡片和居中、可换行的操作文字；高对比度模式关闭窗口透明效果，中英文均检查全部三种字号。
 - Windows 10 1809（build 17763）或更高版本，或 Windows 11；支持 x64 和 ARM64。
 - 本机额度需要已安装并登录 Codex CLI。若不在 `PATH`，可用 `CODEX_RADAR_CODEX_PATH` 指向 `codex.exe` 或 `codex.cmd`。
 
 找不到 Codex CLI 时，CodexRadar 公开数据仍可使用，只有本机额度区显示连接提示。
 
+明确的用量权限与支出限制优先于剩余百分比，权限未知时不会发送额度恢复通知；短暂读取失败只重试一次。重置卡自动使用在发送前会话结束时保留同一次授权，重新完整核验后再试；账号、卡片集合、时钟或存储异常仍会撤销授权，并在本机保留原因与时间。诊断测试不会消耗重置卡。
+
 状态位置可在面板的“显示与提醒”模块打开 `设置`，进入 `状态栏` 页切换，也可右键当前状态入口后从 `状态显示位置` 切换。“通知区域图标”是否被收入 `^` 溢出区由 Windows 决定；“任务栏文字”无需点开溢出区，会自动贴靠在当前任务栏输入法/通知区域左侧，并在全屏应用时隐藏。
 
-本机额度通过无 BOM UTF-8 的 JSON Lines 与 `codex app-server` 通信；如果首条 RPC 被写入 BOM，Codex 会拒绝初始化，周额度和 5h 都会显示 `--`。Windows 版的自检会防止这个协议问题回归。面板打开时会先显示已经缓存的界面，再合并后台数据，网络等待和 Codex 进程扫描不会阻塞状态区点击。每分钟刷新若只有获取时间变化，只更新顶部时间；内容确实变化时，先在隐藏的候选控件树中完整构建和布局，成功后再一次性替换旧内容。构建异常会保留旧界面并等待下次刷新，不会清空成白屏。
+受管通道使用经过 RFC 6455 校验的 WebSocket 帧，并要求客户端帧带随机掩码；独立通道使用无 BOM UTF-8 JSON Lines。两种方式都只调用 Codex app-server，不读取、复制或缓存登录凭证。受管连接只允许在尚未完成安全读取时回退；重置卡写入所绑定的会话一旦结束，不会跨进程重启后继续发送。Windows 自检覆盖握手证明、分帧、Ping/Pong、掩码、异常回退和无 BOM 约束。面板打开时会先显示已经缓存的界面，再合并后台数据，网络等待和 Codex 进程扫描不会阻塞状态区点击。每分钟刷新若只有获取时间变化，只更新顶部时间；内容确实变化时，先在隐藏的候选控件树中完整构建和布局，成功后再一次性替换旧内容。构建异常会保留旧界面并等待下次刷新，不会清空成白屏。
 
 ## 本地开发与测试
 
@@ -92,6 +96,8 @@ dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj
 
 dotnet build .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release
 dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --self-test
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --live-radar-self-test
+dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --live-quota-self-test
 dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --ui-self-test
 dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c Release --no-build -- --taskbar-ui-self-test
 ```
@@ -107,13 +113,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build.ps1 -Run
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build.ps1 -Runtime win-arm64
 ```
 
-版本默认读取项目版本，发布自动化也可传入 `-Version 0.1.62`。Release 资产版本采用 `major.minor.patch`，可带预发布后缀；脚本会刻意拒绝 `+build` 元数据，避免更新器查找资产时产生歧义。把 `artifacts\windows\release` 中对应的两个文件原名上传，例如：
+版本默认读取项目版本，发布自动化也可传入 `-Version 0.1.72`。Release 资产版本采用 `major.minor.patch`，可带预发布后缀；脚本会刻意拒绝 `+build` 元数据，避免更新器查找资产时产生歧义。把 `artifacts\windows\release` 中对应的两个文件原名上传，例如：
 
 ```text
-CodexRadarSentinel-0.1.62-Windows-x64.zip
-CodexRadarSentinel-0.1.62-Windows-x64.sha256
-CodexRadarSentinel-0.1.62-Windows-arm64.zip
-CodexRadarSentinel-0.1.62-Windows-arm64.sha256
+CodexRadarSentinel-0.1.72-Windows-x64.zip
+CodexRadarSentinel-0.1.72-Windows-x64.sha256
+CodexRadarSentinel-0.1.72-Windows-arm64.zip
+CodexRadarSentinel-0.1.72-Windows-arm64.sha256
 ```
 
 `-FrameworkDependent` 仅供开发，会刻意跳过 Release 资产生成，避免把依赖外部 .NET Runtime 的包误发成自包含正式包。
@@ -121,6 +127,8 @@ CodexRadarSentinel-0.1.62-Windows-arm64.sha256
 每个 ZIP 根目录严格只有三个条目：`CodexRadarSentinel.exe`、`uninstall.ps1` 和 `release-manifest.json`。schema 1 清单包含 `product`、`platform`、`runtime`、`architecture`、`version`、`executable`、`executable_sha256`、`uninstaller`、`uninstaller_sha256`、`minimum_windows_build`、`framework_dependent` 和 `generated_utc`。安装器/更新器应拒绝缺失、额外或嵌套条目，不能递归搜索一个看似可用的 exe。
 
 ## 兼容性与发布验证
+
+当前证据范围及尚未通过的发布条件见[验证状态](VALIDATION.md)。
 
 项目目标框架固定为 `net8.0-windows10.0.17763.0`，并把平台兼容性警告作为构建错误。`.github/workflows/windows.yml` 在 Windows x64 和原生 Windows 11 ARM64 runner 上执行编译、离线协议/隐私回归、WinForms 视觉烟雾测试、自包含打包以及包内原生自检。
 
@@ -134,12 +142,20 @@ CodexRadarSentinel-0.1.62-Windows-arm64.sha256
 
 ```powershell
 .\windows\verify-release.ps1 -Runtime win-x64 -RunSelfTest
+.\windows\validate-lifecycle.ps1 `
+  -Runtime win-x64 `
+  -Archive .\artifacts\windows\release\CodexRadarSentinel-0.1.72-Windows-x64.zip `
+  -Checksum .\artifacts\windows\release\CodexRadarSentinel-0.1.72-Windows-x64.sha256 `
+  -RunLiveRadarRead `
+  -RunLiveQuotaRead
 .\windows\validate-compatibility.ps1 `
   -Target windows-11-x64 `
-  -Executable .\artifacts\windows\win-x64\CodexRadar.Windows.exe
+  -Executable .\artifacts\windows\win-x64\CodexRadar.Windows.exe `
+  -RunLiveRadarRead `
+  -RunLiveQuotaRead
 ```
 
-验证脚本检查操作系统 build、进程架构、核心自检、中英文 M/L/XL 面板视觉、真实 Explorer 任务栏放置与右键退出入口、ZIP 条目、manifest、双层 SHA256 和 PE 架构，并把 JSON 证据写入 `artifacts\windows`。Windows 10 的真实桌面行为仍需在 Windows 10 实机/虚拟机执行该脚本；仅在较新系统编译不能替代这一步。
+验证脚本检查操作系统 build、进程架构、核心自检、中英文 M/L/XL 面板视觉、真实 Explorer 任务栏放置与右键退出入口、ZIP 条目、manifest、双层 SHA256 和 PE 架构，并把 JSON 证据写入 `artifacts\windows`。生命周期验证把本地压缩包与校验文件显式交给 `install.ps1`，使用关闭重置卡破坏性动作的隔离数据目录，启动已安装程序、执行刷新诊断与界面验证、完成一次受校验升级、故意制造替换后事务失败来证明回滚，最后运行包内卸载器。安装器默认行为仍是读取 GitHub latest 公共 Release；`-PackageArchive` 与 `-PackageChecksum` 必须成对传入，并经过相同的包名、哈希、manifest、架构和签名检查。`-RunLiveRadarRead` 通过不携带 Cookie 的 HTTPS 请求验证当前公开雷达数据契约，不发送任何凭证；`-RunLiveQuotaRead` 只读验证当前用户的真实 Codex 登录态与额度。两种诊断都不会查询或消耗重置卡。桌面兼容性验证会拒绝 Windows Server，生命周期证据也会明确标记 Server 主机。Windows 10 的真实桌面行为仍需在 Windows 10 实机/虚拟机执行该脚本；仅在较新客户端或 Server 主机编译、测试都不能替代这一步。
 
 ## 包信任与 SmartScreen
 

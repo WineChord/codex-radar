@@ -915,6 +915,48 @@ final class ResetCreditExpiryProtectionTests: XCTestCase {
         XCTAssertEqual(store.load(), .loaded(newConsent))
     }
 
+    func testAuthorizationRevocationRecordsReasonAndReadsLegacyMarker()
+        throws
+    {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "codex-radar-auth-reason-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let authorizationURL = directory.appendingPathComponent(
+            "authorization.json"
+        )
+        let store = ResetCreditProtectionAuthorizationStore(
+            url: authorizationURL,
+            dispatchLockURL: directory.appendingPathComponent("dispatch.lock")
+        )
+        let currentConsent = consent(
+            authorizationID: "33333333-3333-4333-8333-333333333333"
+        )
+        try store.save(currentConsent)
+        let before = Date()
+
+        XCTAssertEqual(
+            try store.clear(
+                ifCurrent: currentConsent,
+                reason: .creditNotAuthorized
+            ),
+            .cleared
+        )
+        let record = try XCTUnwrap(store.lastRevocation())
+        XCTAssertEqual(record.reason, .creditNotAuthorized)
+        XCTAssertGreaterThanOrEqual(record.revokedAt, before)
+        XCTAssertLessThanOrEqual(record.revokedAt, Date())
+        XCTAssertEqual(store.load(), .absent)
+
+        try Data(#"{"version":1,"revoked":true}"#.utf8).write(
+            to: authorizationURL
+        )
+        XCTAssertEqual(store.load(), .absent)
+        XCTAssertNil(store.lastRevocation())
+    }
+
     func testClockValidationKeepsBenignNTPAndRevokesLargeOffsets() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(
@@ -976,6 +1018,7 @@ final class ResetCreditExpiryProtectionTests: XCTestCase {
         )
         XCTAssertFalse(requested)
         XCTAssertEqual(store.load(), .absent)
+        XCTAssertEqual(store.lastRevocation()?.reason, .clockChanged)
 
         try store.save(currentConsent) {
             XCTAssertEqual(store.load(), .loaded(currentConsent))

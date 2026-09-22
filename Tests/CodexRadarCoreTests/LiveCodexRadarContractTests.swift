@@ -21,7 +21,7 @@ final class LiveCodexRadarContractTests: XCTestCase {
             $0.snapshot.model == "gpt-5.6-sol" && $0.snapshot.reasoningEffort == "ultra"
         } == true)
         XCTAssertGreaterThanOrEqual(current.modelIQ?.quotaRadar?.rows.count ?? 0, 1)
-        try assertValidResetJudgement(current.resetJudgement)
+        try assertValidResetJudgementIfPresent(current.resetJudgement)
         XCTAssertNotNil(current.communityKnowledge?.prompt)
         XCTAssertGreaterThanOrEqual(current.communityKnowledges.count, 1)
         try assertValidSiteAnnouncementIfPresent(current.siteAnnouncement)
@@ -62,6 +62,12 @@ final class LiveCodexRadarContractTests: XCTestCase {
                 $0.largestDrop > 0
             }
         )
+        XCTAssertTrue(
+            insights.degradationAlerts.validItems.allSatisfy {
+                $0.uses24HourAverageComparison
+                    || $0.uses48HourAverageComparison
+            }
+        )
 
         var homepageRequest = URLRequest(url: AppConstants.codexRadarBaseURL)
         homepageRequest.timeoutInterval = TimeInterval(AppConstants.requestTimeoutSeconds)
@@ -99,10 +105,36 @@ final class LiveCodexRadarContractTests: XCTestCase {
             homepageCurrent.modelIQ?.dataSource?.validCells,
             homepageValidTasks.reduce(0, +)
         )
-        try assertValidResetJudgement(homepageCurrent.resetJudgement)
-        XCTAssertGreaterThanOrEqual(homepageCurrent.communityKnowledges.count, 1)
-        try assertValidSiteAnnouncementIfPresent(homepageCurrent.siteAnnouncement)
+        try assertValidResetJudgementIfPresent(homepageCurrent.resetJudgement)
+        XCTAssertEqual(
+            homepageCurrent.communityKnowledges.count,
+            communityKnowledgeCardCount(in: html)
+        )
+        if containsSiteAnnouncement(in: html) {
+            let announcement = try XCTUnwrap(
+                homepageCurrent.siteAnnouncement
+            )
+            try assertValidSiteAnnouncementIfPresent(announcement)
+            if html.contains("pro-subscription-announcement") {
+                let message = try XCTUnwrap(announcement.message)
+                let paragraphs = siteAnnouncementLeadParagraphs(in: html)
+                XCTAssertFalse(paragraphs.isEmpty)
+                for paragraph in paragraphs {
+                    XCTAssertTrue(message.contains(paragraph))
+                }
+                if html.contains("pro-subscription-announcement-link") {
+                    XCTAssertNotNil(announcement.sourceLinkURL)
+                }
+            }
+        }
         XCTAssertGreaterThanOrEqual(homepageCurrent.fastRadar?.rows.count ?? 0, 1)
+        if html.contains("fast-radar-explain") {
+            XCTAssertFalse(
+                homepageCurrent.fastRadar?.method?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .isEmpty ?? true
+            )
+        }
     }
 
     private func assertValidSiteAnnouncementIfPresent(
@@ -116,15 +148,73 @@ final class LiveCodexRadarContractTests: XCTestCase {
         XCTAssertFalse(message.isEmpty)
     }
 
-    private func assertValidResetJudgement(
+    private func assertValidResetJudgementIfPresent(
         _ judgement: ResetJudgement?
     ) throws {
-        let judgement = try XCTUnwrap(judgement)
+        guard let judgement else {
+            return
+        }
         XCTAssertFalse(judgement.cards.isEmpty)
         XCTAssertTrue(judgement.cards.allSatisfy { card in
             card.label?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 && card.level?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 && card.summary?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         })
+    }
+
+    private func communityKnowledgeCardCount(in html: String) -> Int {
+        let pattern = #"<article\s+class="[^"]*community-knowledge-card[^"]*"[^>]*>"#
+        let regex = try? NSRegularExpression(pattern: pattern)
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        return regex?.numberOfMatches(in: html, range: range) ?? 0
+    }
+
+    private func containsSiteAnnouncement(in html: String) -> Bool {
+        let pattern = #"<section\s+[^>]*class="(?:[^"]*\s)?site-announcement(?:\s[^"]*)?"[^>]*>"#
+        let regex = try? NSRegularExpression(pattern: pattern)
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        return regex?.firstMatch(in: html, range: range) != nil
+    }
+
+    private func siteAnnouncementLeadParagraphs(in html: String) -> [String] {
+        let pattern = #"<p\s+[^>]*class="(?:[^"]*\s)?site-announcement-lead(?:\s[^"]*)?"[^>]*>(.*?)</p>"#
+        guard let regex = try? NSRegularExpression(
+            pattern: pattern,
+            options: [.dotMatchesLineSeparators]
+        ) else {
+            return []
+        }
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        return regex.matches(in: html, range: range).compactMap { match in
+            guard let captureRange = Range(match.range(at: 1), in: html) else {
+                return nil
+            }
+            var paragraph = String(html[captureRange])
+                .replacingOccurrences(
+                    of: #"<[^>]+>"#,
+                    with: "",
+                    options: .regularExpression
+                )
+                .replacingOccurrences(
+                    of: #"\s+"#,
+                    with: " ",
+                    options: .regularExpression
+                )
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            for (entity, replacement) in [
+                "&amp;": "&",
+                "&lt;": "<",
+                "&gt;": ">",
+                "&quot;": "\"",
+                "&#39;": "'",
+                "&nbsp;": " "
+            ] {
+                paragraph = paragraph.replacingOccurrences(
+                    of: entity,
+                    with: replacement
+                )
+            }
+            return paragraph
+        }.filter { !$0.isEmpty }
     }
 }

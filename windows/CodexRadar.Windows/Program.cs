@@ -12,9 +12,30 @@ internal static class Program
             RunDiagnostic(SelfTest.Run);
             return;
         }
+        if (args.Contains(
+                "--live-quota-self-test",
+                StringComparer.OrdinalIgnoreCase))
+        {
+            RunDiagnostic(() => SelfTest.RunLiveQuotaReadOnly()
+                .GetAwaiter().GetResult());
+            return;
+        }
+        if (args.Contains(
+                "--live-radar-self-test",
+                StringComparer.OrdinalIgnoreCase))
+        {
+            RunDiagnostic(() => SelfTest.RunLiveRadarReadOnly()
+                .GetAwaiter().GetResult());
+            return;
+        }
         if (args.Contains("--ui-self-test", StringComparer.OrdinalIgnoreCase))
         {
             RunDiagnostic(() => DashboardVisualSmoke.Run());
+            return;
+        }
+        if (args.Contains("--interactive-preview", StringComparer.OrdinalIgnoreCase))
+        {
+            RunDiagnostic(() => DashboardVisualSmoke.Run(interactive: true));
             return;
         }
         if (args.Contains(
@@ -88,8 +109,70 @@ internal static class Program
 
 internal static class SelfTest
 {
+    public static async Task RunLiveQuotaReadOnly()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await using var client = new AppServerClient();
+        var quota = await client.ReadRateLimitsAsync(timeout.Token)
+            .ConfigureAwait(false);
+        if (quota.Weekly is null && quota.Short is null)
+            throw new InvalidDataException(
+                "Codex returned no usable local quota window.");
+    }
+
+    public static async Task RunLiveRadarReadOnly()
+    {
+        using var timeout = new CancellationTokenSource(
+            TimeSpan.FromSeconds(45));
+        await using var service = new RadarService();
+        var current = await service
+            .ReadPublicRadarForDiagnosticsAsync(timeout.Token)
+            .ConfigureAwait(false);
+        if (current.CheckedAt is null
+            || current.IqScore is null
+            || current.QuotaRadar.Count == 0
+            || current.ResetRadarCards.Any(card =>
+                string.IsNullOrWhiteSpace(card.Label)
+                || string.IsNullOrWhiteSpace(card.Level)
+                || string.IsNullOrWhiteSpace(card.Summary))
+            || current.CommunityKnowledges.Count == 0
+            || current.FastRadar is not ({ Summary.Count: > 0 } or { Rows.Count: > 0 })
+            || current.RadarInsights is not { } insights
+            || string.IsNullOrWhiteSpace(insights.GeneratedAt)
+            || string.IsNullOrWhiteSpace(insights.SourceUpdatedAt)
+            || insights.Recommendations.Count == 0
+            || insights.Recommendations.Any(group =>
+                group.ValidItems.Count == 0)
+            || insights.DegradationAlerts.ValidItems.Any(alert =>
+                alert.LargestDrop <= 0))
+            throw new InvalidDataException(
+                "Live CodexRadar public signals did not satisfy the Windows contract "
+                + $"(quota rows={current.QuotaRadar.Count}, community={current.CommunityKnowledges.Count}, "
+                + $"Fast summaries={current.FastRadar?.Summary.Count}, Fast rows={current.FastRadar?.Rows.Count}, "
+                + $"insights={current.RadarInsights?.Recommendations.Count}).");
+
+        var modelPairs = new[]
+            {
+                (current.ModelName, current.ReasoningEffort)
+            }
+            .Concat(current.Comparisons.Select(item =>
+                (item.Model, item.Effort)))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Item1)
+                           && !string.IsNullOrWhiteSpace(item.Item2))
+            .ToArray();
+        var displayedPairs = modelPairs.Select(item => $"{item.Item1}/{item.Item2}".ToLowerInvariant())
+            .ToHashSet(StringComparer.Ordinal);
+        if (current.IntelligenceEfficiencyPairKeys.Count == 0
+            || !current.IntelligenceEfficiencyPairKeys.IsSubsetOf(displayedPairs))
+            throw new InvalidDataException(
+                "Live Intelligence Efficiency data did not expose every usable source configuration "
+                + $"(source={current.IntelligenceEfficiencyPairKeys.Count}, displayed={displayedPairs.Count}, "
+                + $"missing={string.Join(", ", current.IntelligenceEfficiencyPairKeys.Except(displayedPairs))}).");
+    }
+
     public static void Run()
     {
+        WindowsUpdateSelfTest.Run();
         static void Assert(bool value, string message)
         {
             if (!value) throw new InvalidOperationException(message);
@@ -99,6 +182,119 @@ internal static class SelfTest
             try { action(); }
             catch (T) { return; }
             throw new InvalidOperationException(message);
+        }
+        static byte[] ServerFrame(
+            byte[] payload,
+            byte opcode = 0x1,
+            bool isFinal = true)
+        {
+            var lengthBytes = payload.Length < 126 ? 0 : payload.Length <= ushort.MaxValue ? 2 : 8;
+            var frame = new byte[2 + lengthBytes + payload.Length];
+            frame[0] = (byte)((isFinal ? 0x80 : 0) | opcode);
+            var cursor = 2;
+            if (payload.Length < 126)
+                frame[1] = (byte)payload.Length;
+            else if (payload.Length <= ushort.MaxValue)
+            {
+                frame[1] = 126;
+                System.Buffers.Binary.BinaryPrimitives.WriteUInt16BigEndian(
+                    frame.AsSpan(cursor, 2), (ushort)payload.Length);
+                cursor += 2;
+            }
+            else
+            {
+                frame[1] = 127;
+                System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(
+                    frame.AsSpan(cursor, 8), (ulong)payload.Length);
+                cursor += 8;
+            }
+            payload.CopyTo(frame, cursor);
+            return frame;
+        }
+        static (byte Opcode, bool Masked, byte[] Payload) DecodeClientFrame(byte[] frame)
+        {
+            if (frame.Length < 6) throw new InvalidDataException("WebSocket frame is too short.");
+            var cursor = 2;
+            ulong length = (uint)(frame[1] & 0x7F);
+            if (length == 126)
+            {
+                length = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(
+                    frame.AsSpan(cursor, 2));
+                cursor += 2;
+            }
+            else if (length == 127)
+            {
+                length = System.Buffers.Binary.BinaryPrimitives.ReadUInt64BigEndian(
+                    frame.AsSpan(cursor, 8));
+                cursor += 8;
+            }
+            if (length > int.MaxValue || frame.Length < cursor + 4 + (int)length)
+                throw new InvalidDataException("WebSocket frame length is invalid.");
+            var mask = frame.AsSpan(cursor, 4).ToArray();
+            cursor += 4;
+            var payload = frame.AsSpan(cursor, (int)length).ToArray();
+            for (var index = 0; index < payload.Length; index++)
+                payload[index] ^= mask[index % 4];
+            return ((byte)(frame[0] & 0x0F), (frame[1] & 0x80) != 0, payload);
+        }
+        static async Task<byte[]> ReadExactlyAsync(
+            Stream stream,
+            int count,
+            CancellationToken cancellationToken)
+        {
+            var bytes = new byte[count];
+            var offset = 0;
+            while (offset < count)
+            {
+                var read = await stream.ReadAsync(
+                        bytes.AsMemory(offset, count - offset),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                if (read == 0) throw new EndOfStreamException();
+                offset += read;
+            }
+            return bytes;
+        }
+        static async Task<byte[]> ReadClientFrameAsync(
+            Stream stream,
+            CancellationToken cancellationToken)
+        {
+            var header = await ReadExactlyAsync(stream, 2, cancellationToken)
+                .ConfigureAwait(false);
+            var lengthMarker = header[1] & 0x7F;
+            var extendedLengthBytes = lengthMarker == 126 ? 2 : lengthMarker == 127 ? 8 : 0;
+            var extended = await ReadExactlyAsync(
+                    stream, extendedLengthBytes, cancellationToken)
+                .ConfigureAwait(false);
+            ulong payloadLength = (uint)lengthMarker;
+            if (lengthMarker == 126)
+                payloadLength = System.Buffers.Binary.BinaryPrimitives
+                    .ReadUInt16BigEndian(extended);
+            else if (lengthMarker == 127)
+                payloadLength = System.Buffers.Binary.BinaryPrimitives
+                    .ReadUInt64BigEndian(extended);
+            if (payloadLength > 8 * 1024 * 1024)
+                throw new InvalidDataException("Client frame is too large.");
+            var body = await ReadExactlyAsync(
+                    stream, 4 + (int)payloadLength, cancellationToken)
+                .ConfigureAwait(false);
+            return header.Concat(extended).Concat(body).ToArray();
+        }
+        static async Task<byte[]> ReadHttpHeaderAsync(
+            Stream stream,
+            CancellationToken cancellationToken)
+        {
+            var bytes = new List<byte>();
+            while (bytes.Count <= 64 * 1024)
+            {
+                bytes.Add((await ReadExactlyAsync(stream, 1, cancellationToken)
+                    .ConfigureAwait(false))[0]);
+                if (bytes.Count >= 4
+                    && bytes[^4] == '\r' && bytes[^3] == '\n'
+                    && bytes[^2] == '\r' && bytes[^1] == '\n')
+                    return bytes.ToArray();
+            }
+            throw new InvalidDataException("HTTP header is too large.");
         }
 
         Assert(RadarJson.RemainingPercent(34.6) == 65, "remaining percentage rounding");
@@ -124,6 +320,290 @@ internal static class SelfTest
             "an initialize timeout must not multiply across every Codex candidate");
         Assert(AppServerClient.ShouldTryNextStartCandidate(new System.ComponentModel.Win32Exception(2)),
             "an executable-specific startup failure falls through to another candidate");
+        Assert(AppServerClient.ShouldFallbackFromManagedTransport(
+                new ManagedAppServerTransportException("invalid frame"))
+               && AppServerClient.ShouldFallbackFromManagedTransport(
+                   new AppServerRpcException(-32000, "authentication required"))
+               && !AppServerClient.ShouldFallbackFromManagedTransport(
+                   new AppServerRpcException(-32601, "method not found")),
+            "managed-session fallback is limited to transport and authentication failures");
+        Assert(AppServerClient.CanFallbackFromManagedTransport(
+                   allowsAutomaticRestart: true,
+                   hasCompletedRead: true,
+                   hasCompletedReadOnCurrentProcess: false)
+               && !AppServerClient.CanFallbackFromManagedTransport(
+                   allowsAutomaticRestart: true,
+                   hasCompletedRead: true,
+                   hasCompletedReadOnCurrentProcess: true)
+               && AppServerClient.CanFallbackFromManagedTransport(
+                   allowsAutomaticRestart: false,
+                   hasCompletedRead: false,
+                   hasCompletedReadOnCurrentProcess: false)
+               && !AppServerClient.CanFallbackFromManagedTransport(
+                   allowsAutomaticRestart: false,
+                   hasCompletedRead: true,
+                   hasCompletedReadOnCurrentProcess: false),
+            "managed-session fallback never crosses a completed write-bound read session");
+        Assert(RadarService.Friendly(
+                   new AppServerRpcException(-32000, "authentication required"),
+                   true)
+                   == "Codex 尚未登录。请先打开 Codex 完成登录，再点“重试”。"
+               && RadarService.Friendly(
+                   new AppServerRpcException(-32000, "authentication required"),
+                   false)
+                   == "Codex is signed out. Open Codex and sign in, then choose Retry.",
+            "signed-out quota errors remain actionable in both languages");
+        Assert(RadarService.Friendly(
+                   new HttpRequestException(
+                       "request failed",
+                       new InvalidOperationException("not logged in")),
+                   false)
+                   == "Codex is signed out. Open Codex and sign in, then choose Retry.",
+            "nested signed-out errors take precedence over generic network copy");
+
+        var managedHandshake = new ManagedAppServerHandshake(
+            "dGhlIHNhbXBsZSBub25jZQ==");
+        Assert(managedHandshake.ExpectedAccept == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=",
+            "managed-session handshake uses the RFC 6455 server proof");
+        var firstManagedFrame = ServerFrame("ready"u8.ToArray());
+        var handshakeResponse = System.Text.Encoding.ASCII.GetBytes(
+                "HTTP/1.1 101 Switching Protocols\r\n"
+                + "Upgrade: websocket\r\n"
+                + "Connection: keep-alive, Upgrade\r\n"
+                + "Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n")
+            .Concat(firstManagedFrame).ToArray();
+        var handshakeBuffer = handshakeResponse.Take(24).ToList();
+        Assert(!managedHandshake.TryConsumeResponse(handshakeBuffer),
+            "managed-session handshake waits for a complete response");
+        handshakeBuffer.AddRange(handshakeResponse.Skip(24));
+        Assert(managedHandshake.TryConsumeResponse(handshakeBuffer)
+               && handshakeBuffer.SequenceEqual(firstManagedFrame),
+            "managed-session handshake preserves the first WebSocket frame");
+        var rejectedHandshake = new ManagedAppServerHandshake("known-key");
+        var rejectedHandshakeBytes = System.Text.Encoding.ASCII.GetBytes(
+            "HTTP/1.1 101 Switching Protocols\r\n"
+            + "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+            + "Sec-WebSocket-Accept: wrong\r\n\r\n").ToList();
+        AssertThrows<ManagedAppServerTransportException>(
+            () => rejectedHandshake.TryConsumeResponse(rejectedHandshakeBytes),
+            "managed-session handshake rejects an invalid server proof");
+
+        foreach (var payload in new[]
+                 {
+                     Array.Empty<byte>(),
+                     Enumerable.Repeat((byte)'a', 125).ToArray(),
+                     Enumerable.Repeat((byte)'b', 126).ToArray(),
+                     Enumerable.Repeat((byte)'c', 70_000).ToArray()
+                 })
+        {
+            var decoded = DecodeClientFrame(
+                ManagedAppServerWebSocketCodec.ClientFrame(
+                    payload, mask: [0x37, 0xFA, 0x21, 0x3D]));
+            Assert(decoded.Opcode == 0x1 && decoded.Masked
+                   && decoded.Payload.SequenceEqual(payload),
+                "managed-session client frames are masked across length boundaries");
+        }
+        var managedCodec = new ManagedAppServerWebSocketCodec();
+        var managedEvents = managedCodec.Append(
+            ServerFrame("hel"u8.ToArray(), isFinal: false)
+                .Concat(ServerFrame("?"u8.ToArray(), opcode: 0x9))
+                .Concat(ServerFrame("lo"u8.ToArray(), opcode: 0x0))
+                .ToArray());
+        Assert(managedEvents.Count == 2
+               && managedEvents[0].Kind == ManagedWebSocketEventKind.Ping
+               && managedEvents[1].Kind == ManagedWebSocketEventKind.Text
+               && System.Text.Encoding.UTF8.GetString(managedEvents[1].Payload) == "hello",
+            "managed-session codec reassembles text around an interleaved ping");
+        AssertThrows<ManagedAppServerTransportException>(
+            () => new ManagedAppServerWebSocketCodec().Append(
+                ManagedAppServerWebSocketCodec.ClientFrame("invalid"u8.ToArray())),
+            "managed-session codec rejects masked server frames");
+        var managedSocketHome = Path.Combine(
+            Path.GetTempPath(),
+            "cr-uds-" + Guid.NewGuid().ToString("N")[..8]);
+        var managedSocketDirectory = Path.Combine(
+            managedSocketHome, "app-server-control");
+        var managedSocketPath = Path.Combine(
+            managedSocketDirectory, "app-server-control.sock");
+        try
+        {
+            PrivateStorageSecurity.EnsureDirectory(managedSocketHome);
+            PrivateStorageSecurity.EnsureDirectory(managedSocketDirectory);
+            using var listener = new System.Net.Sockets.Socket(
+                System.Net.Sockets.AddressFamily.Unix,
+                System.Net.Sockets.SocketType.Stream,
+                System.Net.Sockets.ProtocolType.Unspecified);
+            listener.Bind(new System.Net.Sockets.UnixDomainSocketEndPoint(
+                managedSocketPath));
+            listener.Listen();
+            Assert(File.Exists(managedSocketPath),
+                "Windows exposes a bound Unix control socket at its fixed path");
+            // The socket inherits the restricted parent ACL at creation. Do not
+            // reopen an AF_UNIX reparse point as a regular file to rewrite it.
+            Assert(PrivateStorageSecurity.IsRestrictedToCurrentUser(managedSocketDirectory),
+                "managed-session parent directory ACL is restricted to the current user");
+            Assert(PrivateStorageSecurity.IsUnixDomainSocket(managedSocketPath),
+                "managed-session endpoint is an AF_UNIX socket rather than an arbitrary reparse point");
+            Assert(CodexManagedAppServerLocator.FindControlSocket(
+                       managedSocketHome,
+                       Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))
+                   == managedSocketPath,
+                "managed-session locator accepts only the protected current-user socket");
+
+            var identity = System.Security.Principal.WindowsIdentity
+                .GetCurrent().User
+                ?? throw new IOException(
+                    "The current Windows user identity is unavailable.");
+            var permissiveDirectory = new System.Security.AccessControl
+                .DirectorySecurity();
+            permissiveDirectory.SetOwner(identity);
+            permissiveDirectory.SetAccessRuleProtection(
+                isProtected: true,
+                preserveInheritance: false);
+            permissiveDirectory.AddAccessRule(new System.Security.AccessControl
+                .FileSystemAccessRule(
+                    identity,
+                    System.Security.AccessControl.FileSystemRights.FullControl,
+                    System.Security.AccessControl.InheritanceFlags.ContainerInherit
+                    | System.Security.AccessControl.InheritanceFlags.ObjectInherit,
+                    System.Security.AccessControl.PropagationFlags.None,
+                    System.Security.AccessControl.AccessControlType.Allow));
+            permissiveDirectory.AddAccessRule(new System.Security.AccessControl
+                .FileSystemAccessRule(
+                    new System.Security.Principal.SecurityIdentifier(
+                        System.Security.Principal.WellKnownSidType.WorldSid,
+                        null),
+                    System.Security.AccessControl.FileSystemRights.Write,
+                    System.Security.AccessControl.AccessControlType.Allow));
+            new DirectoryInfo(managedSocketDirectory)
+                .SetAccessControl(permissiveDirectory);
+            Assert(CodexManagedAppServerLocator.FindControlSocket(
+                       managedSocketHome,
+                       Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))
+                   is null,
+                "managed-session locator rejects a socket in a shared writable directory");
+            PrivateStorageSecurity.EnsureDirectory(managedSocketDirectory);
+
+            // Framing runs over a loopback stream independently of AF_UNIX
+            // driver support. Socket discovery above is tested separately;
+            // --live-quota-self-test verifies the installed Codex transport.
+            using var transportListener = new System.Net.Sockets.Socket(
+                System.Net.Sockets.AddressFamily.InterNetwork,
+                System.Net.Sockets.SocketType.Stream,
+                System.Net.Sockets.ProtocolType.Tcp);
+            transportListener.Bind(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 0));
+            transportListener.Listen();
+            using var managedTimeout = new CancellationTokenSource(
+                TimeSpan.FromSeconds(10));
+            var managedServer = Task.Run(async () =>
+            {
+                using var accepted = await transportListener.AcceptAsync(
+                        managedTimeout.Token)
+                    .ConfigureAwait(false);
+                using var serverStream = new System.Net.Sockets.NetworkStream(
+                    accepted, ownsSocket: false);
+                var requestHeader = System.Text.Encoding.ASCII.GetString(
+                    await ReadHttpHeaderAsync(
+                            serverStream, managedTimeout.Token)
+                        .ConfigureAwait(false));
+                var keyLine = requestHeader.Split("\r\n")
+                    .Single(line => line.StartsWith(
+                        "Sec-WebSocket-Key:",
+                        StringComparison.OrdinalIgnoreCase));
+                var key = keyLine[(keyLine.IndexOf(':') + 1)..].Trim();
+                var responseHeader = System.Text.Encoding.ASCII.GetBytes(
+                    "HTTP/1.1 101 Switching Protocols\r\n"
+                    + "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+                    + $"Sec-WebSocket-Accept: {ManagedAppServerHandshake.AcceptValue(key)}\r\n\r\n");
+                await serverStream.WriteAsync(
+                        responseHeader, managedTimeout.Token)
+                    .ConfigureAwait(false);
+
+                var initialize = DecodeClientFrame(
+                    await ReadClientFrameAsync(
+                            serverStream, managedTimeout.Token)
+                        .ConfigureAwait(false));
+                using (var initializeJson = JsonDocument.Parse(initialize.Payload))
+                    Assert(initialize.Masked
+                           && initializeJson.RootElement.String("method") == "initialize",
+                        "managed connection sends a masked initialize request");
+                await serverStream.WriteAsync(
+                        ServerFrame("{\"id\":1,\"result\":{}}"u8.ToArray()),
+                        managedTimeout.Token)
+                    .ConfigureAwait(false);
+
+                var initialized = DecodeClientFrame(
+                    await ReadClientFrameAsync(
+                            serverStream, managedTimeout.Token)
+                        .ConfigureAwait(false));
+                using (var initializedJson = JsonDocument.Parse(initialized.Payload))
+                    Assert(initializedJson.RootElement.String("method") == "initialized",
+                        "managed connection sends the initialized notification");
+
+                var quotaRequest = DecodeClientFrame(
+                    await ReadClientFrameAsync(
+                            serverStream, managedTimeout.Token)
+                        .ConfigureAwait(false));
+                using (var quotaJson = JsonDocument.Parse(quotaRequest.Payload))
+                    Assert(quotaJson.RootElement.String("method")
+                           == "account/rateLimits/read",
+                        "managed connection sends the read-only quota request");
+                var quotaResponse = "{\"id\":2,\"result\":{\"rateLimits\":{}}}"u8
+                    .ToArray();
+                var midpoint = quotaResponse.Length / 2;
+                var responseFrames = ServerFrame(
+                        quotaResponse[..midpoint], isFinal: false)
+                    .Concat(ServerFrame("?"u8.ToArray(), opcode: 0x9))
+                    .Concat(ServerFrame(
+                        quotaResponse[midpoint..], opcode: 0x0))
+                    .ToArray();
+                await serverStream.WriteAsync(
+                        responseFrames, managedTimeout.Token)
+                    .ConfigureAwait(false);
+                var pong = DecodeClientFrame(
+                    await ReadClientFrameAsync(
+                            serverStream, managedTimeout.Token)
+                        .ConfigureAwait(false));
+                Assert(pong.Opcode == 0xA && pong.Masked
+                       && System.Text.Encoding.UTF8.GetString(pong.Payload) == "?",
+                    "managed connection answers Ping with a masked Pong");
+            }, managedTimeout.Token);
+
+            using var managedClientSocket = new System.Net.Sockets.Socket(
+                System.Net.Sockets.AddressFamily.InterNetwork,
+                System.Net.Sockets.SocketType.Stream,
+                System.Net.Sockets.ProtocolType.Tcp);
+            managedClientSocket.ConnectAsync(transportListener.LocalEndPoint!, managedTimeout.Token)
+                .AsTask().GetAwaiter().GetResult();
+            using var managedClientStream = new System.Net.Sockets.NetworkStream(
+                managedClientSocket, ownsSocket: false);
+            using var managedConnection = ManagedAppServerConnection.ConnectAsync(
+                    managedClientStream,
+                    managedClientStream,
+                    managedTimeout.Token)
+                .GetAwaiter().GetResult();
+            using var initializeResult = managedConnection.RequestAsync(
+                    1,
+                    "{\"id\":1,\"method\":\"initialize\"}"u8.ToArray(),
+                    managedTimeout.Token)
+                .GetAwaiter().GetResult();
+            managedConnection.SendNotificationAsync(
+                    "{\"method\":\"initialized\"}"u8.ToArray(),
+                    managedTimeout.Token)
+                .GetAwaiter().GetResult();
+            using var managedQuotaResult = managedConnection.RequestAsync(
+                    2,
+                    "{\"id\":2,\"method\":\"account/rateLimits/read\"}"u8.ToArray(),
+                    managedTimeout.Token)
+                .GetAwaiter().GetResult();
+            Assert(managedQuotaResult.RootElement.Int32("id") == 2,
+                "managed connection returns a fragmented matching response");
+            managedServer.GetAwaiter().GetResult();
+        }
+        finally
+        {
+            try { Directory.Delete(managedSocketHome, recursive: true); } catch { }
+        }
         using (var rateLimitDocument = JsonDocument.Parse("""
             {
               "rateLimits": {
@@ -620,6 +1100,92 @@ internal static class SelfTest
         Assert(homepage.IqScore == 101.5 && homepage.ResetRadarCards.Count == 1
                && homepage.CommunityKnowledge == "重置卡自查", "homepage fallback parser");
 
+        var currentResetRadarHtml = """
+            <section class="reset-judgement" aria-label="重置雷达">
+              <div class="reset-judgement-head">
+                <div><h2>重置雷达 <em>事件更新 7月29日 13:42</em></h2></div>
+                <strong>官方源快车</strong>
+              </div>
+              <div class="reset-judgement-grid">
+                <article class="reset-judgement-card" data-reset-track="banked_reset">
+                  <div class="reset-judgement-card-head">
+                    <span>发重置卡</span>
+                    <em class="reset-judgement-state">未宣布</em>
+                  </div>
+                  <strong>本轮是直接重置</strong>
+                  <p>本轮官方信号指向直接用量重置。</p>
+                </article>
+                <article class="reset-judgement-card" data-reset-track="hard_reset">
+                  <div class="reset-judgement-card-head">
+                    <span>硬重置</span>
+                    <em class="reset-judgement-state">已落地</em>
+                  </div>
+                  <strong>官方重置完成</strong>
+                  <p>当前没有开启的速蹬窗口。</p>
+                </article>
+              </div>
+            </section>
+            <title>7月29日 GPT-5.6 Sol max: IQ指数 103.1, 77/112, 费用 $9.63, 耗时 33分钟, cache命中率 97.5%</title>
+            """;
+        var currentResetRadar = CodexRadarHtmlParser.Parse(
+            currentResetRadarHtml, pacingNow);
+        Assert(currentResetRadar.ResetRadarTitle == "官方源快车"
+               && currentResetRadar.ResetRadarUpdatedLabel == "事件更新 7月29日 13:42"
+               && currentResetRadar.ResetRadarCards.Count == 2
+               && currentResetRadar.ResetRadarCards[0].Label == "发重置卡"
+               && currentResetRadar.ResetRadarCards[0].Level == "未宣布"
+               && currentResetRadar.ResetRadarCards[0].Summary
+                   == "本轮是直接重置 — 本轮官方信号指向直接用量重置。"
+               && currentResetRadar.ResetRadarCards[1].Level == "已落地",
+            "homepage fallback parses the current Reset Radar card structure");
+
+        var fastRadarHtml = """
+            <section class="fast-radar" id="fast-radar">
+              <div class="fast-radar-head">
+                <div><h2>Fast 雷达 <em>7月12日16:32更新</em></h2></div>
+                <span>从标准改成 Fast，以 2.5 倍成本到底快了多少？</span>
+              </div>
+              <div class="fast-radar-summary">
+                <div><span>体感加速</span><strong>⚡️1.381 倍</strong></div>
+                <div><span>首字延迟减少</span><strong>0.08 秒</strong></div>
+                <div><span>Token 生成速度加速</span><strong>⚡️1.504 倍</strong></div>
+              </div>
+              <div class="fast-radar-table">
+                <div class="fast-radar-row" role="row">
+                  <div class="fast-radar-model"><strong>Sol</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-e2e" data-label="体感加速"><span>47.26s → 33.79s</span><strong>⚡️1.399×</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-ttft" data-label="首字延迟减少"><span>9.98s → 9.08s</span><strong>快 9.0%</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-tps" data-label="Token 生成速度加速"><span>55.75 → 84.23</span><strong>⚡️1.511×</strong></div>
+                </div>
+                <div class="fast-radar-row" role="row">
+                  <div class="fast-radar-model"><strong>Terra</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-e2e" data-label="体感加速"><span>44.61s → 34.10s</span><strong>⚡️1.308×</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-ttft is-regression" data-label="首字延迟减少"><span>7.17s → 9.10s</span><strong>慢 26.9%</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-tps" data-label="Token 生成速度加速"><span>55.53 → 83.37</span><strong>⚡️1.501×</strong></div>
+                </div>
+              </div>
+              <div class="fast-radar-explain"><p>测试方法：Standard 与 Fast 各独立运行 3 次。</p></div>
+            </section>
+            <section class="community-knowledge">
+              <article class="community-knowledge-card"><h2>重置卡自查</h2><code data-site-announcement-prompt>reset credit safe prompt</code></article>
+              <article class="community-knowledge-card"><h2>如何开启 Max</h2><div data-site-announcement-prompt>Open settings and enable Max.</div></article>
+            </section>
+            <title>7月29日 GPT-5.6 Sol max: IQ指数 103.1, 77/112</title>
+            """;
+        var fastRadar = CodexRadarHtmlParser.Parse(
+            fastRadarHtml, pacingNow);
+        Assert(fastRadar.FastRadar?.Summary.Count == 3
+               && fastRadar.FastRadar.Rows.Count == 2
+               && fastRadar.FastRadar.Rows[0].E2E?.Value
+                   == "⚡️1.399×"
+               && fastRadar.FastRadar.Rows[1].Ttft?.Value
+                   == "慢 26.9%"
+               && fastRadar.FastRadar.Method?.Contains(
+                   "Standard 与 Fast",
+                   StringComparison.Ordinal) == true
+               && fastRadar.CommunityKnowledges.Count == 2,
+            "homepage fallback parses Fast Radar and all community cards");
+
         using var currentDocument = JsonDocument.Parse("""
             {
               "schema_version": "2.0", "monitored_at": "2026-07-11T12:00:00Z",
@@ -637,6 +1203,21 @@ internal static class SelfTest
               },
               "reset_judgement": { "title": "Reset", "cards": [{ "label": "Hard", "level": "high", "summary": "Test" }], "reasons": ["Evidence"] },
               "community_knowledge": { "title": "Knowledge", "prompt": "remote" },
+              "community_knowledges": [
+                { "title": "Reset credits", "prompt": "reset credit check" },
+                { "title": "Max", "prompt": "enable Max" }
+              ],
+              "fast_radar": {
+                "title": "Fast Radar", "updated_label": "now",
+                "summary": [{ "label": "E2E", "value": "1.4x" }],
+                "rows": [{
+                  "model": "Sol",
+                  "e2e": { "label": "E2E", "range": "47s → 34s", "value": "1.4x" },
+                  "ttft": null,
+                  "tps": { "label": "TPS", "range": "56 → 84", "value": "1.5x" }
+                }],
+                "method": "three runs"
+              },
               "site_announcement": { "label": "Notice", "message": "Hello", "source_url": "https://codexradar.com/" }
             }
             """);
@@ -649,6 +1230,10 @@ internal static class SelfTest
             "current.json comparison and quota radar fields");
         Assert(current.ResetRadarCards.Count == 1 && current.CommunityKnowledge == "Knowledge" && current.Announcement == "Hello",
             "current.json public dashboard sections");
+        Assert(current.CommunityKnowledges.Count == 2
+               && current.FastRadar?.Summary.Count == 1
+               && current.FastRadar.Rows.Single().Tps?.Value == "1.5x",
+            "current.json multi-community and Fast Radar fields");
 
         using var windowDocument = JsonDocument.Parse("""
             {
@@ -1249,6 +1834,8 @@ internal static class SelfTest
             Assert(dispatches == 1,
                 "matching persisted consent authorizes one dispatch");
             authorizationStore.Clear();
+            Assert(authorizationStore.LastRevocation() == ResetCreditRevocationReason.UserDisabled,
+                "user revocation reason is persisted without identifiers");
             AssertThrows<ResetCreditAuthorizationException>(
                 () => authorizationStore.PerformAuthorizedDispatch(
                     dispatchConsent,
@@ -1257,6 +1844,14 @@ internal static class SelfTest
                 "revocation marker wins before a destructive dispatch");
             Assert(dispatches == 1,
                 "revoked authorization never invokes the dispatch body");
+            authorizationStore.Save(dispatchConsent);
+            authorizationStore.Clear(reason: ResetCreditRevocationReason.ClockChanged);
+            Assert(new ResetCreditProtectionAuthorizationStore(authorizationPath, dispatchLockPath).LastRevocation()
+                   == ResetCreditRevocationReason.ClockChanged,
+                "safety revocation reason survives restart");
+            Assert(!authorizationStore.ClearIfCurrent(dispatchConsent)
+                   && authorizationStore.LastRevocation() == ResetCreditRevocationReason.ClockChanged,
+                "an obsolete cancellation must not overwrite a newer revocation record");
 
             ledgerStore.Save(new ResetCreditProtectionLedger
             {
@@ -1270,6 +1865,15 @@ internal static class SelfTest
                    && ledgerStore.Load().State
                    == ProtectionStorageState.Loaded,
                 "crash-recovery ledger persists no raw reset-credit ID");
+            Assert(PrivateStorageSecurity.IsRestrictedToCurrentUser(
+                       storageDirectory)
+                   && PrivateStorageSecurity.IsRestrictedToCurrentUser(
+                       authorizationPath)
+                   && PrivateStorageSecurity.IsRestrictedToCurrentUser(
+                       dispatchLockPath)
+                   && PrivateStorageSecurity.IsRestrictedToCurrentUser(
+                       ledgerPath),
+                "reset-credit authorization, lock, and ledger are restricted to the current Windows user");
         }
         finally
         {

@@ -216,6 +216,10 @@ public struct NotificationPolicy {
             }
         }
 
+        guard current.rateLimits?.canConfirmWeeklyRecovery == true else {
+            memory.pendingWeeklyRestoreKey = nil
+            return
+        }
         let currentReset = current.rateLimits?.weeklyBucket?.resetsAt
         let restoreKey = currentReset.map { "\($0):restored" }
         if let pendingKey = memory.pendingWeeklyRestoreKey {

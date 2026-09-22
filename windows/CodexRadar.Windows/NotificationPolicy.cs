@@ -83,6 +83,11 @@ internal static class NotificationPolicy
             }
         }
 
+        if (state.LimitReached || !state.CanConfirmWeeklyRecovery)
+        {
+            memory.PendingWeeklyRestoreKey = null;
+            return;
+        }
         var restoreKey = state.WeeklyResetsAt is null ? null : $"{resetKey}:restored";
         if (memory.PendingWeeklyRestoreKey is { } pending)
         {

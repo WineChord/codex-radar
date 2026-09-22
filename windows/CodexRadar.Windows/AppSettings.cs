@@ -8,11 +8,30 @@ internal sealed class AppSettings
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunName = "Codex Radar Sentinel";
-    internal static readonly string SettingsDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CodexRadarSentinel");
+    internal static readonly string SettingsDirectory =
+        ResolveSettingsDirectory();
     private static readonly string SettingsPath = Path.Combine(SettingsDirectory, "settings.json");
     private static readonly object SaveGate = new();
     internal static readonly string InstallerFailureMarkerPath = Path.Combine(SettingsDirectory, "installer-failure.json");
+
+    private static string ResolveSettingsDirectory()
+    {
+        var validationRoot = Environment.GetEnvironmentVariable(
+            "CODEX_RADAR_VALIDATION_DATA_ROOT");
+        if (!string.IsNullOrWhiteSpace(validationRoot))
+        {
+            if (!Path.IsPathFullyQualified(validationRoot))
+                throw new InvalidOperationException(
+                    "CODEX_RADAR_VALIDATION_DATA_ROOT must be an absolute path.");
+            return Path.Combine(
+                Path.GetFullPath(validationRoot),
+                "CodexRadarSentinel");
+        }
+        return Path.Combine(
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData),
+            "CodexRadarSentinel");
+    }
 
     public bool Chinese { get; set; } = true;
     public DashboardTextSize TextSize { get; set; } = DashboardTextSize.Large;

@@ -355,7 +355,19 @@ internal enum ResetCreditProtectionStatusKind
     Succeeded,
     Unavailable,
     Missed,
-    Blocked
+    Blocked,
+    Retrying
+}
+
+internal enum ResetCreditRevocationReason
+{
+    UserDisabled,
+    AccountChanged,
+    SignedOut,
+    ClockChanged,
+    CreditNotAuthorized,
+    UnsupportedCodex,
+    RuntimeUnavailable
 }
 
 internal sealed record ResetCreditProtectionStatus(

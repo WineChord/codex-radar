@@ -58,6 +58,7 @@ enum ResetCreditProtectionStatus: Equatable {
     case previewNoCredits(Date)
     case scheduled(actionAt: Date, expiresAt: Date, availableCount: Int)
     case waitingForUsage(expiresAt: Date)
+    case retrying(expiresAt: Date, retryAt: Date)
     case using(expiresAt: Date)
     case reconciling(expiresAt: Date)
     case succeeded(usedAt: Date, expiresAt: Date)
@@ -78,6 +79,61 @@ enum ResetCreditProtectionStatus: Equatable {
 private struct RateLimitReadPayload {
     let response: RateLimitResponse
     let dashboard: RateLimitDashboard
+}
+
+enum RateLimitReadRecovery {
+    static let retryDelayNanoseconds: UInt64 = 1_000_000_000
+
+    static func read(
+        from service: any ResetCreditProtectionReadOnlyAppServerServing,
+        sleep: (UInt64) async throws -> Void = {
+            try await Task.sleep(nanoseconds: $0)
+        }
+    ) async throws -> RateLimitResponse {
+        do {
+            return try await service.readRateLimits()
+        } catch {
+            guard shouldRetry(error), !Task.isCancelled else {
+                throw error
+            }
+            try await sleep(retryDelayNanoseconds)
+            try Task.checkCancellation()
+            return try await service.readRateLimits()
+        }
+    }
+
+    static func shouldRetry(_ error: Error) -> Bool {
+        guard !(error is CancellationError),
+              let clientError = error as? CodexAppServerClient.ClientError else {
+            return false
+        }
+        switch clientError {
+        case .processUnavailable, .requestTimedOut:
+            return true
+        case .rpcError(_, let message):
+            return isTransientMessage(message)
+        default:
+            return false
+        }
+    }
+
+    static func isTransientMessage(_ message: String) -> Bool {
+        let normalized = message.lowercased()
+        guard !normalized.contains("authentication required"),
+              !normalized.contains("not logged in"),
+              !normalized.contains("signed out") else {
+            return false
+        }
+        return [
+            "failed to fetch codex rate limits",
+            "error sending request for url",
+            "connection reset",
+            "connection closed",
+            "network connection was lost",
+            "temporarily unavailable",
+            "timed out",
+        ].contains { normalized.contains($0) }
+    }
 }
 
 private enum ResetCreditProtectionJournalLoadResult {
@@ -562,6 +618,8 @@ final class SentinelStore: NSObject, ObservableObject {
         var protectionClockDiscontinuityReason:
             ResetCreditProtectionAuthorization.ClockDiscontinuityReason?
         let initialProtectionClock = resetCreditProtectionClock()
+        let storedProtectionRevocation = protectionAuthorizationStore
+            .lastRevocation()
         if protectionRequested {
             do {
                 let clockValidation = try protectionAuthorizationStore
@@ -645,6 +703,8 @@ final class SentinelStore: NSObject, ObservableObject {
         let protectionAvailableInThisRuntime = destructiveActionsAllowed
             && protectionEnabled
             && !protectionStorageCorrupt
+        let storedProtectionRevocationStatus = storedProtectionRevocation
+            .flatMap(Self.resetCreditProtectionStatus(for:))
         self.resetCreditProtectionEnabled = protectionAvailableInThisRuntime
         self.resetCreditProtectionStatus = !destructiveActionsAllowed
             ? .disabled
@@ -662,7 +722,7 @@ final class SentinelStore: NSObject, ObservableObject {
             )
             : ((protectionEnabled || loadedLedger.activeAttempt != nil)
                 ? .checking
-                : .disabled)))
+                : (storedProtectionRevocationStatus ?? .disabled))))
         self.resetCreditProtectionConsent = destructiveActionsAllowed
             && protectionEnabled
             ? protectionConsent
@@ -1050,7 +1110,9 @@ final class SentinelStore: NSObject, ObservableObject {
         resetCreditProtectionTask?.cancel()
         resetCreditProtectionEnablingClockAnchor = nil
         do {
-            try resetCreditProtectionAuthorizationStore.clear { [defaults] in
+            try resetCreditProtectionAuthorizationStore.clear(
+                reason: .userDisabled
+            ) { [defaults] in
                 defaults.set(
                     false,
                     forKey: DefaultsKey.resetCreditProtectionEnabled
@@ -1417,6 +1479,12 @@ final class SentinelStore: NSObject, ObservableObject {
         documentationState.modelRatings = Self.documentationModelRatings()
         documentationState.radarInsights = Self.documentationRadarInsights()
         documentationState.lastUpdatedAt = Self.documentationUpdatedAt
+        if ProcessInfo.processInfo.environment[
+            "CODEX_RADAR_VISUAL_TEST_CONNECTION_ERROR"
+        ] == "1" {
+            documentationState.lastError =
+                "failed to fetch codex rate limits: error sending request for url (https://chatgpt.com/backend-api/wham/usage)"
+        }
         state = documentationState
         resetCreditSnapshot = Self.documentationResetCreditSnapshot()
         resetCreditPhase = .idle
@@ -1432,6 +1500,15 @@ final class SentinelStore: NSObject, ObservableObject {
                 "校验失败，请重新检查",
                 "Verification failed; check again"
             )
+        )
+    }
+
+    func configureForDocumentationResetRetry() {
+        let retryAt = Self.documentationUpdatedAt.addingTimeInterval(120)
+        resetCreditProtectionEnabled = true
+        resetCreditProtectionStatus = .retrying(
+            expiresAt: Self.documentationUpdatedAt.addingTimeInterval(1_800),
+            retryAt: retryAt
         )
     }
 
@@ -1607,15 +1684,23 @@ final class SentinelStore: NSObject, ObservableObject {
                 "model": "gpt-5.6-sol",
                 "effort": "low",
                 "iq": 71.0,
-                "from_24h_high_iq": 5.3,
-                "from_48h_high_iq": 8.0
+                "average_iq_24h": 76.3,
+                "average_iq_48h": 79.0,
+                "from_24h_average_iq": 5.3,
+                "from_48h_average_iq": 8.0,
+                "from_24h_high_iq": 8.4,
+                "from_48h_high_iq": 10.2
               },
               {
                 "model": "gpt-5.6-terra",
                 "effort": "medium",
                 "iq": 50.0,
-                "from_24h_high_iq": 4.9,
-                "from_48h_high_iq": 7.6
+                "average_iq_24h": 54.9,
+                "average_iq_48h": 57.6,
+                "from_24h_average_iq": 4.9,
+                "from_48h_average_iq": 7.6,
+                "from_24h_high_iq": 7.1,
+                "from_48h_high_iq": 9.3
               }
             ]
           }
@@ -1748,44 +1833,38 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private static func documentationCurrent(language: AppLanguage) -> RadarCurrent? {
         let title = language.text(
-            "CodexRadar 重置、额度与模型雷达",
-            "CodexRadar reset, quota, and model radar"
+            "CodexRadar 额度、性能与模型雷达",
+            "CodexRadar quota, performance, and model radar"
         )
         let window = language.text("无窗", "none")
         let scope = language.text(
-            "重置雷达 / 额度雷达 / Fast / 分布式 Model IQ",
-            "reset radar / quota radar / Fast / distributed Model IQ"
+            "额度雷达 / Fast / 分布式 Model IQ / 社区指南",
+            "quota radar / Fast / distributed Model IQ / community guides"
         )
         let summary = language.text(
-            "CodexRadar 当前公开重置研判、7d 额度、Fast 实测与分布式社区 Model IQ。",
-            "CodexRadar currently publishes reset judgement, 7d quota, Fast benchmarks, and distributed community Model IQ."
-        )
-        let resetUpdated = language.text(
-            "事件更新 7月29日 13:42",
-            "Event updated Jul 29 13:42"
-        )
-        let resetTitle = language.text("官方源快车", "Official-source fast lane")
-        let cardLabel = language.text("发重置卡", "Reset card")
-        let cardLevel = language.text("未宣布", "Not announced")
-        let cardSummary = language.text(
-            "本轮是直接重置 — 本轮官方信号指向直接用量重置，不代表新增可储存的 banked reset。",
-            "This round is a direct reset — the official signal points to quota restoration, not a new banked reset."
-        )
-        let hardResetLabel = language.text("硬重置", "Hard reset")
-        let hardResetLevel = language.text("已落地", "Completed")
-        let hardResetSummary = language.text(
-            "官方重置完成 — Tibo 确认本轮直接用量重置已完成；当前没有开启的速蹬窗口。",
-            "Official reset complete — Tibo confirmed that this direct quota reset finished; no speed window is open."
-        )
-        let communityTitle = language.text("重置卡过期时间自查", "Reset credit expiry check")
-        let communityPrompt = language.text(
-            "帮我用本机 Codex 凭证查一下 rate-limit reset credits，读取 ~/.codex/auth.json 里的 tokens.access_token，请求 https://chatgpt.com/backend-api/wham/rate-limit-reset-credits。要求：如果 401，说明是凭证失效或没带对 Authorization header；不要打印 access_token、refresh_token、cookie 或完整唯一 ID；只要展示每张重置卡发放时间和过期时间，从 UTC 转成北京时间，用中文回复。",
-            "Use my local Codex credentials to check rate-limit reset credits from ~/.codex/auth.json tokens.access_token via https://chatgpt.com/backend-api/wham/rate-limit-reset-credits. If it returns 401, explain that the credential is expired or the Authorization header is missing. Do not print access_token, refresh_token, cookies, or full unique IDs. Show only each reset credit issue time and expiry time, converted to local time."
+            "CodexRadar 当前公开 7d 额度、Fast 实测、分布式社区 Model IQ 与实用指南。",
+            "CodexRadar currently publishes 7d quota, Fast benchmarks, distributed community Model IQ, and practical guides."
         )
         let maxReasoningTitle = language.text("如何开启 Max 推理强度", "How to enable Max reasoning")
         let maxReasoningGuide = language.text(
             "打开 Codex 设置 → Configuration → Model features → Available reasoning efforts，勾选 Max。之后即可在支持 Max 的模型控制中选择。",
             "Open Codex Settings → Configuration → Model features → Available reasoning efforts, then enable Max. After that, Max appears in supported model controls."
+        )
+        let reasoningReferenceTitle = language.text(
+            "推理强度中英文对照",
+            "Reasoning effort reference"
+        )
+        let reasoningReference = language.text(
+            "轻度 low、中 medium、高 high、极高 xhigh、最高 max、极高 ultra",
+            "low, medium, high, xhigh, max, and ultra"
+        )
+        let deepSeekTitle = language.text(
+            "DeepSeek 官方 Codex 接入指南",
+            "Official DeepSeek Codex integration guide"
+        )
+        let deepSeekGuide = language.text(
+            "按照 DeepSeek 官方配置步骤，在 Codex 中接入并使用 DeepSeek 模型。",
+            "Follow DeepSeek's official configuration steps to use DeepSeek models in Codex."
         )
         let announcementLabel = language.text("CodexRadar 公告", "CodexRadar notice")
         let announcementMessage = language.text(
@@ -1827,22 +1906,19 @@ final class SentinelStore: NSObject, ObservableObject {
             "reasoning_summary": "\(summary)",
             "updated_at": "2026-07-17T14:38:00+08:00"
           },
-          "reset_judgement": {
-            "updated_label": "\(resetUpdated)",
-            "title": "\(resetTitle)",
-            "cards": [
-              { "label": "\(cardLabel)", "level": "\(cardLevel)", "summary": "\(cardSummary)" },
-              { "label": "\(hardResetLabel)", "level": "\(hardResetLevel)", "summary": "\(hardResetSummary)" }
-            ],
-            "reasons": []
-          },
           "community_knowledge": {
-            "title": "\(communityTitle)",
-            "prompt": "\(communityPrompt)"
+            "title": "\(maxReasoningTitle)",
+            "prompt": "\(maxReasoningGuide)"
           },
           "community_knowledges": [
-            { "title": "\(communityTitle)", "prompt": "\(communityPrompt)" },
-            { "title": "\(maxReasoningTitle)", "prompt": "\(maxReasoningGuide)" }
+            { "title": "\(maxReasoningTitle)", "prompt": "\(maxReasoningGuide)" },
+            { "title": "\(reasoningReferenceTitle)", "prompt": "\(reasoningReference)" },
+            {
+              "title": "\(deepSeekTitle)",
+              "prompt": "\(deepSeekGuide)",
+              "source_label": "查看指南",
+              "source_url": "https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex/"
+            }
           ],
           "site_announcement": {
             "label": "\(announcementLabel)",
@@ -1971,6 +2047,9 @@ final class SentinelStore: NSObject, ObservableObject {
             modelRatings: modelRatingsResult,
             rateLimits: rateLimitResult
         )
+        guard !Task.isCancelled else {
+            return
+        }
 
         let previous = state
         var next = previous
@@ -2114,7 +2193,9 @@ final class SentinelStore: NSObject, ObservableObject {
 
     private func fetchRateLimitResult() async -> Result<RateLimitReadPayload, Error> {
         await capture {
-            let response = try await appServerClient.readRateLimits()
+            let response = try await RateLimitReadRecovery.read(
+                from: appServerClient
+            )
             return RateLimitReadPayload(
                 response: response,
                 dashboard: RateLimitDashboard(response: response)
@@ -2539,7 +2620,8 @@ final class SentinelStore: NSObject, ObservableObject {
             return
         } catch ResetCreditProtectionAccountBindingError.accountUnavailable {
             if revokeResetCreditProtectionAuthorization(
-                expectedConsent: consent
+                expectedConsent: consent,
+                reason: .signedOut
             ) {
                 resetCreditProtectionStatus = .blocked(
                     .signedOut,
@@ -2550,7 +2632,8 @@ final class SentinelStore: NSObject, ObservableObject {
         } catch {
             if isAuthenticationError(error),
                revokeResetCreditProtectionAuthorization(
-                   expectedConsent: consent
+                   expectedConsent: consent,
+                   reason: .signedOut
                ) {
                 resetCreditProtectionStatus = .blocked(
                     .signedOut,
@@ -2588,7 +2671,8 @@ final class SentinelStore: NSObject, ObservableObject {
                target: selectedTarget
            ) {
             if revokeResetCreditProtectionAuthorization(
-                expectedConsent: consent
+                expectedConsent: consent,
+                reason: .creditNotAuthorized
             ) {
                 resetCreditProtectionStatus = .blocked(
                     .creditNotAuthorized,
@@ -2627,7 +2711,10 @@ final class SentinelStore: NSObject, ObservableObject {
         case .ready(let target):
             if let retryAt = resetCreditProtectionNextRetryAt,
                retryAt > Date() {
-                resetCreditProtectionStatus = .waitingForUsage(expiresAt: target.expiresAt)
+                resetCreditProtectionStatus = .retrying(
+                    expiresAt: target.expiresAt,
+                    retryAt: retryAt
+                )
                 return
             }
             await attemptResetCreditProtection(target: target)
@@ -2908,7 +2995,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 target: validatedTarget
             ) else {
                 if revokeResetCreditProtectionAuthorization(
-                    expectedConsent: consent
+                    expectedConsent: consent,
+                    reason: .creditNotAuthorized
                 ) {
                     resetCreditProtectionStatus = .blocked(
                         .creditNotAuthorized,
@@ -2927,7 +3015,8 @@ final class SentinelStore: NSObject, ObservableObject {
                         consent: consent
                     ) else {
                 if revokeResetCreditProtectionAuthorization(
-                    expectedConsent: consent
+                    expectedConsent: consent,
+                    reason: .creditNotAuthorized
                 ) {
                     resetCreditProtectionStatus = .blocked(
                         .creditNotAuthorized,
@@ -3032,7 +3121,8 @@ final class SentinelStore: NSObject, ObservableObject {
                     )
                 case .accountUnavailable:
                     if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
+                        expectedConsent: consent,
+                        reason: .signedOut
                     ) {
                         resetCreditProtectionStatus = .blocked(
                             .signedOut,
@@ -3046,7 +3136,8 @@ final class SentinelStore: NSObject, ObservableObject {
                         _ = clearResetCreditProtectionJournal()
                     }
                     if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
+                        expectedConsent: consent,
+                        reason: .runtimeUnavailable
                     ) {
                         resetCreditProtectionStatus = .disabled
                     }
@@ -3065,15 +3156,56 @@ final class SentinelStore: NSObject, ObservableObject {
                         return
                     }
                 }
-                if case CodexAppServerClient.ClientError
-                    .resetCreditDispatchAuthorizationUnavailable = error {
-                    failClosedForResetCreditProtectionJournal()
-                } else {
-                    if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
-                    ) {
-                        resetCreditProtectionStatus = .disabled
+                switch error as? CodexAppServerClient.ClientError {
+                case .requestCancelledBeforeDispatch,
+                     .resetCreditSessionUnavailableBeforeDispatch:
+                    let stillRequested = defaults.object(
+                        forKey: DefaultsKey.resetCreditProtectionEnabled
+                    ) as? Bool ?? false
+                    guard stillRequested,
+                          resetCreditProtectionEnabled,
+                          resetCreditProtectionConsent == consent,
+                          resetCreditProtectionAuthorizationStore.load()
+                            == .loaded(consent) else {
+                        resetCreditProtectionNextRetryAt = nil
+                        resetCreditProtectionStatus = existingJournal == nil
+                            ? .disabled
+                            : .reconciling(expiresAt: expiresAt)
+                        return
                     }
+                    let retryAt = Date().addingTimeInterval(
+                        AppConstants.resetCreditProtectionRetrySeconds
+                    )
+                    resetCreditProtectionNextRetryAt = retryAt
+                    resetCreditProtectionStatus = existingJournal == nil
+                        ? .retrying(
+                            expiresAt: expiresAt,
+                            retryAt: retryAt
+                        )
+                        : .reconciling(expiresAt: expiresAt)
+                case .resetCreditDispatchNotAuthorized:
+                    let stillRequested = defaults.object(
+                        forKey: DefaultsKey.resetCreditProtectionEnabled
+                    ) as? Bool ?? false
+                    guard stillRequested, resetCreditProtectionEnabled else {
+                        resetCreditProtectionStatus = .disabled
+                        return
+                    }
+                    if revokeResetCreditProtectionAuthorization(
+                        expectedConsent: consent,
+                        reason: .creditNotAuthorized
+                    ) {
+                        resetCreditProtectionStatus = .blocked(
+                            .creditNotAuthorized,
+                            detail: nil
+                        )
+                    }
+                case .resetCreditDispatchAuthorizationUnavailable:
+                    failClosedForResetCreditProtectionJournal()
+                default:
+                    resetCreditProtectionStatus = protectionBlockedStatus(
+                        for: error
+                    )
                 }
                 return
             }
@@ -3087,7 +3219,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 }
                 if isUnsupportedResetCreditRPC(error) {
                     if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
+                        expectedConsent: consent,
+                        reason: .unsupportedCodex
                     ) {
                         resetCreditProtectionStatus = .blocked(
                             .unsupportedCodex,
@@ -3098,7 +3231,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 }
                 if isAuthenticationError(error) {
                     if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
+                        expectedConsent: consent,
+                        reason: .signedOut
                     ) {
                         resetCreditProtectionStatus = .blocked(
                             .signedOut,
@@ -3150,7 +3284,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 } catch ResetCreditProtectionAccountBindingError
                     .accountUnavailable {
                     if revokeResetCreditProtectionAuthorization(
-                        expectedConsent: consent
+                        expectedConsent: consent,
+                        reason: .signedOut
                     ) {
                         resetCreditProtectionStatus = .blocked(
                             .signedOut,
@@ -3160,7 +3295,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 } catch {
                     if isAuthenticationError(error),
                        revokeResetCreditProtectionAuthorization(
-                           expectedConsent: consent
+                           expectedConsent: consent,
+                           reason: .signedOut
                        ) {
                         resetCreditProtectionStatus = .blocked(
                             .signedOut,
@@ -3181,7 +3317,8 @@ final class SentinelStore: NSObject, ObservableObject {
             )
         } catch ResetCreditProtectionAccountBindingError.accountUnavailable {
             if revokeResetCreditProtectionAuthorization(
-                expectedConsent: consent
+                expectedConsent: consent,
+                reason: .signedOut
             ) {
                 resetCreditProtectionStatus = .blocked(
                     .signedOut,
@@ -3191,7 +3328,8 @@ final class SentinelStore: NSObject, ObservableObject {
         } catch {
             if isAuthenticationError(error),
                revokeResetCreditProtectionAuthorization(
-                   expectedConsent: consent
+                   expectedConsent: consent,
+                   reason: .signedOut
                ) {
                 resetCreditProtectionStatus = .blocked(
                     .signedOut,
@@ -3395,6 +3533,27 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    private static func resetCreditProtectionStatus(
+        for record: ResetCreditProtectionAuthorizationStore.RevocationRecord
+    ) -> ResetCreditProtectionStatus? {
+        switch record.reason {
+        case .userDisabled:
+            return nil
+        case .accountChanged:
+            return .blocked(.accountChanged, detail: nil)
+        case .signedOut:
+            return .blocked(.signedOut, detail: nil)
+        case .clockChanged:
+            return .blocked(.clockChanged, detail: nil)
+        case .creditNotAuthorized:
+            return .blocked(.creditNotAuthorized, detail: nil)
+        case .unsupportedCodex:
+            return .blocked(.unsupportedCodex, detail: nil)
+        case .runtimeUnavailable:
+            return .blocked(.journalUnavailable, detail: nil)
+        }
+    }
+
     private func blockResetCreditProtectionEnableForClockDiscontinuity(
         _ reason: ResetCreditProtectionAuthorization.ClockDiscontinuityReason
     ) {
@@ -3446,7 +3605,8 @@ final class SentinelStore: NSObject, ObservableObject {
                 expectedConsent: consent
             )
         } else if revokeResetCreditProtectionAuthorization(
-            expectedConsent: consent
+            expectedConsent: consent,
+            reason: .signedOut
         ) {
             resetCreditProtectionStatus = .blocked(.signedOut, detail: nil)
         }
@@ -3457,7 +3617,8 @@ final class SentinelStore: NSObject, ObservableObject {
         expectedConsent: ResetCreditProtectionConsent
     ) {
         guard revokeResetCreditProtectionAuthorization(
-            expectedConsent: expectedConsent
+            expectedConsent: expectedConsent,
+            reason: .accountChanged
         ) else {
             return
         }
@@ -3477,11 +3638,13 @@ final class SentinelStore: NSObject, ObservableObject {
 
     @discardableResult
     private func revokeResetCreditProtectionAuthorization(
-        expectedConsent: ResetCreditProtectionConsent
+        expectedConsent: ResetCreditProtectionConsent,
+        reason: ResetCreditProtectionAuthorizationStore.RevocationReason
     ) -> Bool {
         do {
             let result = try resetCreditProtectionAuthorizationStore.clear(
-                ifCurrent: expectedConsent
+                ifCurrent: expectedConsent,
+                reason: reason
             ) { [defaults] in
                 defaults.set(
                     false,
@@ -3912,7 +4075,9 @@ final class SentinelStore: NSObject, ObservableObject {
         resetCreditProtectionJournalCorrupt = true
         resetCreditProtectionStatus = .blocked(.journalUnavailable, detail: nil)
         do {
-            try resetCreditProtectionAuthorizationStore.clear { [defaults] in
+            try resetCreditProtectionAuthorizationStore.clear(
+                reason: .runtimeUnavailable
+            ) { [defaults] in
                 defaults.set(
                     false,
                     forKey: DefaultsKey.resetCreditProtectionEnabled

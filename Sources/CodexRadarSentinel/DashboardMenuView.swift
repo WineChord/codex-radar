@@ -29,17 +29,37 @@ private enum DashboardVisualTestOverrides {
 }
 
 enum DashboardConnectionErrorCopy {
-    static func text(for error: String, language: AppLanguage) -> String {
+    static func text(
+        for error: String,
+        language: AppLanguage,
+        hasCachedQuota: Bool = false
+    ) -> String {
         error.split(separator: "\n", omittingEmptySubsequences: false)
             .map { line in
                 let normalized = line.lowercased()
-                guard normalized.contains("authentication required")
-                        || normalized.contains("not logged in") else {
+                if normalized.contains("authentication required")
+                    || normalized.contains("not logged in")
+                    || normalized.contains("signed out") {
+                    return language.text(
+                        "Codex 尚未登录。请先打开 Codex 完成登录，再点“刷新”。",
+                        "Codex is signed out. Open Codex and sign in, then choose Refresh."
+                    )
+                }
+                guard normalized.contains("failed to fetch codex rate limits")
+                    || normalized.contains("wham/usage")
+                    || normalized.contains("codex app-server request timed out")
+                    || normalized.contains("codex app-server is not available") else {
                     return String(line)
                 }
+                if hasCachedQuota {
+                    return language.text(
+                        "Codex 额度暂时未更新。下方仍是最近一次数据，应用会自动重试。",
+                        "Codex quota is temporarily unavailable. The latest saved reading remains below, and the app will retry automatically."
+                    )
+                }
                 return language.text(
-                    "Codex 尚未登录。请先打开 Codex 完成登录，再点“刷新”。",
-                    "Codex is signed out. Open Codex and sign in, then choose Refresh."
+                    "暂时无法连接 Codex 额度服务，应用会自动重试。",
+                    "Codex quota is temporarily unavailable. The app will retry automatically."
                 )
             }
             .joined(separator: "\n")
@@ -1019,7 +1039,7 @@ struct DashboardMenuView: View {
                     key: "site-announcement-\(announcement.updatedLabel ?? "")-\(message)",
                     collapsedLines: 2
                 )
-                if let sourceURL = announcement.sourceURL.flatMap(URL.init(string:)) {
+                if let sourceURL = announcement.sourceLinkURL {
                     Button {
                         store.openURL(sourceURL)
                     } label: {
@@ -1059,6 +1079,20 @@ struct DashboardMenuView: View {
                                 key: "codexradar-community-\(index)-\(card.title ?? "")",
                                 collapsedLines: 3
                             )
+                        }
+                        if let sourceURL = card.sourceLinkURL {
+                            Button {
+                                store.openURL(sourceURL)
+                            } label: {
+                                Label(
+                                    text("查看指南", "Open guide"),
+                                    systemImage: "arrow.up.right.square"
+                                )
+                                .font(.system(size: metrics.caption, weight: .medium))
+                                .foregroundStyle(Color.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                            .help(text("打开社区指南", "Open community guide"))
                         }
                     }
                     .padding(8)
@@ -1185,6 +1219,8 @@ struct DashboardMenuView: View {
             return text("已排期", "Scheduled")
         case .waitingForUsage:
             return text("等待可重置额度", "Waiting for usage")
+        case .retrying:
+            return text("稍后重试", "Retrying soon")
         case .using:
             return text("正在使用", "Using")
         case .reconciling:
@@ -1383,6 +1419,11 @@ struct DashboardMenuView: View {
             )
         case .waitingForUsage:
             return text("已接近到期 · 等待出现可重置额度", "Near expiry · waiting for eligible usage")
+        case .retrying:
+            return text(
+                "请求未发送 · 将自动重试",
+                "Request not sent · retrying automatically"
+            )
         case .using:
             return text("正在请求 Codex 使用重置卡…", "Asking Codex to use the reset credit…")
         case .reconciling:
@@ -1455,6 +1496,11 @@ struct DashboardMenuView: View {
                 "下一张卡将在 \(DisplayFormatters.compactDateTime(expiresAt)) 到期。当前尚未出现需要重置的额度，App 会继续检查至到期；能否最终使用仍取决于运行、网络和 Codex 状态。",
                 "The next credit expires \(DisplayFormatters.compactDateTime(expiresAt)). No limit currently needs a reset. The app keeps checking until expiry; eventual use still depends on runtime, network, and Codex state."
             )
+        case .retrying(let expiresAt, let retryAt):
+            return text(
+                "本次在写入 Codex 前中断，没有消耗重置卡；App 将于 \(DisplayFormatters.compactDateTime(retryAt)) 自动重试。卡片 \(DisplayFormatters.compactDateTime(expiresAt)) 到期，无需重新开启。",
+                "The attempt stopped before anything was written to Codex, so no reset credit was consumed. The app will retry automatically at \(DisplayFormatters.compactDateTime(retryAt)). The credit expires \(DisplayFormatters.compactDateTime(expiresAt)); no re-enabling is needed."
+            )
         case .reconciling(let expiresAt):
             if store.resetCreditProtectionEnabled {
                 return text(
@@ -1500,7 +1546,8 @@ struct DashboardMenuView: View {
         switch store.resetCreditProtectionStatus {
         case .succeeded, .scheduled, .noCredits, .preview, .previewNoCredits:
             return .green
-        case .enabling, .checking, .using, .reconciling, .waitingForUsage:
+        case .enabling, .checking, .using, .reconciling, .waitingForUsage,
+             .retrying:
             return .orange
         case .blocked, .missed:
             return .red
@@ -1940,7 +1987,7 @@ struct DashboardMenuView: View {
             .minimumScaleFactor(0.72)
             Text(
                 top.map {
-                    "\(radarModelEffortLabel($0)) · ↓\(radarDropText($0.largestDrop))"
+                    "\(radarModelEffortLabel($0)) · \(radarLargestDropLabel($0))"
                 } ?? text("近 48 小时", "Last 48 hours")
             )
             .font(.system(size: metrics.caption, design: .monospaced))
@@ -1968,14 +2015,44 @@ struct DashboardMenuView: View {
             Text("IQ \(DisplayFormatters.iqScore(alert.iq))")
                 .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
                 .frame(width: 58, alignment: .trailing)
-            Text("24h ↓\(radarDropText(alert.from24HourHighIQ))")
+            Text(
+                radarHistoricalDropLabel(
+                    hours: 24,
+                    drop: alert.preferred24HourDropIQ,
+                    comparesWithAverage: alert.uses24HourAverageComparison
+                )
+            )
                 .font(.system(size: metrics.caption, weight: .medium, design: .monospaced))
                 .foregroundStyle(.orange)
-                .frame(width: 74, alignment: .trailing)
-            Text("48h ↓\(radarDropText(alert.from48HourHighIQ))")
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(width: radarHistoricalDropWidth, alignment: .trailing)
+                .accessibilityLabel(
+                    radarHistoricalDropAccessibilityLabel(
+                        hours: 24,
+                        drop: alert.preferred24HourDropIQ,
+                        comparesWithAverage: alert.uses24HourAverageComparison
+                    )
+                )
+            Text(
+                radarHistoricalDropLabel(
+                    hours: 48,
+                    drop: alert.preferred48HourDropIQ,
+                    comparesWithAverage: alert.uses48HourAverageComparison
+                )
+            )
                 .font(.system(size: metrics.caption, weight: .medium, design: .monospaced))
                 .foregroundStyle(.orange)
-                .frame(width: 74, alignment: .trailing)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(width: radarHistoricalDropWidth, alignment: .trailing)
+                .accessibilityLabel(
+                    radarHistoricalDropAccessibilityLabel(
+                        hours: 48,
+                        drop: alert.preferred48HourDropIQ,
+                        comparesWithAverage: alert.uses48HourAverageComparison
+                    )
+                )
         }
     }
 
@@ -2151,6 +2228,48 @@ struct DashboardMenuView: View {
             format: "%.1f",
             locale: Locale(identifier: "en_US_POSIX"),
             value
+        )
+    }
+
+    private var radarHistoricalDropWidth: CGFloat {
+        language == .zhHans ? 76 : 88
+    }
+
+    private func radarLargestDropLabel(
+        _ alert: RadarDegradationAlert
+    ) -> String {
+        let prefix = alert.largestDropUsesAverageComparison
+            ? text("均 ", "avg ")
+            : ""
+        return "\(prefix)↓\(radarDropText(alert.largestDrop))"
+    }
+
+    private func radarHistoricalDropLabel(
+        hours: Int,
+        drop: Double?,
+        comparesWithAverage: Bool
+    ) -> String {
+        let prefix = comparesWithAverage
+            ? text("\(hours)h均", "\(hours)h avg")
+            : "\(hours)h"
+        return "\(prefix) ↓\(radarDropText(drop))"
+    }
+
+    private func radarHistoricalDropAccessibilityLabel(
+        hours: Int,
+        drop: Double?,
+        comparesWithAverage: Bool
+    ) -> String {
+        let value = radarDropText(drop)
+        if comparesWithAverage {
+            return text(
+                "当前 IQ 低于过去 \(hours) 小时均值 \(value)",
+                "Current IQ is \(value) below the \(hours)-hour average"
+            )
+        }
+        return text(
+            "过去 \(hours) 小时下降 \(value)",
+            "Down \(value) over \(hours) hours"
         )
     }
 
@@ -2954,7 +3073,8 @@ struct DashboardMenuView: View {
     private func errorSection(_ error: String) -> some View {
         let visibleError = DashboardConnectionErrorCopy.text(
             for: error,
-            language: language
+            language: language,
+            hasCachedQuota: state.rateLimits != nil
         )
         return VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("连接", "Connection"), systemImage: "exclamationmark.triangle")

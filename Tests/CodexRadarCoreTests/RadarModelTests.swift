@@ -105,7 +105,77 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(alert.iq, 71)
         XCTAssertEqual(alert.from24HourHighIQ, 5.3)
         XCTAssertEqual(alert.from48HourHighIQ, 8.2)
+        XCTAssertEqual(alert.preferred24HourDropIQ, 5.3)
+        XCTAssertEqual(alert.preferred48HourDropIQ, 8.2)
+        XCTAssertFalse(alert.uses24HourAverageComparison)
+        XCTAssertFalse(alert.uses48HourAverageComparison)
         XCTAssertEqual(alert.largestDrop, 8.2)
+        XCTAssertFalse(alert.largestDropUsesAverageComparison)
+    }
+
+    func testDegradationAlertsPreferAverageRelativeDrops() throws {
+        let insights = try JSONDecoder().decode(
+            RadarInsightsEnvelope.self,
+            from: Data(
+                """
+                {
+                  "schema": 1,
+                  "recommendations": [],
+                  "degradation_alerts": {
+                    "items": [
+                      {
+                        "model": "gpt-5.6-terra",
+                        "effort": "high",
+                        "iq": 72,
+                        "average_iq_24h": 80.18,
+                        "average_iq_48h": 80.04,
+                        "from_24h_average_iq": 8.18,
+                        "from_48h_average_iq": 8.04,
+                        "from_24h_high_iq": 12.4,
+                        "from_48h_high_iq": 12.4
+                      },
+                      {
+                        "model": "gpt-5.6-sol",
+                        "effort": "low",
+                        "current_iq": 71,
+                        "average_iq_24h": 78,
+                        "average_iq_48h": 81
+                      },
+                      {
+                        "model": "gpt-5.6-sol",
+                        "effort": "medium",
+                        "from_24h_average_iq": 8,
+                        "from_48h_average_iq": 10
+                      }
+                    ]
+                  }
+                }
+                """.utf8
+            )
+        )
+
+        XCTAssertEqual(insights.degradationAlerts.validItems.count, 2)
+        let current = try XCTUnwrap(
+            insights.degradationAlerts.validItems.first
+        )
+        XCTAssertEqual(current.from24HourAverageIQ, 8.18)
+        XCTAssertEqual(current.from48HourAverageIQ, 8.04)
+        XCTAssertEqual(current.from24HourHighIQ, 12.4)
+        XCTAssertEqual(current.from48HourHighIQ, 12.4)
+        XCTAssertEqual(current.preferred24HourDropIQ, 8.18)
+        XCTAssertEqual(current.preferred48HourDropIQ, 8.04)
+        XCTAssertEqual(current.largestDrop, 8.18)
+        XCTAssertTrue(current.uses24HourAverageComparison)
+        XCTAssertTrue(current.uses48HourAverageComparison)
+        XCTAssertTrue(current.largestDropUsesAverageComparison)
+
+        let computed = insights.degradationAlerts.validItems[1]
+        XCTAssertEqual(computed.preferred24HourDropIQ, 7)
+        XCTAssertEqual(computed.preferred48HourDropIQ, 10)
+        XCTAssertEqual(computed.largestDrop, 10)
+        XCTAssertTrue(computed.uses24HourAverageComparison)
+        XCTAssertTrue(computed.uses48HourAverageComparison)
+        XCTAssertTrue(computed.largestDropUsesAverageComparison)
     }
 
     func testDecodesRadarInsightsArrayDegradationAndSecondaryAliases() throws {
@@ -422,6 +492,10 @@ final class RadarModelTests: XCTestCase {
         XCTAssertTrue(current.siteAnnouncement?.message?.contains("Polymarket GPT-5.6") == true)
         XCTAssertEqual(current.siteAnnouncement?.updatedLabel, "数据更新时间 2026-07-07 08:49:36 北京时间")
         XCTAssertEqual(current.siteAnnouncement?.sourceURL, "https://polymarket.com/event/gpt-5pt6-released-onptptpt-20260623051439980")
+        XCTAssertEqual(
+            current.siteAnnouncement?.sourceLinkURL?.host,
+            "polymarket.com"
+        )
         XCTAssertEqual(current.resetJudgement?.updatedLabel, "7月3日08:08研判")
         XCTAssertEqual(current.resetJudgement?.title, "发卡路径占优")
         XCTAssertEqual(current.resetJudgement?.cards.count, 2)
@@ -432,6 +506,103 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.communityKnowledges.count, 1)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("rate-limit reset credits") == true)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("不要打印 access_token") == true)
+    }
+
+    func testBuildsSiteAnnouncementFromCurrentResetMarkup() throws {
+        let html = """
+        <html>
+          <head>
+            <title>9月8日 GPT-5.6 Sol max: IQ指数 106.7, 80/112, 费用 $7.2, 耗时 33分钟, cache命中率 97.6%</title>
+          </head>
+          <body>
+            <section class="site-announcement site-announcement-reset" data-speed-window="open" aria-label="官方重置公告">
+              <span class="site-announcement-label">官方公告</span>
+              <div class="site-announcement-main site-announcement-reset-main">
+                <div class="site-announcement-heading">
+                  <strong class="site-announcement-headline">全体付费订阅用量重置</strong>
+                  <span class="site-announcement-lead">预计北京时间 9 月 8 日 10:00 左右</span>
+                </div>
+                <p class="site-announcement-reset-detail">Tibo 原文写作“around 6pm PST today”；实际完成仍待确认。</p>
+                <a href="https://x.com/thsottiaux/status/2097043464538264003" class="site-announcement-source site-announcement-reset-source" target="_blank" rel="noreferrer">查看 Tibo 官方原帖 ↗</a>
+              </div>
+            </section>
+          </body>
+        </html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_789_000_000)
+        )
+
+        XCTAssertEqual(current.siteAnnouncement?.label, "官方公告")
+        XCTAssertEqual(
+            current.siteAnnouncement?.updatedLabel,
+            "预计北京时间 9 月 8 日 10:00 左右"
+        )
+        XCTAssertEqual(
+            current.siteAnnouncement?.message,
+            "全体付费订阅用量重置 — Tibo 原文写作“around 6pm PST today”；实际完成仍待确认。"
+        )
+        XCTAssertEqual(
+            current.siteAnnouncement?.sourceLabel,
+            "查看 Tibo 官方原帖 ↗"
+        )
+        XCTAssertEqual(
+            current.siteAnnouncement?.sourceLinkURL?.absoluteString,
+            "https://x.com/thsottiaux/status/2097043464538264003"
+        )
+    }
+
+    func testBuildsSiteAnnouncementFromCurrentNewsMarkup() throws {
+        let html = """
+        <html>
+          <head>
+            <title>9月11日 GPT-5.6 Sol max: IQ指数 110.3, 82/112, 费用 $7.34, 耗时 34分钟, cache命中率 97.2%</title>
+          </head>
+          <body>
+            <section class="site-announcement site-announcement-news" aria-label="重要公告">
+              <div id="pro-subscription-announcement" class="site-announcement-main pro-subscription-announcement">
+                <div class="site-announcement-heading">
+                  <strong class="site-announcement-headline">OpenAI 官方已停止新 Pro 订阅</strong>
+                </div>
+                <p class="site-announcement-lead pro-subscription-announcement-copy">现有订阅用户需要保持自动续费。</p>
+                <p class="site-announcement-lead pro-subscription-announcement-maintenance-copy">部分公开数据可能暂时延迟更新。</p>
+                <a class="pro-subscription-announcement-link" href="assets/announcement.jpg?v=1" target="_blank" rel="noreferrer">
+                  <img class="site-announcement-image" src="assets/announcement.jpg?v=1" alt="公告截图">
+                </a>
+              </div>
+            </section>
+          </body>
+        </html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_789_000_000)
+        )
+
+        XCTAssertNil(current.siteAnnouncement?.updatedLabel)
+        XCTAssertEqual(
+            current.siteAnnouncement?.message,
+            "OpenAI 官方已停止新 Pro 订阅\n\n现有订阅用户需要保持自动续费。\n\n部分公开数据可能暂时延迟更新。"
+        )
+        XCTAssertNil(current.siteAnnouncement?.sourceLabel)
+        XCTAssertEqual(
+            current.siteAnnouncement?.sourceLinkURL?.absoluteString,
+            "https://codexradar.com/assets/announcement.jpg?v=1"
+        )
+    }
+
+    func testSiteAnnouncementRejectsNonHTTPSourceURL() throws {
+        let announcement = try JSONDecoder().decode(
+            SiteAnnouncement.self,
+            from: Data(
+                #"{"label":"Notice","message":"Read this","source_url":"file:///tmp/private"}"#.utf8
+            )
+        )
+
+        XCTAssertNil(announcement.sourceLinkURL)
     }
 
     func testBuildsResetJudgementFromCurrentHomepageCardMarkup() throws {
@@ -561,6 +732,23 @@ final class RadarModelTests: XCTestCase {
                     <img src="assets/codex-enable-max-reasoning-20260711.png" alt="在 Codex Configuration 的 Available reasoning efforts 中开启 Max">
                   </div>
                 </article>
+                <article class="community-knowledge-card">
+                  <div class="community-knowledge-card-main">
+                    <h2>推理强度中英文对照</h2>
+                  </div>
+                  <div class="community-knowledge-guide" data-site-announcement-prompt hidden>
+                    <img src="assets/codex-reasoning-effort.png" alt="轻度 low、中 medium、高 high、极高 xhigh、最高 max、极高 ultra">
+                  </div>
+                </article>
+                <article class="community-knowledge-card">
+                  <div class="community-knowledge-card-main">
+                    <h2>DeepSeek 官方 Codex 接入指南</h2>
+                    <p>按照 DeepSeek 官方配置步骤，在 Codex 中接入并使用 DeepSeek 模型。</p>
+                  </div>
+                  <div class="community-knowledge-actions">
+                    <a href="https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex/">查看指南</a>
+                  </div>
+                </article>
               </div>
             </section>
           </body>
@@ -573,8 +761,32 @@ final class RadarModelTests: XCTestCase {
         )
 
         XCTAssertEqual(current.communityKnowledge?.title, "如何开启 Max 推理强度")
-        XCTAssertEqual(current.communityKnowledges.count, 1)
+        XCTAssertEqual(current.communityKnowledges.count, 3)
         XCTAssertTrue(current.communityKnowledge?.prompt?.contains("Available reasoning efforts") == true)
+        XCTAssertEqual(
+            current.communityKnowledges[1].prompt,
+            "轻度 low、中 medium、高 high、极高 xhigh、最高 max、极高 ultra"
+        )
+        XCTAssertEqual(
+            current.communityKnowledges[2].prompt,
+            "按照 DeepSeek 官方配置步骤，在 Codex 中接入并使用 DeepSeek 模型。"
+        )
+        XCTAssertEqual(
+            current.communityKnowledges[2].sourceLinkURL?.absoluteString,
+            "https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/codex/"
+        )
+        XCTAssertEqual(current.communityKnowledges[2].sourceLabel, "查看指南")
+    }
+
+    func testCommunityKnowledgeRejectsNonHTTPSourceURL() throws {
+        let knowledge = try JSONDecoder().decode(
+            CommunityKnowledge.self,
+            from: Data(
+                #"{"title":"Local file","prompt":"Do not open it","source_url":"file:///tmp/private"}"#.utf8
+            )
+        )
+
+        XCTAssertNil(knowledge.sourceLinkURL)
     }
 
     func testBuildsFastRadarFromHomepageHTML() throws {
@@ -637,6 +849,113 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.fastRadar?.rows.first?.e2e?.value, "⚡️1.399×")
         XCTAssertEqual(current.fastRadar?.rows.last?.ttft?.value, "慢 26.9%")
         XCTAssertTrue(current.fastRadar?.method?.contains("Standard 与 Fast") == true)
+    }
+
+    func testBuildsFastRadarFromCurrentSummaryAndMethodMarkup() throws {
+        let html = """
+        <html>
+          <head>
+            <title>9月9日 Astra medium: IQ指数 109.0, 81/112, 费用 $7.3, 耗时 34分钟, cache命中率 97.2%</title>
+          </head>
+          <body>
+            <section id="fast-radar" class="fast-radar" aria-label="Fast 雷达">
+              <div class="fast-radar-head">
+                <div>
+                  <h2>Fast 雷达 <em>更新 9月8日 23:43</em></h2>
+                </div>
+                <span>Astra medium · Standard → Fast</span>
+              </div>
+              <div class="fast-radar-summary" aria-label="Fast 模式速览">
+                <div class=""><span>体感加速</span><strong>1.687×</strong></div>
+                <div class="is-regression"><span>首可见输出延迟减少</span><strong>慢 4.2%</strong></div>
+                <div data-kind="tps"><span>Token 生成速度加速</span><strong>不可测</strong></div>
+              </div>
+              <div class="fast-radar-table" role="table" aria-label="Fast 雷达">
+                <div class="fast-radar-row" role="row">
+                  <div class="fast-radar-model"><strong>Astra medium</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-e2e" data-label="体感加速"><span>70.81s → 41.96s</span><strong>1.687×</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-ttft" data-label="首可见输出延迟减少"><span>70.56s → 41.72s</span><strong>快 40.9%</strong></div>
+                  <div class="fast-radar-metric fast-radar-metric-tps" data-label="Token 生成速度加速"><span>无可测流式区间</span><strong>不可测</strong></div>
+                </div>
+              </div>
+              <section class="fast-radar-history"><p>历史数据</p></section>
+              <details class="fast-radar-explain">
+                <summary>测试方法</summary>
+                <p>测试方法：Standard 与 Fast 各独立运行 3 次。</p>
+              </details>
+            </section>
+          </body>
+        </html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_789_000_000)
+        )
+
+        XCTAssertEqual(current.fastRadar?.title, "Fast 雷达")
+        XCTAssertEqual(current.fastRadar?.summary.count, 3)
+        XCTAssertEqual(current.fastRadar?.summary.first?.label, "体感加速")
+        XCTAssertEqual(current.fastRadar?.summary.first?.value, "1.687×")
+        XCTAssertEqual(current.fastRadar?.summary.last?.value, "不可测")
+        XCTAssertEqual(current.fastRadar?.rows.first?.model, "Astra medium")
+        XCTAssertTrue(current.fastRadar?.method?.contains("各独立运行 3 次") == true)
+    }
+
+    func testBuildsFastRadarSummaryFromPerEffortSpeedTable() throws {
+        let html = """
+        <html><head>
+          <title>9月9日 Astra medium: IQ指数 109.0, 81/112, 费用 $7.3, 耗时 34分钟, cache命中率 97.2%</title>
+        </head><body>
+          <section class="fast-radar" id="fast-radar">
+            <div class="fast-radar-head"><div>
+              <h2>Fast 加速雷达 <em>9月14日09:25更新</em></h2>
+            </div><span>GPT-6 Astra</span></div>
+            <div class="fast-simple" role="table">
+              <div class="fast-simple-row fast-simple-header" role="row">
+                <span>模型档位</span><span>Standard</span><span>Fast</span><span>速度倍数</span>
+              </div>
+              <div class="fast-simple-row" role="row" data-fast-simple-effort="low">
+                <strong role="cell">Astra low<small data-fast-simple-time>9月14日 09:21</small></strong>
+                <span role="cell" class="fast-simple-standard">33.3</span>
+                <span role="cell" class="fast-simple-speed">62.1</span>
+                <strong role="cell" class="fast-simple-ratio" data-ratio-state="valid">⚡1.87×</strong>
+              </div>
+              <div role="row" class="fast-simple-row is-regression">
+                <strong role="cell">Astra medium<small data-fast-simple-time>
+                  9月14日 09:25
+                </small></strong>
+                <span>33.3</span><span>30.0</span>
+                <strong class="fast-simple-ratio is-regression">0.90×</strong>
+              </div>
+              <div class="fast-simple-row">
+                <strong>Astra high</strong><span>—</span><span>—</span>
+                <strong class="fast-simple-ratio" data-ratio-state="unavailable">不可测</strong>
+              </div>
+              <div class="fast-simple-row">
+                <strong><small>更新时间</small></strong><span>—</span><span>—</span>
+                <strong class="fast-simple-ratio">2.0×</strong>
+              </div>
+            </div>
+            <details class="fast-radar-explain"><summary>历史与测试详情</summary>
+              <p>每档测试：Standard 3 次 + Fast 3 次，同一道计数题。</p>
+            </details>
+          </section>
+          <div class="fast-simple-row">
+            <strong>Unrelated model</strong><span>1</span><span>9</span>
+            <strong class="fast-simple-ratio">9×</strong>
+          </div>
+        </body></html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(html)
+        let summary = try XCTUnwrap(current.fastRadar?.summary)
+
+        XCTAssertEqual(summary.map(\.label), ["Astra low · TPS", "Astra medium · TPS", "Astra high · TPS"])
+        XCTAssertEqual(summary.map(\.value), ["⚡1.87×", "0.90×", "不可测"])
+        XCTAssertEqual(current.fastRadar?.title, "Fast 加速雷达")
+        XCTAssertEqual(current.fastRadar?.subtitle, "GPT-6 Astra")
+        XCTAssertEqual(current.fastRadar?.method, "每档测试：Standard 3 次 + Fast 3 次，同一道计数题。")
     }
 
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {

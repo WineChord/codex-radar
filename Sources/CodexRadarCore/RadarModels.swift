@@ -144,6 +144,19 @@ public struct SiteAnnouncement: Decodable, Equatable {
     public let sourceLabel: String?
     public let sourceURL: String?
 
+    public var sourceLinkURL: URL? {
+        guard let sourceURL,
+              let url = URL(string: sourceURL),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "http",
+              url.host?.isEmpty == false,
+              url.user == nil,
+              url.password == nil else {
+            return nil
+        }
+        return url
+    }
+
     enum CodingKeys: String, CodingKey {
         case label
         case message
@@ -188,10 +201,27 @@ public struct ResetJudgementCard: Decodable, Equatable, Identifiable {
 public struct CommunityKnowledge: Decodable, Equatable {
     public let title: String?
     public let prompt: String?
+    public let sourceURL: String?
+    public let sourceLabel: String?
+
+    public var sourceLinkURL: URL? {
+        guard let sourceURL,
+              let url = URL(string: sourceURL),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "http",
+              url.host?.isEmpty == false,
+              url.user == nil,
+              url.password == nil else {
+            return nil
+        }
+        return url
+    }
 
     enum CodingKeys: String, CodingKey {
         case title
         case prompt
+        case sourceURL = "source_url"
+        case sourceLabel = "source_label"
     }
 }
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -7,6 +8,22 @@ namespace CodexRadar.Windows;
 
 internal sealed class DashboardForm : Form
 {
+    private const int WmNcHitTest = 0x0084;
+    private const int WmNcLButtonDown = 0x00A1;
+    private const int HtCaption = 2;
+    private const int HtLeft = 10;
+    private const int HtRight = 11;
+    private const int HtTop = 12;
+    private const int HtTopLeft = 13;
+    private const int HtTopRight = 14;
+    private const int HtBottom = 15;
+    private const int HtBottomLeft = 16;
+    private const int HtBottomRight = 17;
+    private const int CsDropShadow = 0x00020000;
+    private const int DwmWindowCornerPreference = 33;
+    private const int DwmSystemBackdropType = 38;
+    private const int DwmWindowCornerRound = 2;
+    private const int DwmBackdropTransientWindow = 3;
     private static readonly JsonSerializerOptions ContentSignatureJson = new()
     {
         NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
@@ -25,11 +42,60 @@ internal sealed class DashboardForm : Form
         "is expired or the Authorization header is missing. Do not print access_token, refresh_token, cookies, or full unique IDs. " +
         "Show only each reset credit issue time and expiry time, converted to local time.";
 
-    private readonly Panel _header = new() { Name = "dashboardHeader", Dock = DockStyle.Top, Height = 92, Padding = new Padding(18, 13, 18, 10) };
-    private readonly Label _title = new() { AutoSize = true, ForeColor = Color.White };
-    private readonly Label _detail = new() { AutoSize = true, ForeColor = Color.White };
-    private readonly Label _summary = new() { AutoSize = true, ForeColor = Color.White };
-    private readonly Label _updated = new() { AutoSize = true, ForeColor = Color.FromArgb(224, 235, 246) };
+    private readonly BufferedPanel _titleBar = new()
+    {
+        Name = "dashboardTitleBar",
+        Dock = DockStyle.Top,
+        Height = 38,
+        BackColor = Palette.TaskbarSurface,
+        Padding = new Padding(13, 5, 7, 5)
+    };
+    private readonly TableLayoutPanel _titleBarLayout = new()
+    {
+        Dock = DockStyle.Fill,
+        ColumnCount = 2,
+        RowCount = 1,
+        BackColor = Color.Transparent,
+        Margin = Padding.Empty,
+        Padding = Padding.Empty
+    };
+    private readonly Label _windowTitle = new()
+    {
+        AutoSize = false,
+        Dock = DockStyle.Fill,
+        Text = "Codex Radar Sentinel",
+        TextAlign = ContentAlignment.MiddleLeft,
+        ForeColor = Palette.Text,
+        UseMnemonic = false
+    };
+    private readonly FluentButton _closeButton = new()
+    {
+        Name = "dashboardClose",
+        Text = "×",
+        Dock = DockStyle.Fill,
+        Margin = Padding.Empty,
+        TextAlign = ContentAlignment.MiddleCenter,
+        ForeColor = Palette.Text,
+        UseMnemonic = false,
+        CornerRadius = 7,
+        DrawBorder = false,
+        FillColor = Palette.TaskbarSurface,
+        HoverColor = Color.FromArgb(232, 17, 35),
+        PressedColor = Color.FromArgb(196, 15, 30),
+        HoverForeColor = Color.White,
+        AccessibleName = "Close dashboard"
+    };
+    private readonly GradientPanel _header = new()
+    {
+        Name = "dashboardHeader",
+        Dock = DockStyle.Top,
+        Height = 92,
+        Padding = new Padding(18, 13, 18, 10)
+    };
+    private readonly Label _title = new() { AutoSize = true, ForeColor = Color.White, UseMnemonic = false };
+    private readonly Label _detail = new() { AutoSize = true, ForeColor = Color.White, UseMnemonic = false };
+    private readonly Label _summary = new() { AutoSize = true, ForeColor = Color.White, UseMnemonic = false };
+    private readonly Label _updated = new() { AutoSize = true, ForeColor = Color.FromArgb(231, 240, 249), UseMnemonic = false };
     private readonly TableLayoutPanel _headerLayout = new()
     {
         Dock = DockStyle.Fill,
@@ -43,7 +109,7 @@ internal sealed class DashboardForm : Form
     {
         Name = "dashboardContentHost",
         Dock = DockStyle.Fill,
-        BackColor = Color.FromArgb(244, 246, 248)
+        BackColor = Palette.Canvas
     };
     private BufferedFlowLayoutPanel _content = CreateContentPanel();
     private readonly TableLayoutPanel _footer = new()
@@ -54,11 +120,12 @@ internal sealed class DashboardForm : Form
         ColumnCount = 6,
         RowCount = 1,
         Padding = new Padding(8, 8, 8, 10),
-        BackColor = Color.FromArgb(248, 249, 251),
+        BackColor = Palette.TaskbarSurface,
         GrowStyle = TableLayoutPanelGrowStyle.FixedSize
     };
 
     private AppSettings _settings;
+    private readonly Func<DateTimeOffset> _renderClock;
     private DashboardSnapshot _snapshot = new();
     private QuotaHistoryTimeline _quotaHistory = new();
     private DateTimeOffset _quotaHistoryEndingAt =
@@ -81,6 +148,7 @@ internal sealed class DashboardForm : Form
     private string? _renderedContentSignature;
     private string? _pendingContentSignature;
     internal Exception? LastRenderFailure { get; private set; }
+    internal TimeSpan LastRenderDuration { get; private set; }
 
     public event EventHandler? RefreshRequested;
     public event EventHandler? ResetCreditsRequested;
@@ -93,33 +161,40 @@ internal sealed class DashboardForm : Form
     public event EventHandler? ProtectionPreviewRequested;
     public event EventHandler? QuitRequested;
 
-    public DashboardForm(AppSettings settings)
+    public DashboardForm(AppSettings settings, Func<DateTimeOffset>? renderClock = null)
     {
         SuspendLayout();
         _settings = settings;
+        _renderClock = renderClock ?? (() => DateTimeOffset.Now);
         AutoScaleDimensions = new SizeF(96f, 96f);
         AutoScaleMode = AutoScaleMode.Dpi;
-        FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         MinimumSize = new Size(390, 560);
         MaximumSize = new Size(620, 980);
         Text = "Codex Radar Sentinel";
-        BackColor = Color.White;
+        BackColor = Palette.WindowBorder;
+        Padding = new Padding(1);
+        Opacity = SystemInformation.HighContrast ? 1d : .965d;
         DoubleBuffered = true;
         KeyPreview = true;
+        AccessibleName = "Codex Radar Sentinel dashboard";
 
+        BuildTitleBar();
         BuildHeader();
         BuildFooter();
         _contentHost.Controls.Add(_content);
         Controls.Add(_contentHost);
         Controls.Add(_header);
         Controls.Add(_footer);
+        Controls.Add(_titleBar);
 
         Resize += (_, _) =>
         {
             LayoutHeader();
             ResizeCards();
+            UpdateWindowRegion();
         };
         FormClosing += OnFormClosing;
         KeyDown += (_, e) =>
@@ -137,6 +212,16 @@ internal sealed class DashboardForm : Form
     }
 
     public DashboardForm(bool chinese) : this(new AppSettings { Chinese = chinese }) { }
+
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var parameters = base.CreateParams;
+            parameters.ClassStyle |= CsDropShadow;
+            return parameters;
+        }
+    }
 
     public void SetState(
         DashboardSnapshot snapshot,
@@ -184,6 +269,7 @@ internal sealed class DashboardForm : Form
             settings,
             updateStatus,
             resetLoading,
+            now: _renderClock(),
             quotaHistory: _quotaHistory,
             quotaHistoryEndingAt:
                 _quotaHistoryEndingAt,
@@ -291,6 +377,28 @@ internal sealed class DashboardForm : Form
         Close();
     }
 
+    private void BuildTitleBar()
+    {
+        _titleBarLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        _titleBarLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 34));
+        _titleBarLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        _titleBarLayout.Controls.Add(_windowTitle, 0, 0);
+        _titleBarLayout.Controls.Add(_closeButton, 1, 0);
+        _titleBar.Controls.Add(_titleBarLayout);
+        _closeButton.Click += (_, _) => Hide();
+
+        void BeginWindowDrag(object? sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+            _ = ReleaseCapture();
+            _ = SendMessage(Handle, WmNcLButtonDown, (IntPtr)HtCaption, IntPtr.Zero);
+        }
+
+        _titleBar.MouseDown += BeginWindowDrag;
+        _titleBarLayout.MouseDown += BeginWindowDrag;
+        _windowTitle.MouseDown += BeginWindowDrag;
+    }
+
     private void BuildHeader()
     {
         _header.Controls.Add(_headerLayout);
@@ -305,6 +413,10 @@ internal sealed class DashboardForm : Form
     {
         _headerLayoutWidth = _header.ClientSize.Width;
         var availableWidth = Math.Max(1, _header.ClientSize.Width - _header.Padding.Horizontal);
+        _title.MaximumSize = new Size(availableWidth, 0);
+        _summary.MaximumSize = new Size(availableWidth, 0);
+        _detail.MaximumSize = new Size(availableWidth, 0);
+        _updated.MaximumSize = new Size(availableWidth, 0);
         var stackSummary = _title.PreferredSize.Width + _summary.PreferredSize.Width + ScaleLogical(12) > availableWidth;
 
         _headerLayout.SuspendLayout();
@@ -386,7 +498,12 @@ internal sealed class DashboardForm : Form
             TabStop = true,
             TextAlign = ContentAlignment.MiddleCenter,
             UseMnemonic = false,
-            AutoEllipsis = false
+            AutoEllipsis = false,
+            CornerRadius = 9,
+            FillColor = Palette.ControlSurface,
+            HoverColor = Palette.ControlHover,
+            PressedColor = Palette.ControlPressed,
+            BorderColor = Palette.ControlBorder
         };
         button.Click += handler;
         _footer.Controls.Add(button, column, 0);
@@ -404,7 +521,7 @@ internal sealed class DashboardForm : Form
         var flags = TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
         var minimumWidths = buttons.Select(button =>
             TextRenderer.MeasureText(button.Text, button.Font, new Size(int.MaxValue, int.MaxValue), flags).Width
-            + ScaleLogical(18) + button.Margin.Horizontal).ToArray();
+            + ScaleLogical(22) + button.Margin.Horizontal).ToArray();
         var available = _footer.ClientSize.Width - _footer.Padding.Horizontal;
         var remaining = Math.Max(0, available - minimumWidths.Sum());
 
@@ -427,7 +544,7 @@ internal sealed class DashboardForm : Form
         var flags = TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
         return _footer.Controls.OfType<FluentButton>().Sum(button =>
                    TextRenderer.MeasureText(button.Text, button.Font, new Size(int.MaxValue, int.MaxValue), flags).Width
-                   + ScaleLogical(18) + button.Margin.Horizontal)
+                   + ScaleLogical(22) + button.Margin.Horizontal)
                + _footer.Padding.Horizontal;
     }
 
@@ -459,12 +576,17 @@ internal sealed class DashboardForm : Form
             _ => metrics.Body + .7f
         };
         _summary.Font = new Font("Consolas", summarySize, FontStyle.Bold);
+        _windowTitle.Font = new Font("Segoe UI Semibold", Math.Max(8.5f, metrics.Body - .4f), FontStyle.Bold);
+        _closeButton.Font = new Font("Segoe UI", metrics.Body + 1.2f, FontStyle.Regular);
         var headerSidePadding = _settings.HorizontalPadding switch
         {
             StatusBarHorizontalPadding.Compact => 12,
             StatusBarHorizontalPadding.Tight => 8,
             _ => 18
         };
+        _titleBar.Height = ScaleLogical(_settings.TextSize == DashboardTextSize.ExtraLarge ? 44 : 38);
+        _titleBar.Padding = ScaleLogical(new Padding(13, 5, 7, 5));
+        _titleBarLayout.ColumnStyles[1].Width = ScaleLogical(34);
         _header.Padding = ScaleLogical(new Padding(headerSidePadding, 13, headerSidePadding, 10));
         _updated.Font = new Font("Segoe UI", Math.Max(8f, metrics.Body - 1.2f));
         _header.Height = ScaleLogical(_settings.TextSize == DashboardTextSize.ExtraLarge ? 106 : 92);
@@ -482,7 +604,7 @@ internal sealed class DashboardForm : Form
         FlowDirection = FlowDirection.TopDown,
         WrapContents = false,
         Padding = new Padding(12, 12, 12, 8),
-        BackColor = Color.FromArgb(244, 246, 248)
+        BackColor = Palette.Canvas
     };
 
     internal static string BuildContentSignature(
@@ -615,6 +737,7 @@ internal sealed class DashboardForm : Form
     private void Render()
     {
         if (!_renderPending) return;
+        var renderStarted = Stopwatch.GetTimestamp();
 
         var renderedSignature = _pendingContentSignature
                                 ?? BuildContentSignature(
@@ -622,6 +745,7 @@ internal sealed class DashboardForm : Form
                                     _settings,
                                     _updateStatus,
                                     _resetLoading,
+                                    now: _renderClock(),
                                     quotaHistory:
                                         _quotaHistory,
                                      quotaHistoryEndingAt:
@@ -667,6 +791,12 @@ internal sealed class DashboardForm : Form
                 AddLayoutDiscoveryTip();
 
             ResizeCards();
+            foreach (Control card in candidate.Controls)
+            {
+                if (card.Tag is not TableLayoutPanel body) continue;
+                body.ResumeLayout(true);
+                card.ResumeLayout(true);
+            }
             candidate.ResumeLayout(true);
             candidate.PerformLayout();
 
@@ -732,11 +862,22 @@ internal sealed class DashboardForm : Form
             }
             _renderPending = true;
         }
+        finally
+        {
+            LastRenderDuration = Stopwatch.GetElapsedTime(renderStarted);
+        }
     }
 
     private void RenderChrome()
     {
-        _header.BackColor = HeaderColor();
+        var headerColor = HeaderColor();
+        _header.StartColor = Palette.TaskbarSurface;
+        _header.EndColor = Palette.Canvas;
+        _title.ForeColor = headerColor;
+        _detail.ForeColor = Palette.Secondary;
+        _summary.ForeColor = Palette.Text;
+        _updated.ForeColor = Palette.Secondary;
+        _header.Invalidate();
         _title.Text = ActionText();
         _detail.Text = HeaderDetailText();
         _summary.Text = _snapshot.CompactTitle(_settings);
@@ -819,8 +960,10 @@ internal sealed class DashboardForm : Form
                 break;
             case DashboardSection.RadarDetails:
                 AddAnnouncement();
+                AddCommunityKnowledgeCard();
                 AddResetJudgementCard();
                 AddPublicQuotaRadarCard();
+                AddFastRadarCard();
                 AddRadarStatusCard();
                 AddPredictionCard();
                 break;
@@ -872,6 +1015,9 @@ internal sealed class DashboardForm : Form
                                          || _snapshot.ResetRadarCards.Count > 0
                                          || !string.IsNullOrWhiteSpace(_snapshot.ResetRadar)
                                          || _snapshot.QuotaRadar.Count > 0
+                                         || _snapshot.CommunityKnowledges.Count > 0
+                                         || _snapshot.FastRadar?.Summary.Count > 0
+                                         || _snapshot.FastRadar?.Rows.Count > 0
                                          || !string.IsNullOrWhiteSpace(_snapshot.RadarStatus)
                                          || _snapshot.Prediction is not null,
         _ => true
@@ -951,6 +1097,8 @@ internal sealed class DashboardForm : Form
             + $"  ·  {_snapshot.RadarInsights?.DegradationAlerts.ValidItems.Count ?? 0} {T("条预警", "alerts")}",
         DashboardSection.RadarDetails => _snapshot.AnnouncementLabel
                                          ?? _snapshot.ResetRadarTitle
+                                         ?? _snapshot.FastRadar?.Title
+                                         ?? _snapshot.CommunityKnowledges.FirstOrDefault()?.Title
                                          ?? T("公开雷达明细", "Public radar details"),
         DashboardSection.TaskbarGuide => _snapshot.CompactTitle(_settings),
         DashboardSection.DisplayAndAlerts => _settings.StatusDisplayMode == StatusDisplayMode.TaskbarText
@@ -1017,8 +1165,9 @@ internal sealed class DashboardForm : Form
         var body = Body(panel);
         AddProgress(body, T("周额度", "Weekly"), _snapshot.WeeklyRemaining, _snapshot.WeeklyUsedPercent,
             _snapshot.WeeklyResetsAt, _snapshot.WeeklyWindowMinutes);
-        AddProgress(body, T("短窗", "Short"), _snapshot.ShortRemaining, _snapshot.ShortUsedPercent,
-            _snapshot.ShortResetsAt, _snapshot.ShortWindowMinutes);
+        if (_snapshot.ShortRemaining is not null || _snapshot.ShortWindowMinutes is not null)
+            AddProgress(body, T("短窗", "Short"), _snapshot.ShortRemaining, _snapshot.ShortUsedPercent,
+                _snapshot.ShortResetsAt, _snapshot.ShortWindowMinutes);
 
         var details = new List<string>();
         if (!string.IsNullOrWhiteSpace(_snapshot.PlanType)) details.Add($"{T("套餐", "Plan")} {_snapshot.PlanType}");
@@ -1158,9 +1307,16 @@ internal sealed class DashboardForm : Form
         foreach (var card in _snapshot.ResetRadarCards)
         {
             var level = card.Level?.ToLowerInvariant() ?? "";
-            var color = level.Contains("高", StringComparison.Ordinal) || level.Contains("high", StringComparison.Ordinal)
+            var color = level.Contains("高", StringComparison.Ordinal)
+                        || level.Contains("high", StringComparison.Ordinal)
+                        || level.Contains("已落地", StringComparison.Ordinal)
+                        || level.Contains("已完成", StringComparison.Ordinal)
+                        || level.Contains("completed", StringComparison.Ordinal)
                 ? Palette.Green
-                : level.Contains("低", StringComparison.Ordinal) || level.Contains("low", StringComparison.Ordinal)
+                : level.Contains("低", StringComparison.Ordinal)
+                  || level.Contains("low", StringComparison.Ordinal)
+                  || level.Contains("未宣布", StringComparison.Ordinal)
+                  || level.Contains("not announced", StringComparison.Ordinal)
                     ? Palette.Orange
                     : Palette.Blue;
             var title = string.Join("  ·  ", new[] { card.Label, card.Level }.Where(value => !string.IsNullOrWhiteSpace(value)));
@@ -1178,7 +1334,10 @@ internal sealed class DashboardForm : Form
     {
         var panel = CreateCard(T("重置卡过期", "Reset Credit Expiry"), Palette.Teal);
         var body = Body(panel);
-        AddText(body, _snapshot.CommunityKnowledge ?? T("重置卡过期时间自查", "Reset credit expiry check"), Palette.Text, true);
+        var resetKnowledge = ResetCreditCommunityKnowledge();
+        AddText(body, resetKnowledge?.Title
+                      ?? T("重置卡过期时间自查", "Reset credit expiry check"),
+            Palette.Text, true);
         AddText(body, T(
             "默认低频自动刷新 reset credits；只读取本机 Codex 登录态，不保存 token，只缓存脱敏结果。",
             "Low-frequency refresh reads local Codex auth, never stores tokens, and caches only sanitized results."), Palette.Secondary);
@@ -1271,6 +1430,68 @@ internal sealed class DashboardForm : Form
         static string availableOrDash(int? value) => value?.ToString() ?? "--";
     }
 
+    private void AddCommunityKnowledgeCard()
+    {
+        var cards = EffectiveCommunityKnowledges()
+            .Where(item => !IsResetCreditCommunityKnowledge(item))
+            .Take(3)
+            .ToArray();
+        if (cards.Length == 0) return;
+        var panel = CreateCard(
+            T("CodexRadar 社区知识", "CodexRadar Community"),
+            Palette.Orange);
+        var body = Body(panel);
+        foreach (var card in cards)
+        {
+            var title = card.Title
+                        ?? T("社区知识", "Community note");
+            var prompt = card.Prompt?.Trim();
+            AddCallout(
+                body,
+                string.IsNullOrWhiteSpace(prompt)
+                    ? title
+                    : title + Environment.NewLine + prompt,
+                Palette.Orange,
+                ColorBlend(Palette.Orange));
+            if (PublicWebLink.Normalize(card.SourceUrl) is { } sourceUrl)
+                AddButtonRow(body, (card.SourceLabel ?? T("查看来源", "Open source"), () => Open(sourceUrl)));
+        }
+        AddPanel(panel);
+    }
+
+    private IReadOnlyList<CommunityKnowledgeInfo>
+        EffectiveCommunityKnowledges()
+    {
+        if (_snapshot.CommunityKnowledges.Count > 0)
+            return _snapshot.CommunityKnowledges;
+        return string.IsNullOrWhiteSpace(
+            _snapshot.CommunityKnowledge)
+            && string.IsNullOrWhiteSpace(
+                _snapshot.CommunityPrompt)
+                ? []
+                : [new CommunityKnowledgeInfo(
+                    _snapshot.CommunityKnowledge,
+                    _snapshot.CommunityPrompt)];
+    }
+
+    private CommunityKnowledgeInfo? ResetCreditCommunityKnowledge() =>
+        EffectiveCommunityKnowledges()
+            .FirstOrDefault(
+                IsResetCreditCommunityKnowledge);
+
+    private static bool IsResetCreditCommunityKnowledge(
+        CommunityKnowledgeInfo item)
+    {
+        var text = $"{item.Title} {item.Prompt}";
+        return text.Contains("重置卡", StringComparison.Ordinal)
+               || text.Contains(
+                   "reset credit",
+                   StringComparison.OrdinalIgnoreCase)
+               || text.Contains(
+                   "rate-limit reset",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
     private void AddResetCredit(TableLayoutPanel body, ResetCredit credit, int index)
     {
         var normalized = credit.Status?.ToLowerInvariant() ?? "";
@@ -1308,9 +1529,16 @@ internal sealed class DashboardForm : Form
         if (_snapshot.QuotaRadar.Count == 0) return;
         var panel = CreateCard(T("CodexRadar 额度雷达", "CodexRadar Quota Radar"), Palette.Teal);
         var body = Body(panel);
-        var header = $"{T("档位", "Tier"),-14}  5h USD     7d USD";
+        var showsFiveHourValues = !string.IsNullOrWhiteSpace(_snapshot.QuotaRadarBasisWindowLabel)
+            ? _snapshot.QuotaRadarBasisWindowLabel.Contains("5h", StringComparison.OrdinalIgnoreCase)
+            : _snapshot.QuotaRadar.Any(item => item.FiveHourUsd is not null);
+        var header = showsFiveHourValues
+            ? $"{T("档位", "Tier"),-14}  5h USD     7d USD"
+            : $"{T("档位", "Tier"),-14}  7d USD";
         var rows = _snapshot.QuotaRadar.Select(item =>
-            $"{item.Tier,-14}  {Money(item.FiveHourUsd),8}  {Money(item.SevenDayUsd),9}" +
+            (showsFiveHourValues
+                ? $"{item.Tier,-14}  {Money(item.FiveHourUsd),8}  {Money(item.SevenDayUsd),9}"
+                : $"{item.Tier,-14}  {Money(item.SevenDayUsd),9}") +
             (string.IsNullOrWhiteSpace(item.Basis) ? "" : $"  {QuotaBasisText(item.Basis)}"));
         AddText(body, header + Environment.NewLine + string.Join(Environment.NewLine, rows), Palette.Text, monospace: true);
 
@@ -1326,6 +1554,90 @@ internal sealed class DashboardForm : Form
             "这是 CodexRadar 的公开额度等价值估算；5x/Plus 可能按比例推测，不代表本机剩余额度。",
             "These are public quota-equivalent estimates. 5x/Plus may be scaled estimates, not local remaining quota."), Palette.Secondary);
         AddPanel(panel);
+    }
+
+    private void AddFastRadarCard()
+    {
+        var radar = _snapshot.FastRadar;
+        if (radar is null
+            || radar.Summary.Count == 0
+               && radar.Rows.Count == 0)
+            return;
+        var panel = CreateCard(
+            T("CodexRadar Fast 雷达", "CodexRadar Fast Radar"),
+            Palette.Blue);
+        var body = Body(panel);
+        AddKeyValue(
+            body,
+            radar.Title ?? T("Fast 雷达", "Fast Radar"),
+            radar.UpdatedLabel ?? "");
+        if (!string.IsNullOrWhiteSpace(radar.Subtitle))
+            AddText(body, radar.Subtitle!, Palette.Secondary);
+        var tiles = radar.Summary.Take(3)
+            .Where(item => !string.IsNullOrWhiteSpace(item.Label)
+                           || !string.IsNullOrWhiteSpace(item.Value))
+            .Select(item => (
+                item.Label ?? T("指标", "Metric"),
+                item.Value ?? "--",
+                FastMetricColor(item.Value)))
+            .ToArray();
+        AddTileRow(body, tiles);
+        foreach (var row in radar.Rows)
+        {
+            var values = string.Join("  ·  ", new[]
+            {
+                FastMetricText("E2E", row.E2E),
+                FastMetricText("TTFT", row.Ttft),
+                FastMetricText("TPS", row.Tps)
+            });
+            var ranges = string.Join("  ·  ", new[]
+            {
+                row.E2E?.Range,
+                row.Ttft?.Range,
+                row.Tps?.Range
+            }.Where(value => !string.IsNullOrWhiteSpace(value)));
+            var text = (row.Model
+                        ?? T("未知模型", "Unknown model"))
+                       + Environment.NewLine + values
+                       + (ranges.Length == 0
+                           ? ""
+                           : Environment.NewLine + ranges);
+            AddCallout(
+                body,
+                text,
+                FastMetricColor(string.Join(" ", new[]
+                {
+                    row.E2E?.Value,
+                    row.Ttft?.Value,
+                    row.Tps?.Value
+                })),
+                Color.FromArgb(241, 245, 249));
+        }
+        if (!string.IsNullOrWhiteSpace(radar.Method))
+            AddText(body, radar.Method!, Palette.Secondary);
+        AddPanel(panel);
+    }
+
+    private static string FastMetricText(
+        string label,
+        FastRadarMetric? metric) =>
+        $"{label} {metric?.Value ?? "--"}";
+
+    private static Color FastMetricColor(string? value)
+    {
+        var text = value ?? "";
+        if (text.Contains("慢", StringComparison.Ordinal)
+            || text.Contains(
+                "slow",
+                StringComparison.OrdinalIgnoreCase))
+            return Palette.Red;
+        if (text.Contains("快", StringComparison.Ordinal)
+            || text.Contains('⚡')
+            || text.Contains(
+                "faster",
+                StringComparison.OrdinalIgnoreCase))
+            return Palette.Green;
+        return Palette.Blue;
     }
 
     private void AddRadarStatusCard()
@@ -1505,8 +1817,10 @@ internal sealed class DashboardForm : Form
                 foreach (var alert in alerts.OrderByDescending(item => item.LargestDrop))
                 {
                     var windows = new List<string>();
-                    if (alert.From24HourHighIq is double day) windows.Add($"24h -{day:0.0}");
-                    if (alert.From48HourHighIq is double twoDays) windows.Add($"48h -{twoDays:0.0}");
+                    if (alert.Preferred24HourDrop is double day)
+                        windows.Add($"24h {T(alert.Uses24HourAverage ? "均值" : "高点", alert.Uses24HourAverage ? "average" : "high")} -{day:0.0}");
+                    if (alert.Preferred48HourDrop is double twoDays)
+                        windows.Add($"48h {T(alert.Uses48HourAverage ? "均值" : "高点", alert.Uses48HourAverage ? "average" : "high")} -{twoDays:0.0}");
                     AddCallout(body,
                         $"{alert.Model} {alert.Effort}  ·  IQ {alert.Iq:0.0}" +
                         (windows.Count == 0 ? "" : Environment.NewLine + string.Join("  ·  ", windows)),
@@ -1688,7 +2002,7 @@ internal sealed class DashboardForm : Form
         bool canMoveDown,
         bool nested)
     {
-        var row = new TableLayoutPanel
+        var row = new RoundedTableLayoutPanel
         {
             Name = name,
             AutoSize = true,
@@ -1697,9 +2011,14 @@ internal sealed class DashboardForm : Form
             ColumnCount = 5,
             RowCount = 1,
             AllowDrop = !nested,
-            BackColor = nested
-                ? Color.FromArgb(248, 249, 251)
-                : Color.FromArgb(244, 247, 251),
+            BackColor = Color.Transparent,
+            SurfaceColor = nested
+                ? Palette.SubtleSurface
+                : Palette.SelectedSurface,
+            BorderColor = nested
+                ? Palette.SubtleBorder
+                : Palette.CardBorder,
+            CornerDiameter = 14,
             Margin = ScaleDynamic(
                 new Padding(0, nested ? 1 : 4, 0, 1)),
             Padding = ScaleDynamic(
@@ -1793,7 +2112,7 @@ internal sealed class DashboardForm : Form
         string name,
         string text,
         bool enabled,
-        string accessibleName) => new()
+        string accessibleName) => new FluentButton
     {
         Name = name,
         Text = text,
@@ -1801,11 +2120,15 @@ internal sealed class DashboardForm : Form
         Width = ScaleDynamic(28),
         Height = ScaleDynamic(27),
         Margin = ScaleDynamic(new Padding(2, 0, 0, 0)),
-        FlatStyle = FlatStyle.Flat,
-        BackColor = Color.White,
         ForeColor = Palette.Blue,
         UseMnemonic = false,
-        AccessibleName = accessibleName
+        AccessibleName = accessibleName,
+        TextAlign = ContentAlignment.MiddleCenter,
+        CornerRadius = 6,
+        FillColor = Palette.ControlSurface,
+        HoverColor = Palette.ControlHover,
+        PressedColor = Palette.ControlPressed,
+        BorderColor = Palette.ControlBorder
     };
 
     private void WireSectionLayoutRow(
@@ -1996,11 +2319,11 @@ internal sealed class DashboardForm : Form
         {
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            BackColor = background ?? Color.White,
-            BorderColor = Color.FromArgb(218, 222, 228),
+            SurfaceColor = background ?? Palette.CardSurface,
+            BorderColor = Palette.CardBorder,
             Padding = ScaleDynamic(new Padding(15, 12, 15, 13)),
             Margin = ScaleDynamic(new Padding(2, 0, 2, 11)),
-            CornerDiameter = 11
+            CornerDiameter = 22
         };
         var body = new TableLayoutPanel
         {
@@ -2017,10 +2340,17 @@ internal sealed class DashboardForm : Form
         {
             Text = heading,
             AutoSize = true,
+            MaximumSize = new Size(Math.Max(ScaleDynamic(300), _content.ClientSize.Width - ScaleDynamic(62)), 0),
             Font = new Font("Segoe UI Semibold", Font.Size + .8f, FontStyle.Bold),
             ForeColor = accent,
-            Margin = ScaleDynamic(new Padding(0, 0, 0, 7))
+            Margin = ScaleDynamic(new Padding(0, 0, 0, 7)),
+            UseMnemonic = false,
+            Tag = DashboardTextRole.Full
         };
+        // Batch the children and width constraints before measuring a card.
+        // Otherwise AutoSize repeats a full layout after every added row.
+        panel.SuspendLayout();
+        body.SuspendLayout();
         body.Controls.Add(title);
         panel.Controls.Add(body);
         panel.Tag = body;
@@ -2042,7 +2372,9 @@ internal sealed class DashboardForm : Form
             ForeColor = color,
             Font = new Font(monospace ? "Consolas" : "Segoe UI", Font.Size, bold ? FontStyle.Bold : FontStyle.Regular),
             Margin = ScaleDynamic(new Padding(0, 2, 0, 3)),
-            UseMnemonic = false
+            UseMnemonic = false,
+            AutoEllipsis = false,
+            Tag = DashboardTextRole.Full
         });
     }
 
@@ -2062,16 +2394,28 @@ internal sealed class DashboardForm : Form
         };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 56));
-        row.Controls.Add(new Label { Text = key, AutoSize = true, ForeColor = Palette.Secondary, UseMnemonic = false }, 0, 0);
+        row.Controls.Add(new Label
+        {
+            Text = key,
+            AutoSize = true,
+            MaximumSize = new Size(Math.Max(ScaleDynamic(110), (_content.ClientSize.Width - ScaleDynamic(70)) * 42 / 100), 0),
+            ForeColor = Palette.Secondary,
+            UseMnemonic = false,
+            AutoEllipsis = false,
+            Tag = DashboardTextRole.Key
+        }, 0, 0);
         row.Controls.Add(new Label
         {
             Text = string.IsNullOrWhiteSpace(value) ? "--" : value,
             AutoSize = true,
+            MaximumSize = new Size(Math.Max(ScaleDynamic(145), (_content.ClientSize.Width - ScaleDynamic(70)) * 56 / 100), 0),
             ForeColor = Palette.Text,
             Font = new Font("Segoe UI Semibold", Font.Size),
             TextAlign = ContentAlignment.TopRight,
             Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            UseMnemonic = false
+            UseMnemonic = false,
+            AutoEllipsis = false,
+            Tag = DashboardTextRole.Value
         }, 1, 0);
         body.Controls.Add(row);
     }
@@ -2092,24 +2436,35 @@ internal sealed class DashboardForm : Form
         var resetText = reset is null ? "" : $"  ·  {T("重置", "reset")} {FormatDateTime(reset)}";
         if (durationMinutes is double duration && duration > 0)
             resetText += $"  ·  {Duration(duration)}";
-        row.Controls.Add(new Label { Text = label + resetText, AutoSize = true, ForeColor = Palette.Text, UseMnemonic = false }, 0, 0);
+        row.Controls.Add(new Label
+        {
+            Text = label + resetText,
+            AutoSize = true,
+            MaximumSize = new Size(Math.Max(ScaleDynamic(220), _content.ClientSize.Width - ScaleDynamic(128)), 0),
+            ForeColor = Palette.Text,
+            UseMnemonic = false,
+            AutoEllipsis = false,
+            Tag = DashboardTextRole.ProgressLabel
+        }, 0, 0);
         row.Controls.Add(new Label
         {
             Text = Percent(remaining),
             AutoSize = true,
             ForeColor = QuotaColor(remaining),
             Font = new Font("Segoe UI Semibold", Font.Size, FontStyle.Bold),
-            Anchor = AnchorStyles.Right
+            Anchor = AnchorStyles.Right,
+            UseMnemonic = false,
+            Tag = DashboardTextRole.ProgressValue
         }, 1, 0);
         body.Controls.Add(row);
-        var progress = new ProgressBar
+        var progress = new FluentProgressBar
         {
-            Minimum = 0,
-            Maximum = 100,
             Value = Math.Clamp(remaining ?? 0, 0, 100),
             Height = ScaleDynamic(8),
             Dock = DockStyle.Top,
-            Margin = ScaleDynamic(new Padding(0, 2, 0, 2))
+            Margin = ScaleDynamic(new Padding(0, 3, 0, 2)),
+            FillColor = QuotaColor(remaining),
+            AccessibleName = label
         };
         body.Controls.Add(progress);
         if (used is double usedPercent)
@@ -2132,11 +2487,13 @@ internal sealed class DashboardForm : Form
         {
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / tiles.Count));
             var tile = tiles[index];
-            var tilePanel = new Panel
+            var tilePanel = new RoundedPanel
             {
                 AutoSize = true,
                 Dock = DockStyle.Fill,
-                BackColor = ColorBlend(tile.Color),
+                SurfaceColor = ColorBlend(tile.Color),
+                BorderColor = Blend(tile.Color, Color.White, .78f),
+                CornerDiameter = 16,
                 Padding = ScaleDynamic(new Padding(7, 6, 7, 6)),
                 Margin = ScaleDynamic(new Padding(index == 0 ? 0 : 3, 0, index == tiles.Count - 1 ? 0 : 3, 0))
             };
@@ -2147,7 +2504,9 @@ internal sealed class DashboardForm : Form
                 AutoSize = true,
                 ForeColor = Palette.Secondary,
                 Font = new Font("Segoe UI", Math.Max(8f, Font.Size - .7f)),
-                UseMnemonic = false
+                UseMnemonic = false,
+                AutoEllipsis = false,
+                Tag = DashboardTextRole.Tile
             });
             stack.Controls.Add(new Label
             {
@@ -2155,7 +2514,9 @@ internal sealed class DashboardForm : Form
                 AutoSize = true,
                 ForeColor = tile.Color,
                 Font = new Font("Segoe UI Semibold", Font.Size + .5f, FontStyle.Bold),
-                UseMnemonic = false
+                UseMnemonic = false,
+                AutoEllipsis = false,
+                Tag = DashboardTextRole.Tile
             });
             tilePanel.Controls.Add(stack);
             row.Controls.Add(tilePanel, index, 0);
@@ -2165,12 +2526,14 @@ internal sealed class DashboardForm : Form
 
     private void AddCallout(TableLayoutPanel body, string text, Color accent, Color background)
     {
-        var callout = new Panel
+        var callout = new RoundedPanel
         {
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Top,
-            BackColor = background,
+            SurfaceColor = background,
+            BorderColor = Blend(accent, Color.White, .80f),
+            CornerDiameter = 16,
             Padding = ScaleDynamic(new Padding(10, 8, 10, 8)),
             Margin = ScaleDynamic(new Padding(0, 4, 0, 4))
         };
@@ -2178,10 +2541,13 @@ internal sealed class DashboardForm : Form
         {
             Text = text,
             AutoSize = true,
+            Dock = DockStyle.Top,
             MaximumSize = new Size(Math.Max(ScaleDynamic(300), _content.ClientSize.Width - ScaleDynamic(90)), 0),
             ForeColor = accent,
             Font = new Font("Segoe UI", Font.Size),
-            UseMnemonic = false
+            UseMnemonic = false,
+            AutoEllipsis = false,
+            Tag = DashboardTextRole.Callout
         });
         body.Controls.Add(callout);
     }
@@ -2200,19 +2566,23 @@ internal sealed class DashboardForm : Form
         };
         foreach (var action in actions)
         {
-            var button = new Button
+            var button = new FluentButton
             {
                 Text = action.Text,
                 AutoSize = true,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.White,
                 ForeColor = Palette.Blue,
                 Margin = ScaleDynamic(new Padding(0, 0, 7, 3)),
-                Padding = ScaleDynamic(new Padding(4, 1, 4, 1)),
-                UseMnemonic = false
+                Padding = ScaleDynamic(new Padding(11, 4, 11, 4)),
+                MinimumSize = new Size(0, ScaleDynamic(32)),
+                UseMnemonic = false,
+                TextAlign = ContentAlignment.MiddleCenter,
+                AutoEllipsis = false,
+                CornerRadius = 7,
+                FillColor = Palette.ControlSurface,
+                HoverColor = Palette.ControlHover,
+                PressedColor = Palette.ControlPressed,
+                BorderColor = Palette.ControlBorder
             };
-            button.FlatAppearance.BorderColor = Color.FromArgb(197, 205, 215);
-            button.FlatAppearance.MouseOverBackColor = Palette.BluePale;
             button.Click += (_, _) => action.Handler();
             row.Controls.Add(button);
         }
@@ -2223,23 +2593,79 @@ internal sealed class DashboardForm : Form
     {
         var width = Math.Max(ScaleLogical(340),
             _content.ClientSize.Width - _content.Padding.Horizontal - (SystemInformation.VerticalScrollBarWidth + ScaleLogical(8)));
+        var textWidth = Math.Max(ScaleLogical(260), width - ScaleLogical(42));
         foreach (Control control in _content.Controls)
         {
-            // AutoSize/GrowAndShrink otherwise discards Width after ResumeLayout,
-            // which collapses every card to a thin strip at high DPI.
-            // Clear the previous lock first so growing a window is not clamped by
-            // the old MaximumSize while the new MinimumSize is assigned.
-            control.MinimumSize = Size.Empty;
-            control.MaximumSize = Size.Empty;
-            control.MinimumSize = new Size(width, 0);
-            control.MaximumSize = new Size(width, 0);
-            control.Width = width;
-            foreach (var label in FindLabels(control))
+            SuspendLayoutTree(control);
+            try
             {
-                if (label.MaximumSize.Width > 0)
-                    label.MaximumSize = new Size(Math.Max(ScaleLogical(290), width - ScaleLogical(42)), 0);
+                // AutoSize/GrowAndShrink otherwise discards Width after ResumeLayout,
+                // which collapses every card to a thin strip at high DPI.
+                // Clear the previous lock first so growing a window is not clamped by
+                // the old MaximumSize while the new MinimumSize is assigned.
+                control.MinimumSize = Size.Empty;
+                control.MaximumSize = Size.Empty;
+                control.MinimumSize = new Size(width, 0);
+                control.MaximumSize = new Size(width, 0);
+                control.Width = width;
+                foreach (var button in FindButtons(control).Where(button => button.Parent is FlowLayoutPanel))
+                    button.MaximumSize = new Size(textWidth, 0);
+                foreach (var label in FindLabels(control))
+                {
+                    var constrainedWidth = label.Tag switch
+                    {
+                        DashboardTextRole.Key => Math.Max(ScaleLogical(105), textWidth * 42 / 100),
+                        DashboardTextRole.Value => Math.Max(ScaleLogical(135), textWidth * 56 / 100),
+                        DashboardTextRole.ProgressLabel => Math.Max(ScaleLogical(190), textWidth - ScaleLogical(70)),
+                        DashboardTextRole.ProgressValue => ScaleLogical(66),
+                        DashboardTextRole.Tile => TileTextWidth(label, textWidth),
+                        DashboardTextRole.Callout => textWidth - ScaleLogical(20),
+                        DashboardTextRole.Full => textWidth,
+                        _ when label.MaximumSize.Width > 0 => textWidth,
+                        _ => 0
+                    };
+                    if (constrainedWidth > 0)
+                        label.MaximumSize = new Size(constrainedWidth, 0);
+                }
+            }
+            finally
+            {
+                ResumeLayoutTree(control);
             }
         }
+    }
+
+    private static void SuspendLayoutTree(Control control)
+    {
+        control.SuspendLayout();
+        foreach (Control child in control.Controls) SuspendLayoutTree(child);
+    }
+
+    private static void ResumeLayoutTree(Control control)
+    {
+        foreach (Control child in control.Controls) ResumeLayoutTree(child);
+        control.ResumeLayout(true);
+    }
+
+    private static IEnumerable<Button> FindButtons(Control parent)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            if (child is Button button) yield return button;
+            foreach (var descendant in FindButtons(child)) yield return descendant;
+        }
+    }
+
+    private int TileTextWidth(Label label, int availableWidth)
+    {
+        var columns = 1;
+        for (Control? current = label.Parent; current is not null; current = current.Parent)
+        {
+            if (current is not TableLayoutPanel row || row.ColumnCount <= 1) continue;
+            columns = row.ColumnCount;
+            break;
+        }
+        return Math.Max(ScaleLogical(48), availableWidth / columns - ScaleLogical(20));
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -2250,6 +2676,8 @@ internal sealed class DashboardForm : Form
         ApplyTextSize(force: true);
         LayoutHeader();
         ResizeCards();
+        ApplyNativeWindowEffects();
+        UpdateWindowRegion();
     }
 
     protected override void OnDpiChanged(DpiChangedEventArgs e)
@@ -2258,6 +2686,8 @@ internal sealed class DashboardForm : Form
         ApplyTextSize(force: true);
         LayoutHeader();
         ResizeCards();
+        ApplyNativeWindowEffects();
+        UpdateWindowRegion();
         var area = Screen.FromRectangle(e.SuggestedRectangle).WorkingArea;
         var minimum = ScaleLogical(new Size(390, 560));
         MinimumSize = new Size(Math.Min(minimum.Width, area.Width), Math.Min(minimum.Height, area.Height));
@@ -2268,6 +2698,82 @@ internal sealed class DashboardForm : Form
             Math.Clamp(Top, area.Top, Math.Max(area.Top, area.Bottom - height)),
             width,
             height);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (ClientSize.Width < 3 || ClientSize.Height < 3) return;
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var path = RoundedRectanglePath(
+            new Rectangle(0, 0, ClientSize.Width - 1, ClientSize.Height - 1),
+            ScaleLogical(22));
+        using var border = new Pen(Palette.WindowBorder, Math.Max(1f, DeviceDpi / 96f));
+        e.Graphics.DrawPath(border, path);
+    }
+
+    protected override void WndProc(ref Message message)
+    {
+        base.WndProc(ref message);
+        if (message.Msg != WmNcHitTest || WindowState != FormWindowState.Normal
+            || message.Result != (IntPtr)1) return;
+
+        var point = PointToClient(Cursor.Position);
+        var grip = Math.Max(ScaleLogical(6), 4);
+        var left = point.X <= grip;
+        var right = point.X >= ClientSize.Width - grip;
+        var top = point.Y <= grip;
+        var bottom = point.Y >= ClientSize.Height - grip;
+        message.Result = (left, right, top, bottom) switch
+        {
+            (true, _, true, _) => (IntPtr)HtTopLeft,
+            (_, true, true, _) => (IntPtr)HtTopRight,
+            (true, _, _, true) => (IntPtr)HtBottomLeft,
+            (_, true, _, true) => (IntPtr)HtBottomRight,
+            (true, _, _, _) => (IntPtr)HtLeft,
+            (_, true, _, _) => (IntPtr)HtRight,
+            (_, _, true, _) => (IntPtr)HtTop,
+            (_, _, _, true) => (IntPtr)HtBottom,
+            _ => message.Result
+        };
+    }
+
+    private void ApplyNativeWindowEffects()
+    {
+        if (!IsHandleCreated) return;
+        try
+        {
+            var corner = DwmWindowCornerRound;
+            _ = DwmSetWindowAttribute(
+                Handle,
+                DwmWindowCornerPreference,
+                ref corner,
+                sizeof(int));
+
+            if (Environment.OSVersion.Version.Build >= 22621)
+            {
+                var backdrop = DwmBackdropTransientWindow;
+                _ = DwmSetWindowAttribute(
+                    Handle,
+                    DwmSystemBackdropType,
+                    ref backdrop,
+                    sizeof(int));
+            }
+        }
+        catch (DllNotFoundException) { }
+        catch (EntryPointNotFoundException) { }
+    }
+
+    private void UpdateWindowRegion()
+    {
+        if (Width < 3 || Height < 3) return;
+        using var path = RoundedRectanglePath(
+            new Rectangle(0, 0, Width, Height),
+            ScaleLogical(22));
+        var previous = Region;
+        Region = new Region(path);
+        previous?.Dispose();
+        Invalidate();
     }
 
     private int ScaleLogical(int value) => value == 0 ? 0 : Math.Max(1,
@@ -2476,6 +2982,9 @@ internal sealed class DashboardForm : Form
                 T("上次尝试确认未消耗，将在安全窗口内重试。",
                     "The last attempt was confirmed not consumed; retrying inside the safe window.")
                 + expiry,
+            ResetCreditProtectionStatusKind.Retrying =>
+                T("请求尚未发送，授权仍有效；计划重试：", "Nothing was sent; authorization is still valid. Retry: ")
+                + FormatDateTime(status.ActionAt) + expiry,
             ResetCreditProtectionStatusKind.Using =>
                 T("正在发送一次受本机授权保护的使用请求…",
                     "Sending one locally authorized consume request…")
@@ -2557,7 +3066,8 @@ internal sealed class DashboardForm : Form
             or ResetCreditProtectionStatusKind.Blocked => Palette.Red,
         ResetCreditProtectionStatusKind.Using
             or ResetCreditProtectionStatusKind.Reconciling
-            or ResetCreditProtectionStatusKind.WaitingForUsage => Palette.Orange,
+            or ResetCreditProtectionStatusKind.WaitingForUsage
+            or ResetCreditProtectionStatusKind.Retrying => Palette.Orange,
         _ => Palette.Blue
     };
 
@@ -2633,6 +3143,33 @@ internal sealed class DashboardForm : Form
         245 + (color.G * 10 / 255),
         245 + (color.B * 10 / 255));
 
+    private static Color Blend(Color source, Color target, float targetWeight)
+    {
+        var weight = Math.Clamp(targetWeight, 0f, 1f);
+        return Color.FromArgb(
+            (int)Math.Round(source.A + (target.A - source.A) * weight),
+            (int)Math.Round(source.R + (target.R - source.R) * weight),
+            (int)Math.Round(source.G + (target.G - source.G) * weight),
+            (int)Math.Round(source.B + (target.B - source.B) * weight));
+    }
+
+    private static GraphicsPath RoundedRectanglePath(Rectangle bounds, int diameter)
+    {
+        var path = new GraphicsPath();
+        var size = Math.Max(1, Math.Min(diameter, Math.Min(bounds.Width, bounds.Height)));
+        if (size < 2)
+        {
+            path.AddRectangle(bounds);
+            return path;
+        }
+        path.AddArc(bounds.Left, bounds.Top, size, size, 180, 90);
+        path.AddArc(bounds.Right - size, bounds.Top, size, size, 270, 90);
+        path.AddArc(bounds.Right - size, bounds.Bottom - size, size, size, 0, 90);
+        path.AddArc(bounds.Left, bounds.Bottom - size, size, size, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+
     private static IEnumerable<Label> FindLabels(Control root) => root.Controls.Cast<Control>()
         .SelectMany(control => control is Label label ? new[] { label } : FindLabels(control));
 
@@ -2687,8 +3224,8 @@ internal sealed class DashboardForm : Form
 
     private static void Open(string url)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) return;
-        try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); } catch { }
+        if (PublicWebLink.Normalize(url) is not { } safeUrl) return;
+        try { Process.Start(new ProcessStartInfo(safeUrl) { UseShellExecute = true }); } catch { }
     }
 
     private static string ClosestEdge(Point point, Rectangle bounds)
@@ -2726,10 +3263,10 @@ internal sealed class DashboardForm : Form
 
     private static class Palette
     {
-        public static readonly Color Text = Color.FromArgb(38, 40, 43);
-        public static readonly Color Secondary = Color.FromArgb(96, 101, 109);
-        public static readonly Color Blue = Color.FromArgb(0, 95, 184);
-        public static readonly Color BluePale = Color.FromArgb(238, 246, 253);
+        public static readonly Color Text = Color.FromArgb(31, 31, 31);
+        public static readonly Color Secondary = Color.FromArgb(94, 94, 94);
+        public static readonly Color Blue = Color.FromArgb(0, 103, 192);
+        public static readonly Color BluePale = Color.FromArgb(233, 243, 252);
         public static readonly Color Teal = Color.FromArgb(0, 119, 110);
         public static readonly Color Green = Color.FromArgb(16, 124, 65);
         public static readonly Color Orange = Color.FromArgb(157, 93, 0);
@@ -2738,7 +3275,31 @@ internal sealed class DashboardForm : Form
         public static readonly Color RedPale = Color.FromArgb(255, 241, 239);
         public static readonly Color Purple = Color.FromArgb(91, 65, 153);
         public static readonly Color PurplePale = Color.FromArgb(246, 242, 253);
-        public static readonly Color Gray = Color.FromArgb(92, 96, 102);
+        public static readonly Color Gray = Color.FromArgb(86, 89, 94);
+        public static readonly Color Canvas = Color.FromArgb(239, 241, 244);
+        public static readonly Color TaskbarSurface = Color.FromArgb(247, 247, 247);
+        public static readonly Color CardSurface = Color.FromArgb(252, 252, 252);
+        public static readonly Color CardBorder = Color.FromArgb(211, 214, 219);
+        public static readonly Color WindowBorder = Color.FromArgb(186, 190, 196);
+        public static readonly Color ControlSurface = Color.FromArgb(251, 251, 251);
+        public static readonly Color ControlHover = Color.FromArgb(239, 246, 252);
+        public static readonly Color ControlPressed = Color.FromArgb(225, 237, 248);
+        public static readonly Color ControlBorder = Color.FromArgb(197, 201, 207);
+        public static readonly Color ProgressTrack = Color.FromArgb(222, 225, 229);
+        public static readonly Color SubtleSurface = Color.FromArgb(247, 248, 250);
+        public static readonly Color SelectedSurface = Color.FromArgb(240, 246, 252);
+        public static readonly Color SubtleBorder = Color.FromArgb(224, 226, 230);
+    }
+
+    private enum DashboardTextRole
+    {
+        Callout,
+        Full,
+        Key,
+        Value,
+        ProgressLabel,
+        ProgressValue,
+        Tile
     }
 
     private sealed class BufferedPanel : Panel
@@ -2761,12 +3322,38 @@ internal sealed class DashboardForm : Form
         }
     }
 
+    private sealed class GradientPanel : Panel
+    {
+        public Color StartColor { get; set; } = Palette.Blue;
+        public Color EndColor { get; set; } = Color.FromArgb(35, 126, 204);
+
+        public GradientPanel()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint
+                     | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            DoubleBuffered = true;
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            if (ClientSize.Width < 1 || ClientSize.Height < 1) return;
+            using var brush = new LinearGradientBrush(ClientRectangle, StartColor, EndColor, 18f);
+            e.Graphics.FillRectangle(brush, ClientRectangle);
+        }
+    }
+
     private sealed class FluentButton : Button
     {
         private bool _hovered;
         private bool _pressed;
 
         public int CornerRadius { get; init; } = 8;
+        public bool DrawBorder { get; init; } = true;
+        public Color FillColor { get; init; } = Palette.ControlSurface;
+        public Color HoverColor { get; init; } = Palette.ControlHover;
+        public Color PressedColor { get; init; } = Palette.ControlPressed;
+        public Color BorderColor { get; init; } = Palette.ControlBorder;
+        public Color HoverForeColor { get; init; } = Color.Empty;
 
         public FluentButton()
         {
@@ -2775,34 +3362,72 @@ internal sealed class DashboardForm : Form
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
             UseVisualStyleBackColor = false;
-            BackColor = Color.White;
+            BackColor = Palette.ControlSurface;
+        }
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            var horizontalPadding = ScaleCorner(14);
+            var natural = TextRenderer.MeasureText(Text, Font, new Size(int.MaxValue, int.MaxValue),
+                TextFormatFlags.SingleLine | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+            var width = Math.Max(MinimumSize.Width, natural.Width + horizontalPadding);
+            if (MaximumSize.Width > 0) width = Math.Min(width, MaximumSize.Width);
+            var wrapped = TextRenderer.MeasureText(Text, Font,
+                new Size(Math.Max(1, width - horizontalPadding), int.MaxValue),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+            return new Size(width, Math.Max(MinimumSize.Height, wrapped.Height + ScaleCorner(12)));
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            // WinForms transparent buttons can leave unpainted black corners on
+            // a layered window. Paint the surrounding surface explicitly.
+            for (Control? parent = Parent; parent is not null; parent = parent.Parent)
+            {
+                var surface = parent switch
+                {
+                    RoundedPanel card => card.SurfaceColor,
+                    RoundedTableLayoutPanel tile => tile.SurfaceColor,
+                    _ => parent.BackColor
+                };
+                if (surface.A != 255) continue;
+                e.Graphics.Clear(surface);
+                return;
+            }
+            e.Graphics.Clear(Palette.Canvas);
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            var canvas = Parent?.BackColor ?? Color.FromArgb(248, 249, 251);
-            e.Graphics.Clear(canvas);
             if (ClientSize.Width < 2 || ClientSize.Height < 2) return;
-
+            OnPaintBackground(e);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
-            var fill = !Enabled ? Color.FromArgb(245, 246, 248)
-                : _pressed ? Color.FromArgb(222, 235, 248)
-                : _hovered ? Color.FromArgb(235, 244, 252)
-                : Color.White;
-            var border = Focused ? Color.FromArgb(0, 95, 184) : Color.FromArgb(203, 208, 215);
+            var fill = !Enabled ? Color.FromArgb(241, 242, 244)
+                : _pressed ? PressedColor
+                : _hovered ? HoverColor
+                : FillColor;
+            var border = Focused ? Palette.Blue : BorderColor;
 
             using var path = RoundedPath(bounds);
             using var brush = new SolidBrush(fill);
-            using var pen = new Pen(border, Focused ? Math.Max(1.5f, DeviceDpi / 96f) : 1f);
             e.Graphics.FillPath(brush, path);
-            e.Graphics.DrawPath(pen, path);
+            if (DrawBorder || Focused)
+            {
+                using var pen = new Pen(border, Focused ? Math.Max(1.5f, DeviceDpi / 96f) : 1f);
+                e.Graphics.DrawPath(pen, path);
+            }
 
             var textBounds = Rectangle.Inflate(bounds, -ScaleCorner(6), -ScaleCorner(2));
+            var foreground = !Enabled
+                ? SystemColors.GrayText
+                : _hovered && HoverForeColor != Color.Empty
+                    ? HoverForeColor
+                    : ForeColor;
             TextRenderer.DrawText(e.Graphics, Text, Font, textBounds,
-                Enabled ? ForeColor : SystemColors.GrayText,
+                foreground,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter
-                | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+                | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
         }
 
         private GraphicsPath RoundedPath(Rectangle bounds)
@@ -2825,6 +3450,16 @@ internal sealed class DashboardForm : Form
         private int ScaleCorner(int value) => Math.Max(1,
             (int)Math.Round(value * DeviceDpi / 96d, MidpointRounding.AwayFromZero));
 
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            if (Width < 2 || Height < 2) return;
+            using var path = RoundedPath(ClientRectangle);
+            var previous = Region;
+            Region = new Region(path);
+            previous?.Dispose();
+        }
+
         protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); _hovered = true; Invalidate(); }
         protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); _hovered = false; _pressed = false; Invalidate(); }
         protected override void OnMouseDown(MouseEventArgs e) { base.OnMouseDown(e); if (e.Button == MouseButtons.Left) { _pressed = true; Invalidate(); } }
@@ -2838,8 +3473,29 @@ internal sealed class DashboardForm : Form
 
     private sealed class RoundedPanel : Panel
     {
-        public Color BorderColor { get; init; } = Color.FromArgb(221, 224, 229);
-        public int CornerDiameter { get; init; } = 11;
+        public Color SurfaceColor { get; init; } = Palette.CardSurface;
+        public Color BorderColor { get; init; } = Palette.CardBorder;
+        public int CornerDiameter { get; init; } = 20;
+
+        public RoundedPanel()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint
+                     | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw
+                     | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            DoubleBuffered = true;
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            base.OnPaintBackground(e);
+            if (Width < 2 || Height < 2) return;
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            using var path = RoundedRectanglePath(rect, ScaleDiameter(CornerDiameter));
+            using var brush = new SolidBrush(SurfaceColor);
+            e.Graphics.FillPath(brush, path);
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -2848,18 +3504,12 @@ internal sealed class DashboardForm : Form
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using var pen = new Pen(BorderColor);
             var rect = new Rectangle(0, 0, Width - 1, Height - 1);
-            using var path = new GraphicsPath();
-            var scaledDiameter = Math.Max(1,
-                (int)Math.Round(CornerDiameter * DeviceDpi / 96d, MidpointRounding.AwayFromZero));
-            var diameter = Math.Min(scaledDiameter, Math.Min(rect.Width, rect.Height));
-            if (diameter < 1) return;
-            path.AddArc(rect.Left, rect.Top, diameter, diameter, 180, 90);
-            path.AddArc(rect.Right - diameter, rect.Top, diameter, diameter, 270, 90);
-            path.AddArc(rect.Right - diameter, rect.Bottom - diameter, diameter, diameter, 0, 90);
-            path.AddArc(rect.Left, rect.Bottom - diameter, diameter, diameter, 90, 90);
-            path.CloseFigure();
+            using var path = RoundedRectanglePath(rect, ScaleDiameter(CornerDiameter));
             e.Graphics.DrawPath(pen, path);
         }
+
+        private int ScaleDiameter(int value) => Math.Max(1,
+            (int)Math.Round(value * DeviceDpi / 96d, MidpointRounding.AwayFromZero));
 
         protected override void OnResize(EventArgs eventArgs)
         {
@@ -2867,4 +3517,104 @@ internal sealed class DashboardForm : Form
             Invalidate();
         }
     }
+
+    private sealed class RoundedTableLayoutPanel : TableLayoutPanel
+    {
+        public Color SurfaceColor { get; init; } = Palette.SubtleSurface;
+        public Color BorderColor { get; init; } = Palette.SubtleBorder;
+        public int CornerDiameter { get; init; } = 14;
+
+        public RoundedTableLayoutPanel()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint
+                     | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw
+                     | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            DoubleBuffered = true;
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            base.OnPaintBackground(e);
+            if (Width < 2 || Height < 2) return;
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            var diameter = Math.Max(1,
+                (int)Math.Round(CornerDiameter * DeviceDpi / 96d, MidpointRounding.AwayFromZero));
+            using var path = RoundedRectanglePath(rect, diameter);
+            using var brush = new SolidBrush(SurfaceColor);
+            using var pen = new Pen(BorderColor);
+            e.Graphics.FillPath(brush, path);
+            e.Graphics.DrawPath(pen, path);
+        }
+    }
+
+    private sealed class FluentProgressBar : Control
+    {
+        private int _value;
+
+        public int Value
+        {
+            get => _value;
+            init => _value = Math.Clamp(value, 0, 100);
+        }
+
+        public Color FillColor { get; init; } = Palette.Blue;
+
+        public FluentProgressBar()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint
+                     | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw
+                     | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            AccessibleRole = AccessibleRole.ProgressBar;
+        }
+
+        protected override AccessibleObject CreateAccessibilityInstance() => new ProgressAccessibility(this);
+
+        private sealed class ProgressAccessibility(FluentProgressBar owner) : ControlAccessibleObject(owner)
+        {
+            public override string? Value
+            {
+                get => $"{owner.Value}%";
+                set { }
+            }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            if (Width < 2 || Height < 2) return;
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
+            using var trackPath = RoundedRectanglePath(bounds, Height);
+            using var track = new SolidBrush(Palette.ProgressTrack);
+            e.Graphics.FillPath(track, trackPath);
+
+            var fillWidth = (int)Math.Round(bounds.Width * _value / 100d);
+            if (fillWidth < 1) return;
+            var fillBounds = new Rectangle(bounds.X, bounds.Y, Math.Min(bounds.Width, fillWidth), bounds.Height);
+            using var fillPath = RoundedRectanglePath(fillBounds, Height);
+            using var fill = new SolidBrush(FillColor);
+            e.Graphics.FillPath(fill, fillPath);
+        }
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr window,
+        int attribute,
+        ref int value,
+        int valueSize);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ReleaseCapture();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(
+        IntPtr window,
+        int message,
+        IntPtr wParam,
+        IntPtr lParam);
 }

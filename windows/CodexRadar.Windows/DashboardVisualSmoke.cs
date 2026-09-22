@@ -2,13 +2,14 @@ namespace CodexRadar.Windows;
 
 internal static class DashboardVisualSmoke
 {
-    public static void Run(string? outputPath = null)
+    public static void Run(string? outputPath = null, bool interactive = false)
     {
         ApplicationConfiguration.Initialize();
         var now = DateTimeOffset.Now;
         var snapshot = new DashboardSnapshot
         {
             RefreshedAt = now,
+            RadarStatus = "retired",
             WeeklyRemaining = 74,
             ShortRemaining = 88,
             WeeklyUsedPercent = 26,
@@ -59,6 +60,55 @@ internal static class DashboardVisualSmoke
                         new RadarDegradationAlert(
                             "gpt-5.5", "high", 96, 5.5, null)
                     ])),
+            ResetRadarTitle = "官方源快车",
+            ResetRadarUpdatedLabel = "事件更新 7月29日 13:42",
+            ResetRadarCards =
+            [
+                new ResetJudgementCard(
+                    "发重置卡", "未宣布",
+                    "本轮是直接重置 — 当前没有新增可储存卡片。"),
+                new ResetJudgementCard(
+                    "硬重置", "已落地",
+                    "官方重置完成 — 当前没有开启的速蹬窗口。")
+            ],
+            CommunityKnowledges =
+            [
+                new CommunityKnowledgeInfo(
+                    "重置卡过期时间自查",
+                    "reset credit expiry check"),
+                new CommunityKnowledgeInfo(
+                    "如何开启 Max 推理强度",
+                    "Open Codex settings and enable Max reasoning.")
+            ],
+            QuotaRadar =
+            [
+                new QuotaEstimate(
+                    "20x Pro", 276.44, 1658.63,
+                    "measured 7d")
+            ],
+            FastRadar = new FastRadarInfo(
+                "Fast 雷达",
+                "7月12日16:32更新",
+                "从 Standard 改成 Fast 的公开实测。",
+                [
+                    new FastRadarSummaryItem(
+                        "体感加速", "⚡️1.381 倍"),
+                    new FastRadarSummaryItem(
+                        "首字减少", "0.08 秒"),
+                    new FastRadarSummaryItem(
+                        "TPS 加速", "⚡️1.504 倍")
+                ],
+                [
+                    new FastRadarRow(
+                        "Sol",
+                        new FastRadarMetric(
+                            "E2E", "47.26s → 33.79s", "⚡️1.399×"),
+                        new FastRadarMetric(
+                            "TTFT", "9.98s → 9.08s", "快 9.0%"),
+                        new FastRadarMetric(
+                            "TPS", "55.75 → 84.23", "⚡️1.511×"))
+                ],
+                "Standard 与 Fast 各独立运行 3 次并取平均。"),
             ResetCredits =
             [
                 new ResetCredit(
@@ -121,6 +171,7 @@ internal static class DashboardVisualSmoke
         foreach (var chinese in new[] { true, false })
         foreach (var textSize in Enum.GetValues<DashboardTextSize>())
         {
+            if (interactive && (!chinese || textSize != DashboardTextSize.Large)) continue;
             var settings = CreateSettings(chinese, textSize);
             var currentSnapshot = snapshot with
             {
@@ -143,7 +194,7 @@ internal static class DashboardVisualSmoke
                     chinese
                     && textSize
                     == DashboardTextSize.Medium,
-                caseOutput);
+                caseOutput, interactive);
         }
     }
 
@@ -186,11 +237,14 @@ internal static class DashboardVisualSmoke
         DashboardSnapshot snapshot,
         QuotaHistoryTimeline history,
         bool storageUnavailable,
-        string? outputPath)
+        string? outputPath, bool interactive = false)
     {
-        using var form = new DashboardForm(settings)
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        Console.WriteLine($"Dashboard {(settings.Chinese ? "zh" : "en")}/{settings.TextSize}: starting.");
+        using var form = new DashboardForm(settings, () => snapshot.RefreshedAt)
         {
-            StartPosition = FormStartPosition.CenterScreen
+            StartPosition = FormStartPosition.CenterScreen,
+            ShowInTaskbar = interactive
         };
         Exception? failure = null;
         form.Shown += (_, _) =>
@@ -207,6 +261,7 @@ internal static class DashboardVisualSmoke
                         snapshot.RefreshedAt,
                     quotaHistoryStorageUnavailable:
                         storageUnavailable);
+                if (interactive) return;
                 form.BeginInvoke(new Action(() =>
                 {
                     try
@@ -225,12 +280,14 @@ internal static class DashboardVisualSmoke
                                     .Any();
                             },
                             "quota-history chart");
+                        Console.WriteLine($"Initial content render: {form.LastRenderDuration.TotalMilliseconds:0} ms.");
                         form.Update();
                         form.PerformLayout();
                         form.Refresh();
                         Application.DoEvents();
                         ValidateChrome(form);
                         ValidateFooter(form, settings);
+                        ValidateTextBounds(form);
                         ValidateQuotaHistory(
                             form,
                             history,
@@ -251,6 +308,7 @@ internal static class DashboardVisualSmoke
                                 outputPath,
                                 System.Drawing.Imaging.ImageFormat.Png);
                         }
+                        ValidateRefreshAndCollapsedWarnings(form, settings, snapshot);
                         form.ShowLayoutEditor();
                         form.BeginInvoke(new Action(() =>
                         {
@@ -281,6 +339,7 @@ internal static class DashboardVisualSmoke
                                     form,
                                     settings,
                                     layoutEditor: true);
+                                ValidateTextBounds(form);
                                 ValidateLayoutEditor(
                                     form,
                                     settings);
@@ -330,10 +389,15 @@ internal static class DashboardVisualSmoke
                 form.Close();
             }
         };
+        if (interactive)
+        {
+            form.QuitRequested += (_, _) => form.AllowClose();
+        }
         Application.Run(form);
         if (failure is not null)
             throw new InvalidOperationException(
-                "Dashboard visual smoke test failed.", failure);
+                $"Dashboard visual smoke test failed ({(settings.Chinese ? "zh" : "en")}/{settings.TextSize}).", failure);
+        Console.WriteLine($"Dashboard completed in {elapsed.Elapsed.TotalSeconds:0.0}s.");
     }
 
     private static void ValidateFooter(
@@ -387,21 +451,23 @@ internal static class DashboardVisualSmoke
 
     private static void ValidateChrome(Form form)
     {
+        var titleBar = form.Controls["dashboardTitleBar"];
         var header = form.Controls[
             "dashboardHeader"];
         var content = form.Controls[
             "dashboardContentHost"];
         var footer = form.Controls[
             "dashboardFooter"];
-        if (header is null
+        if (titleBar is null || !titleBar.Visible || titleBar.Top != form.Padding.Top
+            || header is null
             || content is null
             || footer is null
             || !header.Visible
             || !content.Visible
             || !footer.Visible
-            || header.Top != 0
+            || header.Top != titleBar.Bottom
             || footer.Bottom
-            != form.ClientSize.Height
+            != form.ClientSize.Height - form.Padding.Bottom
             || header.Bottom > content.Top
             || content.Bottom > footer.Top
             || header.Height < 70
@@ -412,6 +478,70 @@ internal static class DashboardVisualSmoke
                 + $"header={header?.Bounds}, "
                 + $"content={content?.Bounds}, "
                 + $"footer={footer?.Bounds}).");
+    }
+
+    private static void ValidateTextBounds(Control root)
+    {
+        foreach (var control in Descendants(root).Where(item => item.Visible && item.Parent is not null))
+        {
+            if (control is not (Label or Button)) continue;
+            if (control.Right > control.Parent!.ClientSize.Width - control.Parent.Padding.Right + 2
+                || control.Left < control.Parent.Padding.Left - 2)
+                throw new InvalidOperationException($"Text control exceeds its container: {control.GetType().Name}/{control.Name} "
+                    + $"'{control.Text}' {control.Bounds}; parent={control.Parent.GetType().Name}/{control.Parent.ClientSize}.");
+            if (control is Button button && button.Parent is FlowLayoutPanel)
+            {
+                var padding = (int)Math.Ceiling(12 * button.DeviceDpi / 96d);
+                var measured = TextRenderer.MeasureText(button.Text, button.Font,
+                    new Size(Math.Max(1, button.Width - padding), int.MaxValue),
+                    TextFormatFlags.WordBreak | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+                if (measured.Height > button.Height - 4)
+                    throw new InvalidOperationException("An action button clips its wrapped label.");
+            }
+        }
+    }
+
+    private static void ValidateRefreshAndCollapsedWarnings(DashboardForm form, AppSettings settings,
+        DashboardSnapshot snapshot)
+    {
+        var host = form.Controls["dashboardContentHost"]!;
+        var previous = host.Controls[0];
+        form.SetState(snapshot with { RefreshedAt = snapshot.RefreshedAt.AddSeconds(1) }, settings,
+            new AppUpdateStatus(AppUpdatePhase.UpToDate), resetLoading: false);
+        Application.DoEvents();
+        if (!ReferenceEquals(previous, host.Controls[0]))
+            throw new InvalidOperationException("A timestamp-only refresh rebuilt the dashboard.");
+
+        foreach (var section in Enum.GetValues<DashboardSection>())
+            settings.SetDashboardSectionExpanded(section, false);
+        settings.SetDashboardSectionVisible(DashboardSection.ResetCredits, false);
+        settings.SetDashboardSectionVisible(DashboardSection.Updates, false);
+        const string connectionWarning = "Connection unavailable — reconnect Codex and refresh.";
+        form.SetState(snapshot with
+        {
+            LimitReached = true,
+            CanConfirmWeeklyRecovery = false,
+            Errors = [connectionWarning],
+            ResetCreditProtection = new ResetCreditProtectionStatus(
+                ResetCreditProtectionStatusKind.Blocked,
+                BlockReason: ResetCreditProtectionBlockReason.AccountChanged)
+        }, settings, new AppUpdateStatus(AppUpdatePhase.Failed, Message: "Update verification failed."), false);
+        WaitFor(() =>
+        {
+            if (form.LastRenderFailure is { } failure) throw failure;
+            return !ReferenceEquals(previous, host.Controls[0]);
+        }, "collapsed dashboard and forced safety warnings");
+        form.PerformLayout();
+        form.Refresh();
+        ValidateChrome(form);
+        ValidateFooter(form, settings);
+        ValidateTextBounds(form);
+        var labels = Descendants(form).OfType<Label>().Select(label => label.Text).ToArray();
+        if (Descendants(form).OfType<QuotaHistoryChartControl>().Any()
+            || !labels.Any(text => text.Contains(connectionWarning, StringComparison.Ordinal))
+            || !labels.Contains(settings.Chinese ? "重置卡过期" : "Reset Credit Expiry")
+            || !labels.Contains(settings.Chinese ? "应用更新" : "App Updates"))
+            throw new InvalidOperationException("Collapsed layout hides a safety warning or leaves history expanded.");
     }
 
     private static void ValidateQuotaHistory(

@@ -49,14 +49,26 @@ internal sealed class ResetCreditProtectionProcessLock : IDisposable
     {
         try
         {
-            Directory.CreateDirectory(ResetCreditProtectionPaths.DirectoryPath);
-            return new ResetCreditProtectionProcessLock(new FileStream(
+            PrivateStorageSecurity.EnsureDirectory(
+                ResetCreditProtectionPaths.DirectoryPath);
+            var stream = new FileStream(
                 ResetCreditProtectionPaths.ProcessLock,
                 FileMode.OpenOrCreate,
                 FileAccess.ReadWrite,
                 FileShare.None,
                 1,
-                FileOptions.WriteThrough));
+                FileOptions.WriteThrough);
+            try
+            {
+                PrivateStorageSecurity.EnsureFile(
+                    ResetCreditProtectionPaths.ProcessLock);
+                return new ResetCreditProtectionProcessLock(stream);
+            }
+            catch
+            {
+                stream.Dispose();
+                throw;
+            }
         }
         catch (IOException) { return null; }
         catch (UnauthorizedAccessException) { return null; }
@@ -84,9 +96,12 @@ internal sealed class ResetCreditProtectionAuthorizationStore
                             ?? ResetCreditProtectionPaths.DispatchLock;
     }
 
-    private sealed record RevocationMarker(int Version, bool Revoked)
+    private sealed record RevocationMarker(int Version, bool Revoked,
+        ResetCreditRevocationReason? Reason = null, DateTimeOffset? RevokedAt = null)
     {
-        public static readonly RevocationMarker Current = new(1, true);
+        public bool IsRecognized => Revoked && Version is 1 or 2;
+        public static RevocationMarker Create(ResetCreditRevocationReason reason) =>
+            new(2, true, reason, DateTimeOffset.UtcNow);
     }
 
     public ProtectionStorageLoad<ResetCreditProtectionConsent> Load()
@@ -99,7 +114,7 @@ internal sealed class ResetCreditProtectionAuthorizationStore
             var json = File.ReadAllText(_authorizationPath);
             var marker = JsonSerializer.Deserialize<RevocationMarker>(
                 json, ResetCreditProtectionJson.Options);
-            if (marker == RevocationMarker.Current)
+            if (marker?.IsRecognized == true)
                 return new ProtectionStorageLoad<ResetCreditProtectionConsent>(
                     ProtectionStorageState.Absent);
             var consent = JsonSerializer.Deserialize<ResetCreditProtectionConsent>(
@@ -115,6 +130,17 @@ internal sealed class ResetCreditProtectionAuthorizationStore
             return new ProtectionStorageLoad<ResetCreditProtectionConsent>(
                 ProtectionStorageState.Corrupt);
         }
+    }
+
+    public ResetCreditRevocationReason? LastRevocation()
+    {
+        try
+        {
+            var marker = JsonSerializer.Deserialize<RevocationMarker>(
+                File.ReadAllText(_authorizationPath), ResetCreditProtectionJson.Options);
+            return marker is { IsRecognized: true, RevokedAt: not null } ? marker.Reason : null;
+        }
+        catch { return null; }
     }
 
     public void Save(
@@ -133,31 +159,34 @@ internal sealed class ResetCreditProtectionAuthorizationStore
         {
             AtomicWrite(
                 _authorizationPath,
-                RevocationMarker.Current);
+                RevocationMarker.Create(ResetCreditRevocationReason.RuntimeUnavailable));
             throw;
         }
     }
 
-    public void Clear(Action? disableRequested = null)
+    public void Clear(Action? disableRequested = null,
+        ResetCreditRevocationReason reason = ResetCreditRevocationReason.UserDisabled)
     {
         using var lease = AcquireDispatchLock();
+        AtomicWrite(_authorizationPath, RevocationMarker.Create(reason));
         disableRequested?.Invoke();
-        AtomicWrite(_authorizationPath, RevocationMarker.Current);
     }
 
     public bool ClearIfCurrent(
         ResetCreditProtectionConsent expected,
-        Action? disableRequested = null)
+        Action? disableRequested = null,
+        ResetCreditRevocationReason reason = ResetCreditRevocationReason.UserDisabled)
     {
         using var lease = AcquireDispatchLock();
         var current = Load();
         if (current.State == ProtectionStorageState.Corrupt)
             throw new InvalidDataException("Reset-credit authorization cannot be verified.");
+        if (current.State == ProtectionStorageState.Absent) return false;
         if (current.State == ProtectionStorageState.Loaded
             && !Equivalent(current.Value, expected))
             return false;
+        AtomicWrite(_authorizationPath, RevocationMarker.Create(reason));
         disableRequested?.Invoke();
-        AtomicWrite(_authorizationPath, RevocationMarker.Current);
         return true;
     }
 
@@ -175,11 +204,11 @@ internal sealed class ResetCreditProtectionAuthorizationStore
             reason = ResetCreditProtectionAuthorization.ClockDiscontinuity(
                 loaded.Value, current);
             if (reason is null) return ProtectionStorageState.Loaded;
-            AtomicWrite(_authorizationPath, RevocationMarker.Current);
+            AtomicWrite(_authorizationPath, RevocationMarker.Create(ResetCreditRevocationReason.ClockChanged));
             return ProtectionStorageState.Absent;
         }
         if (loaded.State == ProtectionStorageState.Corrupt)
-            AtomicWrite(_authorizationPath, RevocationMarker.Current);
+            AtomicWrite(_authorizationPath, RevocationMarker.Create(ResetCreditRevocationReason.RuntimeUnavailable));
         return loaded.State;
     }
 
@@ -222,7 +251,8 @@ internal sealed class ResetCreditProtectionAuthorizationStore
 
     private static void AtomicWrite<T>(string path, T value)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        PrivateStorageSecurity.EnsureDirectory(
+            Path.GetDirectoryName(path)!);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(
             value, ResetCreditProtectionJson.Options);
         var temporary = path + $".{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
@@ -239,7 +269,9 @@ internal sealed class ResetCreditProtectionAuthorizationStore
                 stream.Write(bytes);
                 stream.Flush(true);
             }
+            PrivateStorageSecurity.EnsureFile(temporary);
             File.Move(temporary, path, true);
+            PrivateStorageSecurity.EnsureFile(path);
         }
         finally
         {
@@ -326,19 +358,30 @@ internal sealed class ExclusiveFileLease : IDisposable
 
     public static ExclusiveFileLease? Acquire(string path, bool blocking)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        PrivateStorageSecurity.EnsureDirectory(
+            Path.GetDirectoryName(path)!);
         var attempts = blocking ? 100 : 1;
         for (var attempt = 0; attempt < attempts; attempt++)
         {
             try
             {
-                return new ExclusiveFileLease(new FileStream(
+                var stream = new FileStream(
                     path,
                     FileMode.OpenOrCreate,
                     FileAccess.ReadWrite,
                     FileShare.None,
                     1,
-                    FileOptions.WriteThrough));
+                    FileOptions.WriteThrough);
+                try
+                {
+                    PrivateStorageSecurity.EnsureFile(path);
+                    return new ExclusiveFileLease(stream);
+                }
+                catch
+                {
+                    stream.Dispose();
+                    throw;
+                }
             }
             catch (IOException) when (attempt + 1 < attempts)
             {

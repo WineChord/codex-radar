@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
@@ -6,15 +7,12 @@ namespace CodexRadar.Windows;
 
 internal sealed class RadarService : IAsyncDisposable
 {
-    private readonly HttpClient _http = new()
+    private readonly HttpClient _http = new(CreatePublicHttpHandler())
     {
         BaseAddress = new Uri("https://codexradar.com/"),
         Timeout = TimeSpan.FromSeconds(15)
     };
-    private readonly HttpClient _insightsHttp = new(new HttpClientHandler
-    {
-        UseCookies = false
-    })
+    private readonly HttpClient _insightsHttp = new(CreatePublicHttpHandler())
     {
         Timeout = TimeSpan.FromSeconds(15)
     };
@@ -29,6 +27,16 @@ internal sealed class RadarService : IAsyncDisposable
         _http.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
         _insightsHttp.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
     }
+
+    internal static HttpClientHandler CreatePublicHttpHandler() => new()
+    {
+        UseCookies = false,
+        // The efficiency feed includes historical samples. Negotiate the
+        // server's compressed representation without extending refresh bounds.
+        AutomaticDecompression = DecompressionMethods.GZip
+                                 | DecompressionMethods.Deflate
+                                 | DecompressionMethods.Brotli
+    };
 
     public Task<DashboardSnapshot> RefreshAsync(AppSettings settings, CancellationToken cancellationToken) =>
         RefreshAsync(settings, null, cancellationToken);
@@ -45,14 +53,19 @@ internal sealed class RadarService : IAsyncDisposable
         var publicTask = ReadPublicRadarAsync(cancellationToken);
         // Binary discovery and Process.Start have a synchronous prefix. Run it
         // away from the WinForms thread so a refresh can never delay first paint.
-        var quotaTask = Task.Run(() => _appServer.ReadRateLimitsAsync(cancellationToken), cancellationToken);
+        var quotaTask = Task.Run(() => RateLimitReadRecovery.ReadAsync(
+            _appServer.ReadRateLimitsAsync, cancellationToken), cancellationToken);
         OperationCanceledException? cancellation = null;
         try { next = ApplyPublic(next, await publicTask.ConfigureAwait(false)); }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested) { cancellation = ex; }
         catch (Exception ex) { errors.Add($"CodexRadar: {Friendly(ex, refreshSettings.Chinese)}"); }
         try { next = ApplyQuota(next, await quotaTask.ConfigureAwait(false)); }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested) { cancellation ??= ex; }
-        catch (Exception ex) { errors.Add($"Codex: {Friendly(ex, refreshSettings.Chinese)}"); }
+        catch (Exception ex)
+        {
+            next = next with { CanConfirmWeeklyRecovery = false };
+            errors.Add($"Codex: {Friendly(ex, refreshSettings.Chinese)}");
+        }
         if (cancellation is not null) throw new OperationCanceledException(cancellation.Message, cancellation, cancellationToken);
 
         next = next with
@@ -68,11 +81,13 @@ internal sealed class RadarService : IAsyncDisposable
         return next with { QuotaPacing = QuotaPacingCalculator.Calculate(next, refreshSettings) };
     }
 
-    private async Task<PublicRadarData> ReadPublicRadarAsync(CancellationToken cancellationToken)
+    private async Task<PublicRadarData> ReadPublicRadarAsync(
+        CancellationToken cancellationToken, bool requireIntelligenceEfficiency = false)
     {
         var currentTask = _http.GetStringAsync("current.json", cancellationToken);
         var ratingsTask = ReadRatingsAsync(cancellationToken);
-        var intelligenceTask = ReadIntelligenceEfficiencyAsync(cancellationToken);
+        var intelligenceTask = ReadIntelligenceEfficiencyAsync(
+            cancellationToken, requireIntelligenceEfficiency);
         var insightsTask = ReadRadarInsightsAsync(cancellationToken);
         var body = await currentTask.ConfigureAwait(false);
         PublicRadarData current;
@@ -85,7 +100,8 @@ internal sealed class RadarService : IAsyncDisposable
             using var document = JsonDocument.Parse(body);
             current = ParseCurrent(document.RootElement);
             if (current.IqScore is null || current.ResetRadarCards.Count == 0
-                || current.CommunityKnowledge is null || current.Announcement is null)
+                || current.CommunityKnowledges.Count == 0
+                || current.Announcement is null || current.FastRadar is null)
             {
                 try
                 {
@@ -107,8 +123,12 @@ internal sealed class RadarService : IAsyncDisposable
         return current with { RadarInsights = await insightsTask.ConfigureAwait(false) };
     }
 
+    internal Task<PublicRadarData> ReadPublicRadarForDiagnosticsAsync(
+        CancellationToken cancellationToken) =>
+        ReadPublicRadarAsync(cancellationToken, requireIntelligenceEfficiency: true);
+
     private async Task<IntelligenceEfficiencyEnvelope?> ReadIntelligenceEfficiencyAsync(
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool required = false)
     {
         try
         {
@@ -117,7 +137,7 @@ internal sealed class RadarService : IAsyncDisposable
             return IntelligenceEfficiencyParser.Parse(body);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch { return null; }
+        catch when (!required) { return null; }
     }
 
     private async Task<RadarInsightsEnvelope?> ReadRadarInsightsAsync(
@@ -206,6 +226,17 @@ internal sealed class RadarService : IAsyncDisposable
         var announcement = root.Object("site_announcement");
         var reset = root.Object("reset_judgement");
         var community = root.Object("community_knowledge");
+        var communityKnowledges = ParseCommunityKnowledges(
+            root, community);
+        FastRadarInfo? fastRadar = null;
+        if (root.TryGetProperty("fast_radar", out var fast))
+        {
+            if (fast.ValueKind == JsonValueKind.Object)
+                fastRadar = ParseFastRadar(fast);
+            else if (fast.ValueKind != JsonValueKind.Null)
+                throw new JsonException(
+                    "fast_radar must be an object.");
+        }
         var window = root.Object("window");
         var recent = root.Array("recent_windows");
         JsonElement? lastWindow = root.Object("last_window");
@@ -269,11 +300,100 @@ internal sealed class RadarService : IAsyncDisposable
             ResetRadarTitle = reset?.String("title"), ResetRadarUpdatedLabel = reset?.String("updated_label"),
             ResetRadarCards = resetCards, ResetRadarReasons = resetReasons, ResetRadar = ResetText(reset?.String("title"), resetCards, resetReasons),
             CommunityKnowledge = community?.String("title"), CommunityPrompt = community?.String("prompt"),
+            CommunityKnowledges = communityKnowledges,
+            FastRadar = fastRadar,
             QuotaRadar = quotaRows, QuotaRadarDate = quotaRadar?.String("date"),
             QuotaRadarUpdatedAt = RadarJson.Date(quotaRadar?.String("updated_at")), QuotaRadarBasisWindowLabel = quotaRadar?.String("basis_window_label"),
             QuotaRadarCostUsd = quotaRadar?.Number("cost_usd"), QuotaRadarTotalTokens = quotaRadar?.Int64("total_tokens"),
             QuotaRadarSevenDayTrendDelta = trendDelta
         };
+    }
+
+    private static IReadOnlyList<CommunityKnowledgeInfo>
+        ParseCommunityKnowledges(
+            JsonElement root,
+            JsonElement? legacy)
+    {
+        if (root.TryGetProperty(
+                "community_knowledges",
+                out var values))
+        {
+            if (values.ValueKind == JsonValueKind.Null)
+                return [];
+            if (values.ValueKind != JsonValueKind.Array)
+                throw new JsonException(
+                    "community_knowledges must be an array.");
+            return values.EnumerateArray()
+                .Where(item => item.ValueKind
+                               == JsonValueKind.Object)
+                .Select(item => new CommunityKnowledgeInfo(
+                    item.String("title"),
+                    item.String("prompt"),
+                    PublicWebLink.Normalize(item.String("source_url")),
+                    item.String("source_label")))
+                .ToArray();
+        }
+        return legacy is JsonElement item
+            ? [new CommunityKnowledgeInfo(
+                item.String("title"),
+                item.String("prompt"),
+                PublicWebLink.Normalize(item.String("source_url")),
+                item.String("source_label"))]
+            : [];
+    }
+
+    private static FastRadarInfo ParseFastRadar(
+        JsonElement value)
+    {
+        var summary = ParseOptionalArray(
+                value, "summary")
+            .Select(item => new FastRadarSummaryItem(
+                item.String("label"),
+                item.String("value")))
+            .ToArray();
+        var rows = ParseOptionalArray(value, "rows")
+            .Select(item => new FastRadarRow(
+                item.String("model"),
+                ParseFastRadarMetric(item, "e2e"),
+                ParseFastRadarMetric(item, "ttft"),
+                ParseFastRadarMetric(item, "tps")))
+            .ToArray();
+        return new FastRadarInfo(
+            value.String("title"),
+            value.String("updated_label"),
+            value.String("subtitle"),
+            summary,
+            rows,
+            value.String("method"));
+    }
+
+    private static FastRadarMetric? ParseFastRadarMetric(
+        JsonElement row,
+        string name)
+    {
+        if (!row.TryGetProperty(name, out var metric)
+            || metric.ValueKind == JsonValueKind.Null)
+            return null;
+        if (metric.ValueKind != JsonValueKind.Object)
+            throw new JsonException(
+                $"Fast Radar {name} must be an object.");
+        return new FastRadarMetric(
+            metric.String("label"),
+            metric.String("range"),
+            metric.String("value"));
+    }
+
+    private static IEnumerable<JsonElement> ParseOptionalArray(
+        JsonElement value,
+        string name)
+    {
+        if (!value.TryGetProperty(name, out var items)
+            || items.ValueKind == JsonValueKind.Null)
+            return [];
+        if (items.ValueKind != JsonValueKind.Array)
+            throw new JsonException(
+                $"Fast Radar {name} must be an array.");
+        return items.EnumerateArray().ToArray();
     }
 
     private static PublicRadarData MergeHomepage(PublicRadarData current, PublicRadarData homepage) => current with
@@ -298,6 +418,10 @@ internal sealed class RadarService : IAsyncDisposable
         ResetRadar = current.ResetRadar ?? homepage.ResetRadar,
         CommunityKnowledge = current.CommunityKnowledge ?? homepage.CommunityKnowledge,
         CommunityPrompt = current.CommunityPrompt ?? homepage.CommunityPrompt,
+        CommunityKnowledges = current.CommunityKnowledges.Count > 0
+            ? current.CommunityKnowledges
+            : homepage.CommunityKnowledges,
+        FastRadar = current.FastRadar ?? homepage.FastRadar,
         AnnouncementLabel = current.AnnouncementLabel ?? homepage.AnnouncementLabel,
         Announcement = current.Announcement ?? homepage.Announcement,
         AnnouncementUpdatedLabel = current.AnnouncementUpdatedLabel ?? homepage.AnnouncementUpdatedLabel,
@@ -345,6 +469,8 @@ internal sealed class RadarService : IAsyncDisposable
         ResetRadarUpdatedLabel = data.ResetRadarUpdatedLabel, ResetRadarCards = data.ResetRadarCards,
         ResetRadarReasons = data.ResetRadarReasons, ResetRadar = data.ResetRadar,
         CommunityKnowledge = data.CommunityKnowledge, CommunityPrompt = data.CommunityPrompt,
+        CommunityKnowledges = data.CommunityKnowledges,
+        FastRadar = data.FastRadar,
         QuotaRadar = data.QuotaRadar, QuotaRadarDate = data.QuotaRadarDate, QuotaRadarUpdatedAt = data.QuotaRadarUpdatedAt,
         QuotaRadarBasisWindowLabel = data.QuotaRadarBasisWindowLabel, QuotaRadarCostUsd = data.QuotaRadarCostUsd,
         QuotaRadarTotalTokens = data.QuotaRadarTotalTokens, QuotaRadarSevenDayTrendDelta = data.QuotaRadarSevenDayTrendDelta
@@ -357,7 +483,8 @@ internal sealed class RadarService : IAsyncDisposable
         WeeklyWindowMinutes = quota.WeeklyDurationMinutes, ShortWindowMinutes = quota.ShortDurationMinutes,
         WeeklyResetsAt = quota.WeeklyReset, ShortResetsAt = quota.ShortReset,
         QuotaObservedAt = DateTimeOffset.Now,
-        LimitReached = quota.Blocked, PlanType = quota.PlanType, CreditsBalance = quota.CreditsBalance
+        LimitReached = quota.Blocked, PlanType = quota.PlanType, CreditsBalance = quota.CreditsBalance,
+        CanConfirmWeeklyRecovery = quota.CanConfirmWeeklyRecovery
     };
 
     public async Task<ResetCreditFetchResult> RefreshResetCreditsAsync(CancellationToken cancellationToken)
@@ -455,15 +582,32 @@ internal sealed class RadarService : IAsyncDisposable
             : value.Contains("high") ? 3 : value.Contains("medium") ? 4 : value.Contains("low") ? 5 : 9;
     }
     private static string NormalizeModel(string? value) => System.Text.RegularExpressions.Regex.Replace(value?.ToLowerInvariant() ?? "", "[^a-z0-9]+", "-").Trim('-');
-    private static string Friendly(Exception ex, bool chinese) => ex switch
+    internal static string Friendly(Exception ex, bool chinese)
     {
-        TaskCanceledException => chinese ? "请求超时" : "request timed out",
-        TimeoutException => chinese ? "请求超时" : "request timed out",
-        OperationCanceledException => chinese ? "请求已取消" : "request cancelled",
-        HttpRequestException => chinese ? "网络请求失败" : "network request failed",
-        JsonException => chinese ? "数据格式已变化" : "response format changed",
-        _ => ex.Message
-    };
+        if (IsCodexAuthenticationError(ex))
+            return chinese
+                ? "Codex 尚未登录。请先打开 Codex 完成登录，再点“重试”。"
+                : "Codex is signed out. Open Codex and sign in, then choose Retry.";
+        return ex switch
+        {
+            TaskCanceledException => chinese ? "请求超时" : "request timed out",
+            TimeoutException => chinese ? "请求超时" : "request timed out",
+            OperationCanceledException => chinese ? "请求已取消" : "request cancelled",
+            HttpRequestException => chinese ? "网络请求失败" : "network request failed",
+            JsonException => chinese ? "数据格式已变化" : "response format changed",
+            _ => ex.Message
+        };
+    }
+
+    private static bool IsCodexAuthenticationError(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+            if (current.Message.Contains("authentication required", StringComparison.OrdinalIgnoreCase)
+                || current.Message.Contains("not logged in", StringComparison.OrdinalIgnoreCase)
+                || current.Message.Contains("signed out", StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
+    }
     public void Abort()
     {
         try { _http.CancelPendingRequests(); } catch { }
@@ -484,6 +628,7 @@ internal sealed class RadarService : IAsyncDisposable
 
 internal sealed record PublicRadarData
 {
+    internal IReadOnlySet<string> IntelligenceEfficiencyPairKeys { get; init; } = new HashSet<string>();
     public string? SchemaVersion { get; init; }
     public DateTimeOffset? CheckedAt { get; init; }
     public string? RadarStatus { get; init; }
@@ -529,6 +674,8 @@ internal sealed record PublicRadarData
     public string? ResetRadar { get; init; }
     public string? CommunityKnowledge { get; init; }
     public string? CommunityPrompt { get; init; }
+    public IReadOnlyList<CommunityKnowledgeInfo> CommunityKnowledges { get; init; } = [];
+    public FastRadarInfo? FastRadar { get; init; }
     public IReadOnlyList<QuotaEstimate> QuotaRadar { get; init; } = [];
     public string? QuotaRadarDate { get; init; }
     public DateTimeOffset? QuotaRadarUpdatedAt { get; init; }
@@ -539,6 +686,48 @@ internal sealed record PublicRadarData
     public IReadOnlyList<ModelComparison> Comparisons { get; init; } = [];
     public RadarInsightsEnvelope? RadarInsights { get; init; }
 }
+
+internal sealed record CommunityKnowledgeInfo(
+    string? Title,
+    string? Prompt,
+    string? SourceUrl = null,
+    string? SourceLabel = null);
+
+internal static class PublicWebLink
+{
+    public static string? Normalize(string? value, bool allowRelative = false)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)
+            && (!allowRelative || !Uri.TryCreate(new Uri("https://codexradar.com/"), value.Trim(), out uri)))
+            return null;
+        return uri is not null && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp)
+            && string.IsNullOrEmpty(uri.UserInfo) ? uri.AbsoluteUri : null;
+    }
+}
+
+internal sealed record FastRadarInfo(
+    string? Title,
+    string? UpdatedLabel,
+    string? Subtitle,
+    IReadOnlyList<FastRadarSummaryItem> Summary,
+    IReadOnlyList<FastRadarRow> Rows,
+    string? Method);
+
+internal sealed record FastRadarSummaryItem(
+    string? Label,
+    string? Value);
+
+internal sealed record FastRadarRow(
+    string? Model,
+    FastRadarMetric? E2E,
+    FastRadarMetric? Ttft,
+    FastRadarMetric? Tps);
+
+internal sealed record FastRadarMetric(
+    string? Label,
+    string? Range,
+    string? Value);
 
 internal sealed record ModelRatingInfo(string? Id, string? Label, string? Group, double? Average, int? Count);
 internal sealed record ResetCreditFetchResult(IReadOnlyList<ResetCredit> Credits, int? Available, int? TotalEarned, DateTimeOffset CheckedAt);

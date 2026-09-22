@@ -35,28 +35,44 @@ Install Codex Radar Sentinel for Windows only: confirm this PC runs Windows 10 v
 
 Windows offers two optional status locations: a normal notification-area icon, which Windows may place in the `^` overflow, and always-visible taskbar text immediately left of the input/notification area. Both support left-click to open the panel and right-click to exit. See the [Windows guide](windows/README.md) for direct installation, local launch, uninstall, and compatibility validation.
 
+Online installation requires the Windows installer on the default branch and the matching Windows package plus checksum in the latest Release. If either is missing, use the guide's source-launch instructions; never substitute a macOS package.
+
 ## News
 
-### v0.1.64: Keep local quota available after an upgrade or restart
+### v0.1.72: Complete important notices
+
+- Preserves notice headlines, multi-paragraph bodies, and safe same-origin image sources while retaining legacy reset notices.
+
+### v0.1.71: Restore the current Fast Radar
+
+- Supports the compact comparison layout, speed summaries, and test methodology alongside legacy formats.
+
+### v0.1.70: Official reset-notice compatibility
+
+- Supports layered notice headlines, expected times, explanations, and safe external sources.
+
+<details>
+<summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
+
+- **v0.1.69–v0.1.65**: improved community guides and sources, pre-dispatch reset-credit recovery and safety explanations, read-only quota retries, average-based degradation, and disconnected-session stability.
+
+**v0.1.64: Keep local quota available after an upgrade or restart**
 
 - Prefers the already signed-in local managed session from the Codex desktop app, avoiding a `--` quota when a fresh session has no persisted sign-in after an app upgrade or restart.
 - Falls back to an independent local app-server when the managed session is unavailable. Neither path reads, copies, or caches sign-in credentials.
 - If both local paths are genuinely signed out, Connection now gives a clear sign-in and refresh action instead of exposing a low-level API error.
 
-### v0.1.63: Restore the current Reset Radar state
+**v0.1.63: Restore the current Reset Radar state**
 
 - Supports CodexRadar's latest Reset Radar card structure, restoring the current state, conclusion, and explanation for both reset-credit and hard-reset paths.
 - Both old and new page layouts remain compatible, including the event timestamp and radar-source summary when a card adds its own state badge.
-- Live contract checks now validate each Reset Radar card's name, state, and explanation so a future markup change cannot silently hide the entire section.
+- An inactive reset event remains a normal empty state instead of turning a historical notice into a current alert.
 
-### v0.1.62: See quota changes with a calmer Layout
+**v0.1.62: See quota changes with a calmer Layout**
 
 - `Quota history` keeps local 24-hour, 7-day, and 30-day weekly-quota balance curves. Hover or drag to inspect real changes, reset jumps, and data gaps point by point.
 - `Layout` now manages order, visibility, and default expansion for sections and nested items. Hiding changes only the menu: recording and alerts continue, while critical states can still appear temporarily.
 - `Show` and `Start open` stay on the same line as each title, reducing scrolling and repeated whitespace while remaining complete across both interface languages and M, L, and XL.
-
-<details>
-<summary><strong>Earlier releases</strong> — expand for previous product milestones</summary>
 
 - **v0.1.61**: added a one-time Layout tip that opens the editor directly and remembers dismissal.
 - **v0.1.60**: let Layout set default-open behavior for nested items such as `All model IQ`, with preferences preserved across restarts.
@@ -149,7 +165,7 @@ Hiding affects only the menu; quota-history recording, alerts, and reset-credit 
 
 The app records real points only after local weekly quota loads successfully. While it stays running, it retains a heartbeat at least every five minutes and immediately keeps meaningful balance or reset-time changes. Lines do not bridge long data gaps. Reliable upward jumps are labeled only as `Observed reset`; the app does not guess whether a periodic reset, reset credit, or another server-side correction caused them.
 
-History starts accumulating when this version first runs; earlier values are neither fabricated nor backfilled. Up to 31 days remain on the Mac. `Observed use` totals only balance decreases seen in the selected range and is not a replacement for server-side billing or usage analytics.
+History starts accumulating when this version first runs; earlier values are neither fabricated nor backfilled. Up to 31 days remain on the device. `Observed use` totals only balance decreases seen in the selected range and is not a replacement for server-side billing or usage analytics.
 
 ### Usage pacing
 
@@ -169,7 +185,7 @@ Pacing cards use unsigned percentages with an explicit direction. When actual us
 
 `Auto-use reset credits before expiry` is a separate switch and is strictly off by default. Before enabling, the app explains the irreversible action and requires explicit confirmation. Authorization covers only supported credits that are visible and have a clear expiry at that moment. Plan checks are read only and never consume a credit.
 
-The app attempts to use the earliest target only when it is about 30 minutes from expiry. Auto-use turns itself off when account, credit-set, or clock-continuity changes cannot be verified safely. Network loss, shutdown, sleep, quitting the app, or the absence of resettable usage can still prevent execution, so this is best effort rather than a guarantee. Enabling `Launch at login` is recommended.
+The app attempts to use the earliest target only when it is about 30 minutes from expiry. If the verified local session ends before the request is written, no credit is consumed; the app preserves the same explicit authorization and retries after a complete fresh verification. Auto-use still turns itself off when account, credit-set, or clock-continuity changes cannot be verified safely, and its local safety record keeps the reason and time without raw account or credit identifiers. Network loss, shutdown, sleep, quitting the app, or the absence of resettable usage can still prevent execution, so this is best effort rather than a guarantee. Enabling `Launch at login` is recommended.
 
 ### Notifications
 
@@ -191,7 +207,7 @@ If verification or installation fails, the current version stays in place and th
 
 ## Privacy and Security
 
-- On macOS, local quota prefers the current user's already signed-in Codex managed session and falls back to an independent local app-server. On Windows, quota comes from the current user's local Codex app-server. Neither path reads, copies, or caches sign-in credentials or uploads quota to CodexRadar.
+- Local quota prefers the current user's already signed-in Codex managed session after validating the platform security boundary, then falls back to an independent local app-server when that channel is absent or unavailable. Windows accepts only an AF_UNIX control socket inside a directory protected by a current-user ACL. Neither path reads, copies, or caches sign-in credentials or uploads quota to CodexRadar.
 - Quota history stays on the device and contains only sample times, weekly quota remaining percentages, and server reset times for up to 31 days. It stores no account identity, access tokens, or request contents and is never uploaded. Windows protects the file with a current-user ACL, an exclusive lock, and atomic replacement.
 - Reset-credit expiry checks use the local Codex sign-in state only for the corresponding ChatGPT request. Credentials are not cached, logged, or sent to CodexRadar or GitHub.
 - Local cache stores only credit status, issue time, expiry time, and sanitized identifiers—never access tokens, cookies, email addresses, or full credit IDs.
@@ -257,19 +273,21 @@ dotnet run --project .\windows\CodexRadar.Windows\CodexRadar.Windows.csproj -c R
 
 ## Development and Verification
 
+See the [maintenance guide](docs/MAINTENANCE.md) for cloud macOS tests, universal packages, and publishing.
+
 macOS:
 
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.64
+./scripts/check_release_readiness.sh 0.1.72
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.64
+./scripts/package_release.sh 0.1.72
 ```
 
 Update the menu-bar and full-menu screenshots:

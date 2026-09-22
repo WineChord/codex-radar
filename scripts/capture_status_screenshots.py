@@ -31,6 +31,9 @@ CASES = [
     ("en", "en", "custom", "qualityNormal", ["weeklyQuota", "signal"]),
 ]
 
+# Crop coordinates use the original 1560-pixel-wide documentation capture.
+# Hosted Macs can render at a different backing scale.
+NEWS_CROP_REFERENCE_WIDTH = 1560
 NEWS_CROPS = {
     "zh": [(0, 1560, 1560, 2820)],
     "en": [(0, 1550, 1560, 2820)],
@@ -96,7 +99,7 @@ def render_status(preview, language, metrics, destination):
     return titles[0], style
 
 
-def has_status_content(path):
+def has_visible_content(path):
     image = Image.open(path).convert("RGB")
     stat = ImageStat.Stat(image)
     return sum(stat.stddev) > 20
@@ -164,7 +167,7 @@ def capture_case(language_dir, language, name, preview, metrics):
                 f"unexpected alert background state for {name}: {style}"
             )
         flatten_status_background(temporary_destination, style)
-        if not temporary_destination.exists() or not has_status_content(
+        if not temporary_destination.exists() or not has_visible_content(
             temporary_destination
         ):
             raise RuntimeError(
@@ -233,6 +236,12 @@ def render_menu_screenshots():
     env = os.environ.copy()
     env["CODEX_RADAR_RENDER_DOC_SCREENSHOTS"] = str(ASSET_ROOT)
     run(["swift", "run", "CodexRadarSentinel"], cwd=ROOT, env=env)
+    for language in ("zh", "en"):
+        destination = ASSET_ROOT / language / "menu-full.png"
+        if not destination.exists() or not has_visible_content(destination):
+            raise RuntimeError(
+                f"{language} menu renderer produced no visible content"
+            )
 
 
 def render_news_screenshots():
@@ -240,6 +249,8 @@ def render_news_screenshots():
         source = ASSET_ROOT / language / "menu-full.png"
         destination = ASSET_ROOT / language / "news-pacing.png"
         image = Image.open(source).convert("RGB")
+        scale = image.width / NEWS_CROP_REFERENCE_WIDTH
+        boxes = [tuple(round(coordinate * scale) for coordinate in box) for box in boxes]
         for box in boxes:
             left, top, right, bottom = box
             if (
@@ -255,7 +266,7 @@ def render_news_screenshots():
                     f"{image.width}x{image.height} menu screenshot"
                 )
         parts = [image.crop(box) for box in boxes]
-        gap = 28
+        gap = max(1, round(28 * scale))
         output = Image.new(
             "RGB",
             (image.width, sum(part.height for part in parts) + gap * (len(parts) - 1)),

@@ -10,8 +10,10 @@ internal static partial class CodexRadarHtmlParser
         var now = checkedAt ?? DateTimeOffset.Now;
         var data = ParseModelIq(html, now) ?? new PublicRadarData();
         var reset = ParseResetJudgement(html);
-        var community = ParseCommunityKnowledge(html);
+        var communities = ParseCommunityKnowledges(html);
+        var community = communities.FirstOrDefault();
         var announcement = ParseAnnouncement(html);
+        var fastRadar = ParseFastRadar(html);
         return data with
         {
             SchemaVersion = "homepage-fallback-v1",
@@ -32,8 +34,10 @@ internal static partial class CodexRadarHtmlParser
             ResetRadarCards = reset.Cards,
             ResetRadarReasons = reset.Reasons,
             ResetRadar = ResetText(reset),
-            CommunityKnowledge = community.Title,
-            CommunityPrompt = community.Prompt,
+            CommunityKnowledge = community?.Title,
+            CommunityPrompt = community?.Prompt,
+            CommunityKnowledges = communities,
+            FastRadar = fastRadar,
             AnnouncementLabel = announcement.Label,
             Announcement = announcement.Message,
             AnnouncementUpdatedLabel = announcement.Updated,
@@ -129,35 +133,173 @@ internal static partial class CodexRadarHtmlParser
         if (section is null) return (null, null, [], []);
         var title = Clean(Capture(@"<div\s+class=[""']reset-judgement-head[""']>.*?<strong>(.*?)</strong>", section));
         var updated = Clean(Capture(@"<h2>.*?<em>(.*?)</em>.*?</h2>", section));
-        var cards = Matches(@"<article\s+class=[""']reset-judgement-card[^""']*[""']>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*<p>(.*?)</p>", section)
-            .Select(groups => new ResetJudgementCard(Clean(groups[0]), Clean(groups[1]), Clean(groups[2]))).ToArray();
+        var cards = Matches(
+                @"<article\s+class=[""'][^""']*reset-judgement-card[^""']*[""'][^>]*>(.*?)</article>",
+                section)
+            .Select(groups => groups[0])
+            .Select(card =>
+            {
+                var label = Clean(Capture(@"<span(?:\s+[^>]*)?>(.*?)</span>", card));
+                var state = Clean(Capture(
+                    @"<em\s+class=[""'][^""']*reset-judgement-state[^""']*[""'][^>]*>(.*?)</em>",
+                    card));
+                var headline = Clean(Capture(@"<strong(?:\s+[^>]*)?>(.*?)</strong>", card));
+                var detail = Clean(Capture(@"<p(?:\s+[^>]*)?>(.*?)</p>", card));
+                var level = state.Length == 0 ? headline : state;
+                var summary = state.Length == 0
+                    ? detail
+                    : string.Join(" — ", new[] { headline, detail }.Where(value => value.Length > 0));
+                return new ResetJudgementCard(label, level, summary);
+            })
+            .Where(card => !string.IsNullOrWhiteSpace(card.Label)
+                           && !string.IsNullOrWhiteSpace(card.Level)
+                           && !string.IsNullOrWhiteSpace(card.Summary))
+            .ToArray();
         var reasons = Matches(@"<li>(.*?)</li>", section).Select(x => Clean(x[0])).Where(x => x.Length > 0).ToArray();
         return (Empty(title), Empty(updated), cards, reasons);
     }
 
-    private static (string? Title, string? Prompt) ParseCommunityKnowledge(string html)
+    private static IReadOnlyList<CommunityKnowledgeInfo>
+        ParseCommunityKnowledges(string html)
     {
-        var section = Capture(@"<section\s+class=[""']community-knowledge[""'][^>]*>(.*?)</section>", html);
-        var card = section is null ? null : Capture(@"<article\s+class=[""']community-knowledge-card[""'][^>]*>(.*?)</article>", section);
-        if (card is null) return (null, null);
-        return (Empty(Clean(Capture(@"<h2>(.*?)</h2>", card))),
-            Empty(CleanMultiline(Capture(@"<code[^>]*data-site-announcement-prompt[^>]*>(.*?)</code>", card))));
+        var section = ElementByClass("section", "community-knowledge", html);
+        if (section is null) return [];
+        return Matches(
+                @"<article\s+class=[""'][^""']*community-knowledge-card[^""']*[""'][^>]*>(.*?)</article>",
+                section)
+            .Select(groups => groups[0])
+            .Select(card =>
+            {
+                var prompt = Empty(CleanMultiline(Capture(
+                    @"<(?:code|div)[^>]*data-site-announcement-prompt[^>]*>(.*?)</(?:code|div)>", card)));
+                var main = ElementByClass("div", "community-knowledge-card-main", card) ?? card;
+                prompt ??= Empty(Clean(Capture(@"<p\b[^>]*>(.*?)</p>", main)));
+                prompt ??= Empty(Clean(Capture(@"<img\b[^>]*\salt=[""']([^""']+)[""']", main)));
+                var source = SourceLink(card);
+                return new CommunityKnowledgeInfo(
+                    Empty(Clean(Capture(@"<h2\b[^>]*>(.*?)</h2>", card))),
+                    prompt, source.Url, source.Label);
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Title)
+                           && !string.IsNullOrWhiteSpace(item.Prompt))
+            .ToArray();
     }
+
+    private static FastRadarInfo? ParseFastRadar(string html)
+    {
+        var section = ElementByClass("section", "fast-radar", html);
+        if (section is null) return null;
+
+        var updated = Clean(Capture(
+            @"<h2>.*?<em>(.*?)</em>.*?</h2>", section));
+        var title = Clean(Capture(@"<h2>(.*?)</h2>", section));
+        if (updated.Length > 0)
+            title = title.Replace(
+                updated, "", StringComparison.Ordinal).Trim();
+        var subtitle = Clean(Capture(
+            @"<div\s+class=[""']fast-radar-head[""'][^>]*>.*?</h2>\s*</div>\s*<span>(.*?)</span>",
+            section));
+        var summarySection = Capture(
+            @"<div\s+class=[""']fast-radar-summary[""'][^>]*>(.*?)</div>\s*<div\s+class=[""']fast-radar-table[""']",
+            section) ?? "";
+        var summary = Matches(
+                @"<div\b[^>]*>\s*<span\b[^>]*>(.*?)</span>\s*<strong\b[^>]*>(.*?)</strong>\s*</div>",
+                summarySection)
+            .Select(groups => new FastRadarSummaryItem(
+                Empty(Clean(groups[0])),
+                Empty(Clean(groups[1]))))
+            .Where(item => item.Label is not null
+                           && item.Value is not null)
+            .ToArray();
+        if (summary.Length == 0)
+        {
+            summary = Matches(ClassElementPattern("div", "fast-simple-row"), section)
+                .Select(groups => groups[0])
+                .Select(row => new FastRadarSummaryItem(
+                    Empty(Clean(Regex.Replace(
+                        Capture(@"<strong\b[^>]*>(.*?)</strong>", row) ?? "",
+                        @"<small\b[^>]*>.*?</small>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase))) is { } model
+                        ? model + " · TPS" : null,
+                    Empty(Clean(ElementByClass("strong", "fast-simple-ratio", row)))))
+                .Where(item => item.Label is not null && item.Value is not null)
+                .ToArray();
+        }
+        var rows = Matches(
+                @"<div\s+class=[""']fast-radar-row[""'][^>]*>\s*<div\s+class=[""']fast-radar-model[""'][^>]*>.*?<strong>(.*?)</strong></div>\s*<div\s+class=[""']fast-radar-metric[^""']*[""'][^>]*data-label=[""']([^""']+)[""'][^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*<div\s+class=[""']fast-radar-metric[^""']*[""'][^>]*data-label=[""']([^""']+)[""'][^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*<div\s+class=[""']fast-radar-metric[^""']*[""'][^>]*data-label=[""']([^""']+)[""'][^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*</div>",
+                section)
+            .Where(groups => groups.Length == 10)
+            .Select(groups => new FastRadarRow(
+                Empty(Clean(groups[0])),
+                FastMetric(groups[1], groups[2], groups[3]),
+                FastMetric(groups[4], groups[5], groups[6]),
+                FastMetric(groups[7], groups[8], groups[9])))
+            .Where(row => row.Model is not null)
+            .ToArray();
+        var explanation = ElementByClass("(?:div|details)", "fast-radar-explain", html);
+        var method = Empty(CleanMultiline(explanation is null ? null
+            : Capture(@"<p\b[^>]*>(.*?)</p>", explanation)));
+        if (summary.Length == 0 && rows.Length == 0) return null;
+        return new FastRadarInfo(
+            Empty(title) ?? "Fast 雷达",
+            Empty(updated),
+            Empty(subtitle),
+            summary,
+            rows,
+            method);
+    }
+
+    private static FastRadarMetric FastMetric(
+        string? label,
+        string? range,
+        string? value) => new(
+        Empty(Clean(label)),
+        Empty(Clean(range)),
+        Empty(Clean(value)));
 
     private static (string? Label, string? Message, string? Updated, string? SourceLabel, string? SourceUrl) ParseAnnouncement(string html)
     {
-        var section = Capture(@"<section\s+class=[""']site-announcement[""'][^>]*>(.*?)</section>", html);
-        var paragraph = section is null ? null : Capture(@"<p>(.*?)</p>", section);
-        if (section is null || paragraph is null) return (null, null, null, null, null);
-        var label = Clean(Capture(@"<span>(.*?)</span>", section));
-        var updated = Clean(Capture(@"<span\s+class=[""']site-announcement-updated[""'][^>]*>(.*?)</span>", paragraph));
-        var source = Matches(@"<a\s+class=[""']site-announcement-source[""']\s+href=[""']([^""']+)[""'][^>]*>(.*?)</a>", paragraph).FirstOrDefault();
-        var messageHtml = Regex.Replace(paragraph, @"<a\s+class=[""']site-announcement-source[^>]*>.*?</a>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase);
-        messageHtml = Regex.Replace(messageHtml, @"<br\s*/?>\s*<span\s+class=[""']site-announcement-updated[""'][^>]*>.*?</span>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase);
-        var message = Clean(messageHtml);
-        return (Empty(label) ?? "公告", Empty(message), Empty(updated), source is { Length: >= 2 } ? Empty(Clean(source[1])) : null,
-            source is { Length: >= 2 } ? Empty(Clean(source[0])) : null);
+        var section = ElementByClass("section", "site-announcement", html);
+        if (section is null) return (null, null, null, null, null);
+        var label = Clean(ElementByClass("span", "site-announcement-label", section)
+                          ?? Capture(@"<span\b[^>]*>(.*?)</span>", section));
+        var updated = Clean(ElementByClass("span", "site-announcement-updated", section)
+                            ?? ElementByClass("span", "site-announcement-lead", section));
+        var headline = Empty(Clean(ElementByClass("strong", "site-announcement-headline", section)));
+        var detail = Empty(Clean(ElementByClass("p", "site-announcement-reset-detail", section)));
+        var source = SourceLink(section, "site-announcement-source", "pro-subscription-announcement-link");
+        var paragraph = Capture(@"<p\b[^>]*>(.*?)</p>", section) ?? "";
+        var messageHtml = Regex.Replace(paragraph, ClassElementPattern("a", "site-announcement-source"), "",
+            RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        messageHtml = Regex.Replace(messageHtml, ClassElementPattern("span", "site-announcement-updated"), "",
+            RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        var leads = Matches(ClassElementPattern("p", "site-announcement-lead"), section)
+            .Select(groups => Clean(groups[0])).Where(value => value.Length > 0);
+        var message = headline is null ? Clean(messageHtml)
+            : detail is not null ? headline + " — " + detail
+            : string.Join("\n\n", new[] { headline }.Concat(leads));
+        return (Empty(label) ?? "公告", Empty(message), Empty(updated), source.Label, source.Url);
     }
+
+    private static (string? Url, string? Label) SourceLink(string html, params string[] classes)
+    {
+        foreach (var link in Matches(@"<a\b([^>]*)>(.*?)</a>", html))
+        {
+            var tokens = (Capture(@"\bclass\s*=\s*[""']([^""']*)[""']", link[0]) ?? "")
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (classes.Length > 0 && !classes.Any(value => tokens.Contains(value, StringComparer.OrdinalIgnoreCase)))
+                continue;
+            var url = PublicWebLink.Normalize(WebUtility.HtmlDecode(
+                Capture(@"\bhref\s*=\s*[""']([^""']+)[""']", link[0])), allowRelative: true);
+            if (url is not null) return (url, Empty(Clean(link[1])));
+        }
+        return (null, null);
+    }
+
+    private static string ClassElementPattern(string tag, string className) =>
+        $@"<{tag}\b(?=[^>]*\sclass\s*=\s*[""'][^""']*(?<![\w-]){Regex.Escape(className)}(?![\w-])[^""']*[""'])[^>]*>(.*?)</{tag}>";
+
+    private static string? ElementByClass(string tag, string className, string html) =>
+        Capture(ClassElementPattern(tag, className), html);
 
     private static string? ResetText((string? Title, string? Updated, IReadOnlyList<ResetJudgementCard> Cards, IReadOnlyList<string> Reasons) reset)
     {

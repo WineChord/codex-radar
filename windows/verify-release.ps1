@@ -75,8 +75,10 @@ function Invoke-PackagedSelfTest {
         -WindowStyle Hidden `
         -Wait `
         -PassThru
-    if ($process.ExitCode -ne 0) {
-        throw "Packaged self-test failed with exit code $($process.ExitCode)."
+    $exitCode = $process.ExitCode
+    $process.Dispose()
+    if ($exitCode -ne 0) {
+        throw "Packaged self-test failed with exit code $exitCode."
     }
 }
 
@@ -86,7 +88,7 @@ function Remove-TemporaryDirectory {
     for ($attempt = 1; $attempt -le 10; $attempt++) {
         try {
             if (Test-Path -LiteralPath $Path) {
-                Remove-Item -LiteralPath $Path -Recurse -Force
+                Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
             }
             return
         }
@@ -156,6 +158,8 @@ $TemporaryRoot = Join-Path (
 ) ("codex-radar-release-validation-" + [Guid]::NewGuid().ToString("N"))
 Assert-ChildPath -Parent ([IO.Path]::GetTempPath()) -Child $TemporaryRoot
 New-Item -ItemType Directory -Path $TemporaryRoot -Force | Out-Null
+$PreviousBundleExtractBaseDirectory = $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR
+$env:DOTNET_BUNDLE_EXTRACT_BASE_DIR = Join-Path $TemporaryRoot "bundle-cache"
 
 try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -251,6 +255,7 @@ try {
     Write-Host "Validation evidence: $EvidencePath"
 }
 finally {
+    $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR = $PreviousBundleExtractBaseDirectory
     if (Test-Path -LiteralPath $TemporaryRoot) {
         Assert-ChildPath -Parent ([IO.Path]::GetTempPath()) -Child $TemporaryRoot
         Remove-TemporaryDirectory -Path $TemporaryRoot

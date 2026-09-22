@@ -197,24 +197,81 @@ public struct RadarDegradationAlert: Decodable, Equatable {
     public let model: String?
     public let effort: String?
     public let iq: Double?
+    public let average24HourIQ: Double?
+    public let average48HourIQ: Double?
+    public let from24HourAverageIQ: Double?
+    public let from48HourAverageIQ: Double?
     public let from24HourHighIQ: Double?
     public let from48HourHighIQ: Double?
 
+    public var preferred24HourDropIQ: Double? {
+        from24HourAverageIQ
+            ?? averageDrop(from: average24HourIQ)
+            ?? from24HourHighIQ
+    }
+
+    public var preferred48HourDropIQ: Double? {
+        from48HourAverageIQ
+            ?? averageDrop(from: average48HourIQ)
+            ?? from48HourHighIQ
+    }
+
+    public var uses24HourAverageComparison: Bool {
+        from24HourAverageIQ != nil || (average24HourIQ != nil && iq != nil)
+    }
+
+    public var uses48HourAverageComparison: Bool {
+        from48HourAverageIQ != nil || (average48HourIQ != nil && iq != nil)
+    }
+
     public var largestDrop: Double {
-        [from24HourHighIQ, from48HourHighIQ]
+        [preferred24HourDropIQ, preferred48HourDropIQ]
             .compactMap { $0 }
             .filter(\.isFinite)
             .max() ?? 0
     }
 
+    public var largestDropUsesAverageComparison: Bool {
+        switch (preferred24HourDropIQ, preferred48HourDropIQ) {
+        case let (drop24?, drop48?) where drop24 > drop48:
+            return uses24HourAverageComparison
+        case let (drop24?, drop48?) where drop48 > drop24:
+            return uses48HourAverageComparison
+        case (_?, _?):
+            return uses24HourAverageComparison
+                || uses48HourAverageComparison
+        case (_?, nil):
+            return uses24HourAverageComparison
+        case (nil, _?):
+            return uses48HourAverageComparison
+        case (nil, nil):
+            return false
+        }
+    }
+
     fileprivate var isValid: Bool {
-        let drops = [from24HourHighIQ, from48HourHighIQ].compactMap { $0 }
+        let averages = [average24HourIQ, average48HourIQ]
+            .compactMap { $0 }
+        let drops = [
+            from24HourAverageIQ,
+            from48HourAverageIQ,
+            from24HourHighIQ,
+            from48HourHighIQ,
+        ].compactMap { $0 }
         return RadarInsightsDecoding.hasText(model)
             && RadarInsightsDecoding.hasText(effort)
             && iq?.isFinite == true
             && (iq ?? -1) >= 0
+            && averages.allSatisfy { $0.isFinite && $0 >= 0 }
             && drops.allSatisfy { $0.isFinite && $0 >= 0 }
             && largestDrop > 0
+    }
+
+    private func averageDrop(from average: Double?) -> Double? {
+        guard let iq, let average else {
+            return nil
+        }
+        return average - iq
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -222,6 +279,10 @@ public struct RadarDegradationAlert: Decodable, Equatable {
         case effort
         case iq
         case currentIQ = "current_iq"
+        case average24HourIQ = "average_iq_24h"
+        case average48HourIQ = "average_iq_48h"
+        case from24HourAverageIQ = "from_24h_average_iq"
+        case from48HourAverageIQ = "from_48h_average_iq"
         case from24HourHighIQ = "from_24h_high_iq"
         case degradation24HourIQ = "degradation_24h_iq"
         case drop24Hour = "drop_24h"
@@ -245,6 +306,22 @@ public struct RadarDegradationAlert: Decodable, Equatable {
         iq = RadarInsightsDecoding.double(
             in: container,
             keys: [.iq, .currentIQ]
+        )
+        average24HourIQ = RadarInsightsDecoding.double(
+            in: container,
+            keys: [.average24HourIQ]
+        )
+        average48HourIQ = RadarInsightsDecoding.double(
+            in: container,
+            keys: [.average48HourIQ]
+        )
+        from24HourAverageIQ = RadarInsightsDecoding.double(
+            in: container,
+            keys: [.from24HourAverageIQ]
+        )
+        from48HourAverageIQ = RadarInsightsDecoding.double(
+            in: container,
+            keys: [.from48HourAverageIQ]
         )
         from24HourHighIQ = RadarInsightsDecoding.double(
             in: container,

@@ -7,17 +7,43 @@ namespace CodexRadar.Windows;
 
 internal sealed class AppServerClient : IAsyncDisposable
 {
+    private enum ProcessTransport
+    {
+        StandaloneStdio,
+        ManagedWebSocket
+    }
+
     internal static readonly System.Text.Encoding JsonLineEncoding = new System.Text.UTF8Encoding(false);
     private Process? _process;
     private StreamWriter? _input;
     private StreamReader? _output;
+    private ManagedAppServerConnection? _managedConnection;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly bool _allowsAutomaticRestart;
+    private readonly Func<string?> _managedControlSocketProvider;
     private int _nextId = 1;
     private bool _initialized;
     private bool _disposed;
+    private bool _hasStartedProcess;
+    private bool _hasCompletedRead;
+    private bool _hasCompletedReadOnCurrentProcess;
+    private ProcessTransport? _transport;
     private IReadOnlyList<string>? _cachedExecutables;
     private string? _preferredExecutable;
     private string? _runningExecutable;
+
+    public AppServerClient(bool allowsAutomaticRestart = true)
+        : this(allowsAutomaticRestart, CodexManagedAppServerLocator.FindControlSocket)
+    {
+    }
+
+    internal AppServerClient(
+        bool allowsAutomaticRestart,
+        Func<string?> managedControlSocketProvider)
+    {
+        _allowsAutomaticRestart = allowsAutomaticRestart;
+        _managedControlSocketProvider = managedControlSocketProvider;
+    }
 
     public async Task<LocalQuotaResult> ReadRateLimitsAsync(CancellationToken cancellationToken)
     {
@@ -121,7 +147,8 @@ internal sealed class AppServerClient : IAsyncDisposable
 
     private async Task<LocalQuotaResult> ReadStartedRateLimitsAsync(CancellationToken cancellationToken)
     {
-        using var result = await RequestAsync("account/rateLimits/read", null, cancellationToken)
+        using var result = await ReadRequestWithManagedFallbackAsync(
+                "account/rateLimits/read", null, cancellationToken)
             .ConfigureAwait(false);
         return ParseRateLimits(result.RootElement);
     }
@@ -133,8 +160,7 @@ internal sealed class AppServerClient : IAsyncDisposable
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
-            using var result = await RequestAsync(
+            using var result = await ReadRequestWithManagedFallbackAsync(
                 "account/read", new { refreshToken = false }, cancellationToken)
                 .ConfigureAwait(false);
             return CodexAccountIdentity.Parse(result.RootElement);
@@ -154,8 +180,7 @@ internal sealed class AppServerClient : IAsyncDisposable
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
-            using var result = await RequestAsync(
+            using var result = await ReadRequestWithManagedFallbackAsync(
                 "account/rateLimits/read", null, cancellationToken)
                 .ConfigureAwait(false);
             return ProtectionRateLimitResponse.Parse(result.RootElement);
@@ -235,7 +260,12 @@ internal sealed class AppServerClient : IAsyncDisposable
 
         var weekly = ChooseWindow(windows, 10_080, "secondary");
         var shortWindow = ChooseWindow(windows, 300, "primary");
-        var blocked = selected.String("rateLimitReachedType", "rate_limit_reached_type") is not null
+        var reportsUsagePermission = root.TryGetProperty("ordinaryUsageAllowed", out _)
+                                     || root.TryGetProperty("ordinary_usage_allowed", out _);
+        var usageAllowed = root.Bool("ordinaryUsageAllowed", "ordinary_usage_allowed");
+        var blocked = usageAllowed == false
+                      || selected.Bool("spendControlReached", "spend_control_reached") == true
+                      || selected.String("rateLimitReachedType", "rate_limit_reached_type") is not null
                       || windows.Any(x => x.Used >= 100);
         string? creditsBalance = null;
         if (selected.Object("credits") is JsonElement credits)
@@ -249,7 +279,8 @@ internal sealed class AppServerClient : IAsyncDisposable
             shortWindow is null ? null : RadarJson.RemainingPercent(shortWindow.Value.Used),
             weekly?.Used, shortWindow?.Used, weekly?.Duration, shortWindow?.Duration,
             ToDate(weekly?.ResetsAt), ToDate(shortWindow?.ResetsAt), blocked,
-            selected.String("planType", "plan_type"), creditsBalance);
+            selected.String("planType", "plan_type"), creditsBalance,
+            !blocked && (!reportsUsagePermission || usageAllowed == true));
     }
 
     private static (string Name, double? Duration, double Used, long? ResetsAt)? ChooseWindow(
@@ -286,13 +317,155 @@ internal sealed class AppServerClient : IAsyncDisposable
 
     private async Task StartAsync(string executable, CancellationToken cancellationToken)
     {
+        var socket = _managedControlSocketProvider();
+        if (!string.IsNullOrWhiteSpace(socket))
+        {
+            try
+            {
+                await StartTransportAsync(
+                        executable,
+                        ProcessTransport.ManagedWebSocket,
+                        socket,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex) when (ShouldFallbackFromManagedTransport(ex))
+            {
+                Stop();
+            }
+        }
+
+        await StartTransportAsync(
+                executable,
+                ProcessTransport.StandaloneStdio,
+                null,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task StartTransportAsync(
+        string executable,
+        ProcessTransport transport,
+        string? socket,
+        CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
+        Stop();
+        var start = CreateStartInfo(executable, transport, socket);
+        _process = Process.Start(start)
+                   ?? throw new InvalidOperationException("Codex app-server 启动失败");
+        _hasStartedProcess = true;
+        _transport = transport;
+        _runningExecutable = executable;
+        var errorReader = _process.StandardError;
+        _ = Task.Run(async () =>
+        {
+            try { while (await errorReader.ReadLineAsync() is not null) { } } catch { }
+        }, CancellationToken.None);
+        if (cancellationToken.IsCancellationRequested)
+        {
+            Stop();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        var startedProcess = _process;
+        if (transport == ProcessTransport.ManagedWebSocket)
+        {
+            using var handshakeTimeout =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            handshakeTimeout.CancelAfter(TimeSpan.FromSeconds(15));
+            try
+            {
+                _managedConnection = await ManagedAppServerConnection.ConnectAsync(
+                        startedProcess.StandardInput.BaseStream,
+                        startedProcess.StandardOutput.BaseStream,
+                        handshakeTimeout.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException ex)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException(
+                    "The managed Codex app-server handshake timed out after 15 seconds.",
+                    ex);
+            }
+        }
+        else
+        {
+            _input = startedProcess.StandardInput;
+            _input.AutoFlush = true;
+            _output = startedProcess.StandardOutput;
+        }
+
+        var parameters = new
+        {
+            clientInfo = new
+            {
+                name = "codex-radar-sentinel-windows",
+                title = "Codex Radar Sentinel",
+                version = AppUpdateService.CurrentVersion
+            },
+            capabilities = new
+            {
+                experimentalApi = false,
+                requestAttestation = false,
+                optOutNotificationMethods = Array.Empty<string>()
+            }
+        };
+        using var initializeResult = await RequestAsync(
+                "initialize", parameters, cancellationToken)
+            .ConfigureAwait(false);
+        if (transport == ProcessTransport.ManagedWebSocket)
+        {
+            var initialized = JsonSerializer.SerializeToUtf8Bytes(
+                new { method = "initialized" });
+            using var notificationTimeout =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            notificationTimeout.CancelAfter(TimeSpan.FromSeconds(15));
+            try
+            {
+                await (_managedConnection
+                       ?? throw new InvalidOperationException(
+                           "The managed Codex app-server connection is unavailable."))
+                    .SendNotificationAsync(initialized, notificationTimeout.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException ex)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException(
+                    "The managed Codex app-server initialization notification timed out after 15 seconds.",
+                    ex);
+            }
+        }
+        _initialized = true;
+    }
+
+    private static ProcessStartInfo CreateStartInfo(
+        string executable,
+        ProcessTransport transport,
+        string? socket)
+    {
+        if (transport == ProcessTransport.ManagedWebSocket
+            && string.IsNullOrWhiteSpace(socket))
+            throw new ArgumentException(
+                "A control socket is required for a managed Codex session.",
+                nameof(socket));
+        var arguments = transport == ProcessTransport.ManagedWebSocket
+            ? new[] { "app-server", "proxy", "--sock", socket! }
+            : new[] { "app-server", "--listen", "stdio://" };
         var isCommandScript = executable.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase)
                               || executable.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
         var start = new ProcessStartInfo
         {
-            FileName = isCommandScript ? Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe" : executable,
-            Arguments = isCommandScript ? $"/d /s /c \"\"{executable}\" app-server --listen stdio://\"" : "app-server --listen stdio://",
+            FileName = isCommandScript
+                ? Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe"
+                : executable,
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
@@ -304,35 +477,30 @@ internal sealed class AppServerClient : IAsyncDisposable
             // initialize before it can return a JSON-RPC response.
             StandardInputEncoding = JsonLineEncoding
         };
-        cancellationToken.ThrowIfCancellationRequested();
-        _process = Process.Start(start) ?? throw new InvalidOperationException("Codex app-server 启动失败");
-        if (cancellationToken.IsCancellationRequested)
+        if (isCommandScript)
         {
-            Stop();
-            cancellationToken.ThrowIfCancellationRequested();
+            if (arguments.Any(argument => argument.Contains('"'))
+                || executable.Contains('"'))
+                throw new InvalidDataException(
+                    "The Codex executable or socket path contains an unsafe quote.");
+            start.Arguments = $"/d /s /c \"\"{executable}\" "
+                              + string.Join(" ", arguments.Select(argument =>
+                                  argument.Contains(' ') ? $"\"{argument}\"" : argument))
+                              + "\"";
         }
-        var startedProcess = _process;
-        _input = startedProcess.StandardInput;
-        _input.AutoFlush = true;
-        _output = startedProcess.StandardOutput;
-        var errorReader = startedProcess.StandardError;
-        _ = Task.Run(async () =>
+        else
         {
-            try { while (await errorReader.ReadLineAsync() is not null) { } } catch { }
-        }, CancellationToken.None);
-
-        var parameters = new
-        {
-            clientInfo = new { name = "codex-radar-sentinel-windows", title = "Codex Radar Sentinel", version = AppUpdateService.CurrentVersion },
-            capabilities = new { experimentalApi = false, requestAttestation = false, optOutNotificationMethods = Array.Empty<string>() }
-        };
-        using var initializeResult = await RequestAsync("initialize", parameters, cancellationToken);
-        _initialized = true;
+            foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        }
+        return start;
     }
 
     private async Task EnsureStartedAsync(CancellationToken cancellationToken)
     {
         if (_process is { HasExited: false } && _initialized) return;
+        if (!_allowsAutomaticRestart && _hasStartedProcess)
+            throw new ResetCreditPreDispatchException(
+                "The verified Codex app-server session ended before dispatch.");
         Stop();
         var executables = _cachedExecutables ??= FindCodexBinaries();
         if (executables.Count == 0)
@@ -367,6 +535,54 @@ internal sealed class AppServerClient : IAsyncDisposable
             "Codex app-server candidates failed: " + string.Join("; ", failures.Take(4)));
     }
 
+    private async Task<JsonDocument> ReadRequestWithManagedFallbackAsync(
+        string method,
+        object? parameters,
+        CancellationToken cancellationToken)
+    {
+        await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
+        var usedManagedTransport = _transport == ProcessTransport.ManagedWebSocket;
+        try
+        {
+            var result = await RequestAsync(method, parameters, cancellationToken)
+                .ConfigureAwait(false);
+            _hasCompletedRead = true;
+            _hasCompletedReadOnCurrentProcess =
+                _process is { HasExited: false } && _initialized;
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+            when (usedManagedTransport
+                  && ShouldFallbackFromManagedTransport(ex)
+                  && CanFallbackFromManagedTransport(
+                      _allowsAutomaticRestart,
+                      _hasCompletedRead,
+                      _hasCompletedReadOnCurrentProcess))
+        {
+            var executable = _runningExecutable
+                             ?? throw new InvalidOperationException(
+                                 "The Codex executable is unavailable for fallback.",
+                                 ex);
+            Stop();
+            await StartTransportAsync(
+                    executable,
+                    ProcessTransport.StandaloneStdio,
+                    null,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            var result = await RequestAsync(method, parameters, cancellationToken)
+                .ConfigureAwait(false);
+            _hasCompletedRead = true;
+            _hasCompletedReadOnCurrentProcess =
+                _process is { HasExited: false } && _initialized;
+            return result;
+        }
+    }
+
     private async Task<JsonDocument> RequestAsync(
         string method,
         object? parameters,
@@ -376,68 +592,90 @@ internal sealed class AppServerClient : IAsyncDisposable
         var process = _process;
         var input = _input;
         var output = _output;
-        if (process is not { HasExited: false } || input is null || output is null)
+        var managed = _managedConnection;
+        if (process is not { HasExited: false }
+            || (_transport == ProcessTransport.ManagedWebSocket
+                ? managed is null
+                : input is null || output is null))
             throw new InvalidOperationException("Codex app-server 不可用");
         var id = _nextId++;
         var request = parameters is null ? new { id, method } : (object)new { id, method, @params = parameters };
         var serialized = JsonSerializer.Serialize(request);
         cancellationToken.ThrowIfCancellationRequested();
-        if (authorizedDispatch is null)
-        {
-            await input.WriteLineAsync(serialized);
-        }
-        else
-        {
-            try
-            {
-                authorizedDispatch(() =>
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    input.WriteLine(serialized);
-                });
-            }
-            catch (ResetCreditAuthorizationException) { throw; }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception ex)
-            {
-                throw new ResetCreditPreDispatchException(
-                    "Reset-credit dispatch authorization could not be verified.", ex);
-            }
-        }
-
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
-        while (true)
+        JsonDocument document;
+        try
         {
-            string? line;
-            try
+            if (_transport == ProcessTransport.ManagedWebSocket)
             {
-                line = await output.ReadLineAsync(timeout.Token);
+                document = await managed!.RequestAsync(
+                        id,
+                        JsonLineEncoding.GetBytes(serialized),
+                        timeout.Token,
+                        authorizedDispatch)
+                    .ConfigureAwait(false);
             }
-            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            else
             {
-                throw new TimeoutException($"Codex app-server RPC '{method}' timed out after 15 seconds.", ex);
+                if (authorizedDispatch is null)
+                {
+                    await input!.WriteLineAsync(serialized);
+                }
+                else
+                {
+                    authorizedDispatch(() =>
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        input!.WriteLine(serialized);
+                    });
+                }
+
+                while (true)
+                {
+                    var line = await output!.ReadLineAsync(timeout.Token);
+                    if (line is null) throw new EndOfStreamException("Codex app-server 已退出");
+                    document = JsonDocument.Parse(line);
+                    if (document.RootElement.Int32("id") == id) break;
+                    document.Dispose();
+                }
             }
-            if (line is null) throw new EndOfStreamException("Codex app-server 已退出");
-            var document = JsonDocument.Parse(line);
-            var root = document.RootElement;
-            if (root.Int32("id") != id) { document.Dispose(); continue; }
-            if (root.TryGetProperty("error", out var error))
-            {
-                var message = error.String("message") ?? "Codex app-server RPC error";
-                var code = error.Int32("code");
-                document.Dispose();
-                throw new AppServerRpcException(code, message);
-            }
-            if (!root.TryGetProperty("result", out var result))
-            {
-                document.Dispose();
-                throw new InvalidDataException("Codex app-server 响应缺少 result");
-            }
-            var copy = JsonDocument.Parse(result.GetRawText());
-            document.Dispose();
-            return copy;
         }
+        catch (ResetCreditAuthorizationException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"Codex app-server RPC '{method}' timed out after 15 seconds.", ex);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (authorizedDispatch is not null)
+        {
+            throw new ResetCreditPreDispatchException(
+                "Reset-credit dispatch authorization could not be verified.", ex);
+        }
+
+        var root = document.RootElement;
+        if (root.TryGetProperty("error", out var error))
+        {
+            var message = error.String("message") ?? "Codex app-server RPC error";
+            var code = error.Int32("code");
+            document.Dispose();
+            throw new AppServerRpcException(code, message);
+        }
+        if (!root.TryGetProperty("result", out var resultElement))
+        {
+            document.Dispose();
+            throw new InvalidDataException("Codex app-server 响应缺少 result");
+        }
+        var copy = JsonDocument.Parse(resultElement.GetRawText());
+        document.Dispose();
+        return copy;
     }
 
     private static DateTimeOffset? ToDate(long? epochSeconds) => epochSeconds is long seconds
@@ -446,6 +684,23 @@ internal sealed class AppServerClient : IAsyncDisposable
     private static bool IsAuthenticationRequired(Exception exception) =>
         exception.Message.Contains("authentication required", StringComparison.OrdinalIgnoreCase)
         || exception.Message.Contains("not logged in", StringComparison.OrdinalIgnoreCase);
+
+    internal static bool ShouldFallbackFromManagedTransport(Exception exception) =>
+        exception is ManagedAppServerTransportException
+            or EndOfStreamException
+            or IOException
+            or TimeoutException
+        || exception is AppServerRpcException rpc
+           && (rpc.Message.Contains("authentication", StringComparison.OrdinalIgnoreCase)
+               || rpc.Message.Contains("not logged in", StringComparison.OrdinalIgnoreCase));
+
+    internal static bool CanFallbackFromManagedTransport(
+        bool allowsAutomaticRestart,
+        bool hasCompletedRead,
+        bool hasCompletedReadOnCurrentProcess) =>
+        allowsAutomaticRestart
+            ? !hasCompletedReadOnCurrentProcess
+            : !hasCompletedRead;
 
     internal static bool ShouldTryNextCandidate(Exception exception) => exception switch
     {
@@ -519,7 +774,7 @@ internal sealed class AppServerClient : IAsyncDisposable
             .Select(path => Path.GetFullPath(path!)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    private static bool IsNetworkPath(string path)
+    internal static bool IsNetworkPath(string path)
     {
         try
         {
@@ -556,10 +811,14 @@ internal sealed class AppServerClient : IAsyncDisposable
     private void Stop()
     {
         _initialized = false;
+        _hasCompletedReadOnCurrentProcess = false;
+        _transport = null;
         _runningExecutable = null;
+        var managed = Interlocked.Exchange(ref _managedConnection, null);
         var input = Interlocked.Exchange(ref _input, null);
         var output = Interlocked.Exchange(ref _output, null);
         var process = Interlocked.Exchange(ref _process, null);
+        try { managed?.Dispose(); } catch { }
         try { input?.Dispose(); } catch { }
         try { output?.Dispose(); } catch { }
         if (process is not null)
@@ -607,4 +866,4 @@ internal sealed record LocalQuotaResult(
     int? Weekly, int? Short, double? WeeklyUsed, double? ShortUsed,
     double? WeeklyDurationMinutes, double? ShortDurationMinutes,
     DateTimeOffset? WeeklyReset, DateTimeOffset? ShortReset, bool Blocked,
-    string? PlanType, string? CreditsBalance);
+    string? PlanType, string? CreditsBalance, bool CanConfirmWeeklyRecovery = true);
