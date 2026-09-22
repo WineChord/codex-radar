@@ -21,11 +21,19 @@ unchanged relative to that upstream revision.
 
 Local verification date: **2026-09-22**.
 
-| Target | Evidence | Remaining release gate |
+| Target | Evidence | Remaining limitations / release gate |
 | --- | --- | --- |
-| Windows 11 x64, build 26200 | Build; offline regressions; read-only live public-radar and signed-in quota checks; dashboard and Explorer taskbar checks; self-contained package verification; isolated install/start, upgrade, injected-failure rollback/restart, and uninstall. | Review matching CI artifacts before publishing. |
+| Windows 11 x64, build 26200 | Build; offline regressions; read-only live public-radar and signed-in quota checks; dashboard and Explorer taskbar checks; self-contained package verification; isolated install/start, upgrade, injected-failure rollback/restart, and uninstall. | Upstream pull-request checks require maintainer approval before they can run. |
 | Windows 10 1809+ x64 | Minimum supported API target is build 17763; platform-compatibility warnings fail the build. | Native Windows 10 client/VM execution of both validation scripts is still required. Windows 11 and Windows Server results do not substitute for this. |
-| Windows 11 ARM64 | ARM64 compilation, PE architecture, archive entries, manifest, and both checksum layers verified on x64. CI includes a native ARM64 job. | A successful native ARM64 run and desktop/lifecycle evidence are still required; cross-compilation is not runtime verification. |
+| Windows 11 ARM64, native hosted runner | Native build and offline tests; Chinese/English M/L/XL dashboard and Explorer taskbar checks; self-contained package and native binary verification; isolated install/start, upgrade, injected-failure rollback/restart, and uninstall. | No signed-in live Codex quota check or physical ARM64 device session was performed on this runner. |
+
+The [Windows CI run for `dc51d38`](https://github.com/print-happy/codex-radar/actions/runs/35731014683)
+passed both the x64 Windows Server 2022 job and the native Windows 11 ARM64 job.
+Each job retains its verified package, checksum, package-verification JSON, and
+lifecycle JSON as an architecture-specific artifact. The x64 Server result is
+additional automation coverage, not a substitute for Windows 10 client testing.
+The subsequent validation-note update does not change the tested Windows code,
+packaging scripts, or workflow.
 
 The current checks do not claim a multi-day soak test, every third-party taskbar
 replacement, or every monitor/DPI arrangement. High-contrast mode removes window
