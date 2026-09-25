@@ -639,23 +639,34 @@ public struct CodexRadarClient {
     }
 
     private static func parseHomepageFastRadar(html: String) -> [String: Any]? {
-        guard let section = firstCapture(
-            #"<section\s+[^>]*class="(?:[^"]*\s)?fast-radar(?:\s[^"]*)?"[^>]*>(.*?)</section>"#,
-            in: html
-        ) else {
+        guard let section = firstBalancedSection(withClass: "fast-radar", in: html) else {
             return nil
         }
 
-        let updatedLabel = cleanHTMLText(firstCapture(#"<h2>.*?<em>(.*?)</em>.*?</h2>"#, in: section))
+        var updatedLabel = cleanHTMLText(firstCapture(#"<h2>.*?<em>(.*?)</em>.*?</h2>"#, in: section))
         var title = cleanHTMLText(firstCapture(#"<h2>(.*?)</h2>"#, in: section))
         if !updatedLabel.isEmpty {
             title = title.replacingOccurrences(of: updatedLabel, with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        let subtitle = cleanHTMLText(firstCapture(
+        var subtitle = cleanHTMLText(firstCapture(
             #"<div\s+class="fast-radar-head"[^>]*>.*?</h2>\s*</div>\s*<span>(.*?)</span>"#,
             in: section
         ))
+        let metadata = allMatches(
+            #"<div\s+class="(?:[^"]*\s)?fast-radar-meta(?:\s[^"]*)?"[^>]*>(.*?)</div>"#,
+            in: section
+        ).first.map { groups in
+            allMatches(#"<span(?:\s+[^>]*)?>(.*?)</span>"#, in: groups[safe: 0] ?? "")
+                .map { cleanHTMLText($0[safe: 0]) }
+                .filter { !$0.isEmpty }
+        } ?? []
+        if updatedLabel.isEmpty {
+            updatedLabel = metadata[safe: 0] ?? ""
+        }
+        if subtitle.isEmpty {
+            subtitle = metadata[safe: 1] ?? ""
+        }
         let summarySection = firstCapture(
             #"<div\s+class="fast-radar-summary"[^>]*>(.*?)</div>\s*<div\s+class="fast-radar-table""#,
             in: section
@@ -688,7 +699,7 @@ public struct CodexRadarClient {
                 return ["label": "\(model) · TPS", "value": value]
             }
         }
-        let rows = allMatches(
+        var rows = allMatches(
             #"<div\s+class="fast-radar-row"[^>]*>\s*<div\s+class="fast-radar-model"[^>]*>.*?<strong>(.*?)</strong></div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*<div\s+class="fast-radar-metric[^"]*"[^>]*data-label="([^"]+)"[^>]*>\s*<span>(.*?)</span>\s*<strong>(.*?)</strong>\s*</div>\s*</div>"#,
             in: section
         ).map { groups in
@@ -701,10 +712,52 @@ public struct CodexRadarClient {
         }.filter { row in
             !(row["model"] as? String ?? "").isEmpty
         }
-        let method = cleanHTMLMultilineText(firstCapture(
-            #"<(?:div|details)\s+[^>]*class="(?:[^"]*\s)?fast-radar-explain(?:\s[^"]*)?"[^>]*>.*?<p(?:\s+[^>]*)?>(.*?)</p>"#,
-            in: html
-        ))
+        if rows.isEmpty {
+            rows = allMatches(
+                #"<article\b[^>]*class="[^"]*\bfast-radar-card\b[^"]*"[^>]*>(.*?)</article>"#,
+                in: section
+            ).compactMap { groups -> [String: Any]? in
+                let card = groups[safe: 0] ?? ""
+                let headingHTML = firstCapture(#"<h3(?:\s+[^>]*)?>(.*?)</h3>"#, in: card) ?? ""
+                let model = cleanHTMLText(headingHTML.replacingOccurrences(
+                    of: #"(?s)<small\b[^>]*>.*?</small>"#,
+                    with: "",
+                    options: .regularExpression
+                ))
+                guard !model.isEmpty,
+                      let e2e = fastRadarCardMetric("e2e_seconds", in: card),
+                      let ttft = fastRadarCardMetric("ttft_seconds", in: card),
+                      let tps = fastRadarCardMetric("tps", in: card) else {
+                    return nil
+                }
+                return ["model": model, "e2e": e2e, "ttft": ttft, "tps": tps]
+            }
+        }
+        if summary.isEmpty, let firstRow = rows.first {
+            summary = ["e2e", "ttft", "tps"].compactMap { key in
+                guard let metric = firstRow[key] as? [String: String],
+                      let label = metric["label"], !label.isEmpty,
+                      let value = metric["value"], !value.isEmpty else {
+                    return nil
+                }
+                return ["label": label, "value": value]
+            }
+        }
+        let methodCandidates = allMatches(
+            #"<details\s+[^>]*class="(?:[^"]*\s)?fast-radar-explain(?:\s[^"]*)?"[^>]*>\s*<summary(?:\s+[^>]*)?>(.*?)</summary>.*?<p(?:\s+[^>]*)?>(.*?)</p>"#,
+            in: section
+        )
+        let preferredMethod = methodCandidates.first { groups in
+            let summary = cleanHTMLText(groups[safe: 0]).lowercased()
+            return summary.contains("方法") || summary.contains("method")
+        }
+        var method = cleanHTMLMultilineText(preferredMethod?[safe: 1])
+        if method.isEmpty {
+            method = cleanHTMLMultilineText(firstCapture(
+                #"<(?:div|details)\s+[^>]*class="(?:[^"]*\s)?fast-radar-explain(?:\s[^"]*)?"[^>]*>.*?<p(?:\s+[^>]*)?>(.*?)</p>"#,
+                in: section
+            ))
+        }
 
         guard !summary.isEmpty || !rows.isEmpty else {
             return nil
@@ -733,6 +786,68 @@ public struct CodexRadarClient {
             "range": cleanHTMLText(range),
             "value": cleanHTMLText(value)
         ]
+    }
+
+    private static func fastRadarCardMetric(_ key: String, in card: String) -> [String: String]? {
+        let escapedKey = NSRegularExpression.escapedPattern(for: key)
+        let pattern = #"<div\b(?=[^>]*class="[^"]*\bfast-radar-metric\b[^"]*")(?=[^>]*data-fast-metric=""#
+            + escapedKey
+            + #"")[^>]*>(.*?)</div>"#
+        guard let metric = firstCapture(pattern, in: card) else {
+            return nil
+        }
+        let payload = fastRadarMetricPayload(
+            label: firstCapture(#"<dt(?:\s+[^>]*)?>(.*?)</dt>"#, in: metric),
+            range: firstCapture(#"<dd\b[^>]*class="[^"]*\bfast-radar-pair\b[^"]*"[^>]*>(.*?)</dd>"#, in: metric),
+            value: firstCapture(#"<dd\b[^>]*class="[^"]*\bfast-radar-change\b[^"]*"[^>]*>(.*?)</dd>"#, in: metric)
+        )
+        guard payload.values.contains(where: { !$0.isEmpty }) else {
+            return nil
+        }
+        return payload
+    }
+
+    private static func firstBalancedSection(withClass className: String, in html: String) -> String? {
+        let escapedClass = NSRegularExpression.escapedPattern(for: className)
+        let openingPattern = #"<section\b[^>]*class="[^"]*\b"# + escapedClass + #"\b[^"]*"[^>]*>"#
+        guard let openingRegex = try? NSRegularExpression(
+            pattern: openingPattern,
+            options: [.caseInsensitive]
+        ) else {
+            return nil
+        }
+        let fullRange = NSRange(html.startIndex..<html.endIndex, in: html)
+        guard let opening = openingRegex.firstMatch(in: html, range: fullRange),
+              let tokenRegex = try? NSRegularExpression(
+                pattern: #"</?section\b[^>]*>"#,
+                options: [.caseInsensitive]
+              ) else {
+            return nil
+        }
+        let searchRange = NSRange(
+            location: opening.range.location,
+            length: fullRange.length - opening.range.location
+        )
+        var depth = 0
+        for token in tokenRegex.matches(in: html, range: searchRange) {
+            let tokenText = capture(token, 0, in: html).lowercased()
+            if tokenText.hasPrefix("</") {
+                depth -= 1
+                if depth == 0 {
+                    let innerRange = NSRange(
+                        location: NSMaxRange(opening.range),
+                        length: token.range.location - NSMaxRange(opening.range)
+                    )
+                    guard let range = Range(innerRange, in: html) else {
+                        return nil
+                    }
+                    return String(html[range])
+                }
+            } else {
+                depth += 1
+            }
+        }
+        return nil
     }
 
     fileprivate static func modelIQStatus(_ score: Double) -> String {
