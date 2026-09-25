@@ -960,7 +960,9 @@ final class RadarModelTests: XCTestCase {
 
     func testBuildsFastRadarFromCurrentCardMarkupWithNestedHistory() throws {
         let html = """
-        <html><head><title>9月25日 GPT-6 Radar</title></head><body>
+        <html><head>
+          <title>9月25日 Astra medium: IQ指数 109.0, 81/112, 费用 $7.3, 耗时 34分钟, cache命中率 97.2%</title>
+        </head><body>
           <section class="fast-radar" id="fast-radar" aria-label="Fast 加速雷达">
             <div class="fast-radar-head">
               <h2>Fast 加速雷达</h2>
