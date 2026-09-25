@@ -119,6 +119,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 98 | [ff69e39](https://github.com/WineChord/codex-radar/commit/ff69e3905863a41465746f6db56b0d61bbcd3d9d), [`Prompt-Id: 98 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+98%22&type=commits) | 补齐云端 macOS 双架构测试、通用安装包校验与发布草稿流程；兼容 Fast 雷达分档速度摘要。 |
 | 99 | [19fba2f](https://github.com/WineChord/codex-radar/commit/19fba2f1079f07dd8b86adc38e47caf2b129d320), [`Prompt-Id: 99 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+99%22&type=commits) | 支持版本标签和 Actions 按钮正式发布，完整上传校验后发布 Latest，并保留验证与草稿模式。 |
 | 100 | [`Prompt-Id: 100 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+100%22&type=commits) | 对齐服务端用量权限和支出限制，避免受限或权限未知时误报额度恢复。 |
+| 101 | [`Prompt-Id: 101 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+101%22&type=commits) | 例行兼容检查对齐 Fast 加速雷达卡片结构，恢复摘要、模型指标与测试方法解析。 |
 
 ## Prompts
 
@@ -778,4 +779,10 @@ commit 要求是可以点击的链接
 
 ```text
 对齐 Codex app-server 的明确用量权限与支出限制信号：即使百分比仍有剩余，也应展示服务端报告的受限状态；权限未知或仍受限时不确认额度恢复。保留旧版接口兼容与已有二次确认，通过离线回归、实时接口和双架构 macOS 验证后整合修复。
+```
+
+### 101. Fast 加速雷达卡片结构兼容
+
+```text
+对 Codex Radar Sentinel 做例行兼容性维护：核对 CodexRadar 当前公开数据与页面结构，修复 Fast 加速雷达切换到卡片布局后摘要、模型指标和测试方法无法解析的问题，保留旧格式兼容，并通过离线回归、实时契约、双架构 macOS 构建、双语截图和安装包校验后整合修复；无需为例行维护发布新版本。
 ```

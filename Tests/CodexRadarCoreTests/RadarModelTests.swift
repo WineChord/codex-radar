@@ -958,6 +958,63 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.fastRadar?.method, "每档测试：Standard 3 次 + Fast 3 次，同一道计数题。")
     }
 
+    func testBuildsFastRadarFromCurrentCardMarkupWithNestedHistory() throws {
+        let html = """
+        <html><head><title>9月25日 GPT-6 Radar</title></head><body>
+          <section class="fast-radar" id="fast-radar" aria-label="Fast 加速雷达">
+            <div class="fast-radar-head">
+              <h2>Fast 加速雷达</h2>
+              <div class="fast-radar-meta"><span>9月24日 22:11</span><span>GPT-6 · medium</span></div>
+            </div>
+            <p class="fast-radar-intro">普通 Standard → 加速 Fast。</p>
+            <div class="fast-radar-cards">
+              <article class="fast-radar-card" data-fast-current-model="astra">
+                <h3>GPT-6 Astra medium<small>3 组配对 · 6 次样本</small></h3>
+                <dl>
+                  <div class="fast-radar-metric" data-fast-metric="e2e_seconds">
+                    <dt>总耗时 <small>(秒)</small></dt>
+                    <dd class="fast-radar-pair"><span>69.14</span> → <span>40.69</span></dd>
+                    <dd class="fast-radar-change">缩短 41.1%</dd>
+                  </div>
+                  <div data-fast-metric="ttft_seconds" class="fast-radar-metric">
+                    <dt>首字等待 <small>(秒)</small></dt>
+                    <dd class="fast-radar-pair"><span>8.36</span> → <span>5.71</span></dd>
+                    <dd class="fast-radar-change">缩短 31.7%</dd>
+                  </div>
+                  <div class="fast-radar-metric" data-fast-metric="tps">
+                    <dt>输出速度 <small>(tokens/s)</small></dt>
+                    <dd class="fast-radar-pair"><span>46.2</span> → <span>73.4</span></dd>
+                    <dd class="fast-radar-change">提升 58.9%</dd>
+                  </div>
+                </dl>
+              </article>
+            </div>
+            <details class="fast-radar-explain"><summary>历史与测试详情</summary>
+              <section class="fast-radar-history"><p>这不是测试方法。</p></section>
+              <details class="fast-radar-explain"><summary>测试方法</summary>
+                <p>三个模型均为 medium；每模型使用三组独立 Standard/Fast 配对。</p>
+              </details>
+            </details>
+          </section>
+        </body></html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(html)
+        let fastRadar = try XCTUnwrap(current.fastRadar)
+
+        XCTAssertEqual(fastRadar.title, "Fast 加速雷达")
+        XCTAssertEqual(fastRadar.updatedLabel, "9月24日 22:11")
+        XCTAssertEqual(fastRadar.subtitle, "GPT-6 · medium")
+        XCTAssertEqual(fastRadar.rows.count, 1)
+        XCTAssertEqual(fastRadar.rows.first?.model, "GPT-6 Astra medium")
+        XCTAssertEqual(fastRadar.rows.first?.e2e?.range, "69.14 → 40.69")
+        XCTAssertEqual(fastRadar.rows.first?.ttft?.value, "缩短 31.7%")
+        XCTAssertEqual(fastRadar.rows.first?.tps?.label, "输出速度 (tokens/s)")
+        XCTAssertEqual(fastRadar.summary.map(\.label), ["总耗时 (秒)", "首字等待 (秒)", "输出速度 (tokens/s)"])
+        XCTAssertEqual(fastRadar.summary.map(\.value), ["缩短 41.1%", "缩短 31.7%", "提升 58.9%"])
+        XCTAssertEqual(fastRadar.method, "三个模型均为 medium；每模型使用三组独立 Standard/Fast 配对。")
+    }
+
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(currentWithoutIQJSON.utf8))
         let merged = try CodexRadarClient.currentByMergingHomepageModelIQ(
