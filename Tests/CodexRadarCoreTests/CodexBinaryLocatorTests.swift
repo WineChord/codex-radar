@@ -56,6 +56,68 @@ final class CodexBinaryLocatorTests: XCTestCase {
         XCTAssertNotEqual(located?.path, "/usr/bin/env")
     }
 
+    func testFindsBundledCLIWithBrokenLegacySymlinkAndGUIPath() throws {
+        for bundleName in ["Codex", "ChatGPT"] {
+            let temp = try makeTempDirectory()
+            defer { try? FileManager.default.removeItem(at: temp) }
+            let home = temp.appendingPathComponent("home", isDirectory: true)
+            let resources = temp.appendingPathComponent(
+                "Applications/\(bundleName).app/Contents/Resources"
+            )
+            let legacy = resources.appendingPathComponent("codex")
+            let bundled = resources.appendingPathComponent(
+                "codex-cli/CodexCLI.app/Contents/MacOS/codex"
+            )
+            try makeExecutable(bundled)
+            let symlink = home.appendingPathComponent(".local/bin/codex")
+            try FileManager.default.createDirectory(
+                at: symlink.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: legacy)
+
+            let located = CodexBinaryLocator.findBinary(
+                environment: ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"],
+                homeDirectory: home,
+                systemCandidates: [legacy.path, bundled.path]
+            )
+
+            XCTAssertEqual(located?.path, bundled.path)
+            XCTAssertTrue(CodexBinaryLocator.candidatePaths(
+                environment: ["PATH": ""], homeDirectory: home
+            ).contains("/Applications/\(bundleName).app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"))
+        }
+    }
+
+    func testLegacyBundleRemainsPreferredWhenBothLayoutsExist() throws {
+        let temp = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let legacy = temp.appendingPathComponent("Resources/codex")
+        let bundled = temp.appendingPathComponent("Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex")
+        try makeExecutable(legacy)
+        try makeExecutable(bundled)
+
+        XCTAssertEqual(CodexBinaryLocator.findBinary(
+            environment: ["PATH": ""],
+            homeDirectory: temp.appendingPathComponent("home"),
+            systemCandidates: [legacy.path, bundled.path]
+        ), legacy)
+    }
+
+    func testMissingOrNonExecutableCandidatesReturnNil() throws {
+        let temp = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let candidate = temp.appendingPathComponent("codex")
+        try Data("not executable".utf8).write(to: candidate)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: candidate.path)
+
+        XCTAssertNil(CodexBinaryLocator.findBinary(
+            environment: [AppConstants.codexPathEnvironmentKey: candidate.path, "PATH": ""],
+            homeDirectory: temp.appendingPathComponent("home"),
+            systemCandidates: [candidate.path, temp.appendingPathComponent("missing").path]
+        ))
+    }
+
     private func makeTempDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-binary-locator-\(UUID().uuidString)", isDirectory: true)

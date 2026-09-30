@@ -761,5 +761,7 @@ public enum CodexBinaryLocator {
     private static let defaultSystemCandidatePaths = [
         AppConstants.codexAppBinaryPath,
         AppConstants.chatGPTAppBinaryPath,
+        AppConstants.codexAppBundledCLIBinaryPath,
+        AppConstants.chatGPTAppBundledCLIBinaryPath,
     ]
 }

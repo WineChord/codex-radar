@@ -123,6 +123,8 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 102 | [`Prompt-Id: 102 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+102%22&type=commits) | 将已验证的用量状态和 Fast 雷达兼容性修复作为 v0.1.73 发布，并核验可下载安装资产。 |
 | 103 | [`Prompt-Id: 103 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+103%22&type=commits) | 为只能更新分支的受信集成增加严格受限的正式发布入口，复用完整验证且不覆盖既有版本。 |
 
+| 104 | [`Prompt-Id: 104 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+104%22&type=commits) | 兼容桌面应用新版内嵌 CLI，恢复本机额度读取并发布修复。 |
+
 ## Prompts
 
 ### 1. 初始想法
@@ -799,4 +801,10 @@ commit 要求是可以点击的链接
 
 ```text
 为只能更新 GitHub 分支但无法直接触发工作流或创建标签的受信集成增加正式发布入口：发布分支必须精确指向当前 main，版本须与源码一致并强制使用正式发布模式；复用既有双架构、实时契约、安装包与下载校验，不得覆盖已发布版本。
+```
+
+### 104. 新版内嵌 Codex CLI 定位
+
+```text
+兼容 Codex 与 ChatGPT 桌面应用的新版内嵌 CLI 位置，保留旧版路径与显式配置的优先级，确保旧快捷链接失效及菜单栏环境缺少 CLI 路径时仍可读取本机额度。通过离线定位回归、真实只读额度请求、双语界面与双架构安装包验证后发布修复版本。
 ```
