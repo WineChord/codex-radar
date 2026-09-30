@@ -49,11 +49,25 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 
 ## What's New
 
-**v0.1.72**
+### v0.1.73: Quota-state and Fast Radar compatibility
 
-- Supports the current important-notice structure while preserving the full headline and multi-paragraph body.
-- Allows safe opening of same-origin notice-image links.
-- Keeps expected time, explanation, and external source for legacy reset notices.
+- Honors explicit Codex usage permission, spend-control, and rate-limit signals so restricted or unknown states are not misreported as quota recovery.
+- Supports the current Fast Radar card layout, restoring summaries, model metrics, and test methodology while retaining legacy-format compatibility.
+
+### v0.1.72: Complete important notices
+
+- Supports the current important-notice structure with full headlines, multi-paragraph bodies, and safe same-origin image links while preserving expected time, explanation, and external source for legacy reset notices.
+
+### v0.1.71: Complete Fast Radar summaries and methodology
+
+- Supports the compact comparison layout, restoring speed summaries and test methodology while retaining legacy-format compatibility.
+
+<details>
+<summary><strong>Earlier releases</strong></summary>
+
+- **v0.1.70**: Supports layered official reset notices with headlines, expected times, explanations, and safe source links.
+
+</details>
 
 See [GitHub Releases](https://github.com/WineChord/codex-radar/releases) for the complete history.
 
@@ -212,14 +226,14 @@ See the [maintenance guide](docs/MAINTENANCE.md) for cloud macOS tests, universa
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.72
+./scripts/check_release_readiness.sh 0.1.73
 ```
 
 Build release assets:
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.72
+./scripts/package_release.sh 0.1.73
 ```
 
 Update the menu-bar and full-menu screenshots:

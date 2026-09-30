@@ -120,6 +120,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 99 | [19fba2f](https://github.com/WineChord/codex-radar/commit/19fba2f1079f07dd8b86adc38e47caf2b129d320), [`Prompt-Id: 99 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+99%22&type=commits) | 支持版本标签和 Actions 按钮正式发布，完整上传校验后发布 Latest，并保留验证与草稿模式。 |
 | 100 | [`Prompt-Id: 100 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+100%22&type=commits) | 对齐服务端用量权限和支出限制，避免受限或权限未知时误报额度恢复。 |
 | 101 | [`Prompt-Id: 101 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+101%22&type=commits) | 例行兼容检查对齐 Fast 加速雷达卡片结构，恢复摘要、模型指标与测试方法解析。 |
+| 102 | [`Prompt-Id: 102 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+102%22&type=commits) | 将已验证的用量状态和 Fast 雷达兼容性修复作为 v0.1.73 发布，并核验可下载安装资产。 |
 
 ## Prompts
 
@@ -785,4 +786,10 @@ commit 要求是可以点击的链接
 
 ```text
 对 Codex Radar Sentinel 做例行兼容性维护：核对 CodexRadar 当前公开数据与页面结构，修复 Fast 加速雷达切换到卡片布局后摘要、模型指标和测试方法无法解析的问题，保留旧格式兼容，并通过离线回归、实时契约、双架构 macOS 构建、双语截图和安装包校验后整合修复；无需为例行维护发布新版本。
+```
+
+### 102. 发布已验证的兼容性修复
+
+```text
+将自上一稳定版以来已经完成并通过验证的 Codex 用量状态与 Fast 雷达兼容性修复发布为新的 patch 版本。同步版本号和双语变更说明，完整验证 macOS 双架构构建、实时契约、截图、通用安装包与 SHA256，并在正式发布后重新下载核验资产。
 ```
