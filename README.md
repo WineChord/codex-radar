@@ -49,11 +49,25 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ## 最新变化
 
-**v0.1.72**
+### v0.1.73：额度状态与 Fast 雷达兼容性
 
-- 兼容当前重要公告结构，标题和多段正文都能完整展示。
-- 公告图片的同源链接可安全打开。
-- 旧版重置公告继续保留预计时间、说明和外部来源。
+- 尊重 Codex 服务端明确返回的用量权限、支出上限和限额状态，避免仍受限或权限未知时误报“额度已恢复”。
+- 兼容 Fast 加速雷达当前的卡片布局，恢复摘要、模型指标和测试方法解析，同时保留旧格式支持。
+
+### v0.1.72：新版重要公告正文保持完整
+
+- 兼容当前重要公告结构，完整展示标题、多段正文和安全的同源图片链接，同时保留旧版重置公告的预计时间、说明和外部来源。
+
+### v0.1.71：Fast 雷达速览与说明保持完整
+
+- 兼容紧凑对比布局，恢复速度摘要和测试方法解析，同时保留旧格式支持。
+
+<details>
+<summary><strong>更早版本</strong></summary>
+
+- **v0.1.70**：兼容分层的官方重置公告，保留标题、预计时间、说明和安全来源链接。
+
+</details>
 
 完整历史见 [GitHub Releases](https://github.com/WineChord/codex-radar/releases)。
 
@@ -212,14 +226,14 @@ CODEX_RADAR_CODEX_PATH=/path/to/codex swift run CodexRadarSentinel
 ```bash
 swift test
 swift build -c release
-./scripts/check_release_readiness.sh 0.1.72
+./scripts/check_release_readiness.sh 0.1.73
 ```
 
 构建发布包：
 
 ```bash
 ./scripts/build_app.sh
-./scripts/package_release.sh 0.1.72
+./scripts/package_release.sh 0.1.73
 ```
 
 更新中英文状态栏与菜单截图：
