@@ -121,6 +121,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 100 | [`Prompt-Id: 100 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+100%22&type=commits) | 对齐服务端用量权限和支出限制，避免受限或权限未知时误报额度恢复。 |
 | 101 | [`Prompt-Id: 101 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+101%22&type=commits) | 例行兼容检查对齐 Fast 加速雷达卡片结构，恢复摘要、模型指标与测试方法解析。 |
 | 102 | [`Prompt-Id: 102 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+102%22&type=commits) | 将已验证的用量状态和 Fast 雷达兼容性修复作为 v0.1.73 发布，并核验可下载安装资产。 |
+| 103 | [`Prompt-Id: 103 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+103%22&type=commits) | 为只能更新分支的受信集成增加严格受限的正式发布入口，复用完整验证且不覆盖既有版本。 |
 
 ## Prompts
 
@@ -792,4 +793,10 @@ commit 要求是可以点击的链接
 
 ```text
 将自上一稳定版以来已经完成并通过验证的 Codex 用量状态与 Fast 雷达兼容性修复发布为新的 patch 版本。同步版本号和双语变更说明，完整验证 macOS 双架构构建、实时契约、截图、通用安装包与 SHA256，并在正式发布后重新下载核验资产。
+```
+
+### 103. 受限分支正式发布入口
+
+```text
+为只能更新 GitHub 分支但无法直接触发工作流或创建标签的受信集成增加正式发布入口：发布分支必须精确指向当前 main，版本须与源码一致并强制使用正式发布模式；复用既有双架构、实时契约、安装包与下载校验，不得覆盖已发布版本。
 ```
