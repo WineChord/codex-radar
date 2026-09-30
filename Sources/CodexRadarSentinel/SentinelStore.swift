@@ -1062,7 +1062,9 @@ final class SentinelStore: NSObject, ObservableObject {
     }
 
     func openCodexApp() {
-        NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/Applications/Codex.app"), configuration: NSWorkspace.OpenConfiguration())
+        let application = CodexApplicationLocator.applicationURLs().first
+            ?? URL(fileURLWithPath: "/Applications/Codex.app")
+        NSWorkspace.shared.openApplication(at: application, configuration: NSWorkspace.OpenConfiguration())
     }
 
     func quit() {
