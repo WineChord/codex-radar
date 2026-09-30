@@ -34,8 +34,9 @@ and installation/update smoke tests still require a representative Mac session.
 
 ## Publish a release
 
-Prepare the version once, then use either the Actions button or a Git tag.
-Both entry points run the same native macOS checks and publish the same assets.
+Prepare the version once, then use the Actions button, a Git tag, or the
+restricted release-branch entry point for an authenticated integration.
+All three entry points run the same native macOS checks and publish the same assets.
 Ordinary branch pushes and pull requests only validate code; they do not publish.
 
 ### Prepare the source
@@ -86,6 +87,16 @@ An automation that creates tags with the repository's `GITHUB_TOKEN` does not
 trigger another push workflow; use the manual workflow entry point in that case.
 No personal access token or Apple credentials are required for the existing
 ad-hoc signed distribution path.
+
+### Alternative: authenticated release branch
+
+When an authenticated integration can update branches but cannot dispatch a
+workflow or create a tag, create `codex/release/vVERSION` at the exact current
+`main` commit. This branch namespace always uses **release** mode. The workflow
+rejects a branch whose version differs from the prepared source or whose commit
+is not byte-for-byte the current `origin/main`; it then performs the same native
+checks and publication steps as the other entry points. Never move or reuse an
+existing release branch, tag, or published version.
 
 ### Publication and retry behavior
 

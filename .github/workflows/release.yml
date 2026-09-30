@@ -3,6 +3,7 @@ name: Release macOS
 on:
   push:
     tags: ['v*']
+    branches: ['codex/release/v*']
   workflow_dispatch:
     inputs:
       version:
@@ -50,17 +51,24 @@ jobs:
         run: |
           set -euo pipefail
           case "$RELEASE_MODE" in release|draft|verify) ;; *) exit 1 ;; esac
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            [[ "$GITHUB_REF" == refs/tags/v* ]]
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             REQUESTED_VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ "$GITHUB_REF" == refs/heads/codex/release/v* ]]; then
+            REQUESTED_VERSION="${GITHUB_REF_NAME#codex/release/v}"
+            RELEASE_MODE=release
           else
+            test "$GITHUB_EVENT_NAME" = workflow_dispatch
             test "$GITHUB_REF" = refs/heads/main
           fi
           args=()
           if [[ -n "$REQUESTED_VERSION" ]]; then args+=("$REQUESTED_VERSION"); fi
           version="$(python3 scripts/release_version.py "${args[@]}")"
           sha="$(git rev-parse HEAD)"
-          git merge-base --is-ancestor "$sha" origin/main
+          if [[ "$GITHUB_REF" == refs/heads/codex/release/v* ]]; then
+            test "$sha" = "$(git rev-parse origin/main)"
+          else
+            git merge-base --is-ancestor "$sha" origin/main
+          fi
           if [[ "$RELEASE_MODE" != verify ]]; then
             python3 scripts/publish_release.py "$version" --sha "$sha" --check
           fi
