@@ -709,7 +709,8 @@ public enum CodexBinaryLocator {
     public static func findBinary() -> URL? {
         findBinary(
             environment: ProcessInfo.processInfo.environment,
-            homeDirectory: FileManager.default.homeDirectoryForCurrentUser
+            homeDirectory: FileManager.default.homeDirectoryForCurrentUser,
+            applicationURLsProvider: CodexApplicationLocator.applicationURLs
         )
     }
 
@@ -717,6 +718,7 @@ public enum CodexBinaryLocator {
         environment: [String: String],
         homeDirectory: URL,
         systemCandidates: [String] = defaultSystemCandidatePaths,
+        applicationURLsProvider: () -> [URL] = { [] },
         fileManager: FileManager = .default
     ) -> URL? {
         if let override = environment[AppConstants.codexPathEnvironmentKey],
@@ -730,6 +732,13 @@ public enum CodexBinaryLocator {
         )
         if let path = candidates.first(where: { fileManager.isExecutableFile(atPath: $0) }) {
             return URL(fileURLWithPath: path)
+        }
+        for application in applicationURLsProvider() {
+            if let binary = CodexApplicationLocator.bundledBinary(
+                in: application, fileManager: fileManager
+            ) {
+                return binary
+            }
         }
         return nil
     }

@@ -118,6 +118,95 @@ final class CodexBinaryLocatorTests: XCTestCase {
         ))
     }
 
+    func testDiscoversRenamedMovedApplicationAndUnknownInternalLayout() throws {
+        let temp = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let application = temp.appendingPathComponent("Tools/Renamed Desktop.app")
+        try makeBundle(application, identifier: "com.openai.codex")
+        let executable = application.appendingPathComponent("Contents/Resources/runtime/v2/tools/codex")
+        try makeExecutable(executable)
+        let located = CodexBinaryLocator.findBinary(
+            environment: ["PATH": ""], homeDirectory: temp.appendingPathComponent("home"),
+            systemCandidates: [], applicationURLsProvider: { [application] }
+        )
+        XCTAssertEqual(located?.resolvingSymlinksInPath().path, executable.resolvingSymlinksInPath().path)
+    }
+
+    func testDiscoversCLIFromBundleMetadataWhenExecutableIsRenamed() throws {
+        let temp = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let application = temp.appendingPathComponent("Desktop.app")
+        try makeBundle(application, identifier: "com.openai.codex")
+        let cli = application.appendingPathComponent("Contents/Resources/new-runtime/Engine.app")
+        try makeBundle(cli, identifier: "com.openai.codex.cli", executable: "codex-engine")
+        let executable = cli.appendingPathComponent("Contents/MacOS/codex-engine")
+        try makeExecutable(executable)
+        XCTAssertEqual(CodexApplicationLocator.bundledBinary(in: application, fileManager: .default)?.resolvingSymlinksInPath().path, executable.resolvingSymlinksInPath().path)
+    }
+
+    func testDiscoveryDoesNotExecuteUnrelatedAppsOrEscapingSymlinks() throws {
+        let temp = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let unrelated = temp.appendingPathComponent("Unrelated.app")
+        try makeBundle(unrelated, identifier: "org.example.unrelated")
+        try makeExecutable(unrelated.appendingPathComponent("Contents/Resources/codex"))
+        XCTAssertNil(CodexApplicationLocator.bundledBinary(in: unrelated, fileManager: .default))
+
+        let application = temp.appendingPathComponent("Desktop.app")
+        try makeBundle(application, identifier: "com.openai.codex")
+        let external = temp.appendingPathComponent("outside/codex")
+        try makeExecutable(external)
+        let link = application.appendingPathComponent("Contents/MacOS/codex")
+        try FileManager.default.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: external)
+        XCTAssertNil(CodexApplicationLocator.bundledBinary(in: application, fileManager: .default))
+    }
+
+    func testDiscoveryIsLazyAndExplicitPathStillWins() throws {
+        let temp = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let executable = temp.appendingPathComponent("override/codex")
+        try makeExecutable(executable)
+        var discovered = false
+        XCTAssertEqual(CodexBinaryLocator.findBinary(
+            environment: [AppConstants.codexPathEnvironmentKey: executable.path, "PATH": ""],
+            homeDirectory: temp, systemCandidates: [],
+            applicationURLsProvider: { discovered = true; return [] }
+        ), executable)
+        XCTAssertFalse(discovered)
+    }
+
+    func testDiscoveryRechecksAfterApplicationMovesAndRespectsDepthBound() throws {
+        let temp = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let original = temp.appendingPathComponent("Original.app")
+        try makeBundle(original, identifier: "com.openai.codex")
+        let relative = "Contents/Resources/tools/codex"
+        try makeExecutable(original.appendingPathComponent(relative))
+        var current = original
+        func locate() -> URL? {
+            CodexBinaryLocator.findBinary(environment: ["PATH": ""], homeDirectory: temp,
+                systemCandidates: [], applicationURLsProvider: { [current] })
+        }
+        XCTAssertEqual(locate()?.resolvingSymlinksInPath().path, original.appendingPathComponent(relative).resolvingSymlinksInPath().path)
+        current = temp.appendingPathComponent("Moved.app")
+        try FileManager.default.moveItem(at: original, to: current)
+        XCTAssertEqual(locate()?.resolvingSymlinksInPath().path, current.appendingPathComponent(relative).resolvingSymlinksInPath().path)
+        try FileManager.default.removeItem(at: current.appendingPathComponent(relative))
+        try makeExecutable(current.appendingPathComponent("Contents/Resources/a/b/c/d/e/f/g/h/i/codex"))
+        XCTAssertNil(locate())
+    }
+
+    private func makeBundle(_ url: URL, identifier: String, executable: String = "desktop") throws {
+        let contents = url.appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let data = try PropertyListSerialization.data(fromPropertyList: [
+            "CFBundleIdentifier": identifier, "CFBundleExecutable": executable,
+            "CFBundlePackageType": "APPL",
+        ], format: .xml, options: 0)
+        try data.write(to: contents.appendingPathComponent("Info.plist"))
+    }
+
     private func makeTempDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-binary-locator-\(UUID().uuidString)", isDirectory: true)
