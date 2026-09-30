@@ -4,7 +4,7 @@ public enum AppConstants {
     public static let appName = "Codex Radar Sentinel"
     public static let clientName = "codex-radar-sentinel"
     public static let bundleIdentifier = "com.codexradar.sentinel"
-    public static let appVersion = "0.1.73"
+    public static let appVersion = "0.1.74"
 
     public static let codexLimitID = "codex"
     public static let weeklyWindowMinutes = 10_080.0
@@ -45,6 +45,8 @@ public enum AppConstants {
 
     public static let codexAppBinaryPath = "/Applications/Codex.app/Contents/Resources/codex"
     public static let chatGPTAppBinaryPath = "/Applications/ChatGPT.app/Contents/Resources/codex"
+    public static let codexAppBundledCLIBinaryPath = "/Applications/Codex.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+    public static let chatGPTAppBundledCLIBinaryPath = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
     public static let codexPathEnvironmentKey = "CODEX_RADAR_CODEX_PATH"
     public static let codexAuthPathEnvironmentKey = "CODEX_RADAR_CODEX_AUTH_PATH"
     public static let resetCreditsURL = URL(string: "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits")!
