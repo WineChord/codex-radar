@@ -675,7 +675,10 @@ final class ResetCreditProtectionOrchestrationTests: XCTestCase {
 
         store.refreshNow()
         try await waitUntil {
-            await longLived.snapshot().rateLimitReadCount >= 1
+            if case .scheduled = store.resetCreditProtectionStatus {
+                return true
+            }
+            return false
         }
 
         XCTAssertTrue(store.resetCreditProtectionEnabled)
