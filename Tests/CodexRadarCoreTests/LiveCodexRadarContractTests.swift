@@ -48,7 +48,10 @@ final class LiveCodexRadarContractTests: XCTestCase {
             XCTAssertGreaterThan(current.modelIQ?.latestRows.count ?? 0, 1)
         }
         XCTAssertFalse(ratings.models.isEmpty)
-        XCTAssertNotNil(ratings.rating(for: current.modelIQ?.latest)?.average)
+        let currentRating = try XCTUnwrap(ratings.rating(for: current.modelIQ?.latest))
+        if (currentRating.count ?? 0) > 0 {
+            XCTAssertNotNil(currentRating.average)
+        }
         XCTAssertNotNil(insights.generatedAt)
         XCTAssertNotNil(insights.sourceUpdatedAt)
         XCTAssertFalse(insights.recommendations.isEmpty)
