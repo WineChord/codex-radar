@@ -422,6 +422,35 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(ratings.rating(for: iq.latestRows.last?.snapshot)?.average, 8.1)
     }
 
+    func testMatchingModelRatingMayHaveNoScoresYet() throws {
+        let iq = try JSONDecoder().decode(
+            ModelIQEnvelope.self,
+            from: Data(modelIQJSON.utf8)
+        )
+        let ratings = try JSONDecoder().decode(
+            ModelRatingsEnvelope.self,
+            from: Data(
+                """
+                {
+                  "models": [
+                    {
+                      "id": "gpt-5.5-xhigh",
+                      "label": "GPT-5.5 xhigh",
+                      "group": "GPT-5.5",
+                      "average": null,
+                      "count": 0
+                    }
+                  ]
+                }
+                """.utf8
+            )
+        )
+
+        let rating = try XCTUnwrap(ratings.rating(for: iq.latest))
+        XCTAssertNil(rating.average)
+        XCTAssertEqual(rating.count, 0)
+    }
+
     func testDecodesEmbeddedCurrentPayload() throws {
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(currentV2JSON.utf8))
 

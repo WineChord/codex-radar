@@ -127,6 +127,10 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 
 | 105 | [`Prompt-Id: 105 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+105%22&type=commits) | 自动发现 Codex 安装与内嵌 CLI，兼容应用移动及目录变化。 |
 
+| 106 | [`Prompt-Id: 106 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+106%22&type=commits) | 稳定较慢 runner 上的异步额度保护回归测试，同时保留完整业务断言。 |
+
+| 107 | [`Prompt-Id: 107 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+107%22&type=commits) | 将评分条目存在但尚无投票视为正常空状态，避免实时契约误报。 |
+
 ## Prompts
 
 ### 1. 初始想法
@@ -821,4 +825,10 @@ commit 要求是可以点击的链接
 
 ```text
 修复额度保护编排测试在较慢的 Intel runner 上偶发失败的问题：等待产品状态完成真实异步转换，而不是把底层只读请求开始当作编排完成。保留剩余授权、到期时间、卡片数量和不触发消费等完整业务断言，并通过双架构 macOS CI 验证。
+```
+
+### 107. 模型评分正常空状态兼容
+
+```text
+对 Codex Radar Sentinel 做例行契约维护：模型评分端点已包含当前模型条目但暂时没有投票时，应保留“暂无评分”的正常空状态。实时验证仍须确认模型条目存在，并在有投票时要求有效平均分，避免正常空数据阻断完整 macOS 验证与打包。
 ```
