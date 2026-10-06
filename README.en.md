@@ -49,6 +49,11 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 
 ## What's New
 
+### v0.1.76: Restore Radar insights
+
+- Follows CodexRadar's current public page to the new same-origin insights endpoint, restoring scenario recommendations and degradation alerts.
+- Updates the live release gate while retaining strict decoding, the 10-minute cache, and the privacy boundary that never sends local credentials.
+
 ### v0.1.75: Discover Codex installations automatically
 
 - When fixed paths fail, discovers running or registered Codex / ChatGPT apps through macOS and locates their bundled CLI, handling renamed or moved apps and changed internal layouts.
@@ -59,14 +64,10 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 - Detects the CLI embedded in current Codex / ChatGPT desktop apps, fixing missing-binary errors and unknown quota after desktop updates.
 - Retains legacy bundles, standalone CLI, PATH, and custom-path support; a broken legacy shortcut no longer prevents bundled CLI discovery.
 
-### v0.1.73: Quota-state and Fast Radar compatibility
-
-- Honors explicit Codex usage permission, spend-control, and rate-limit signals so restricted or unknown states are not misreported as quota recovery.
-- Supports the current Fast Radar card layout, restoring summaries, model metrics, and test methodology while retaining legacy-format compatibility.
-
 <details>
 <summary><strong>Earlier releases</strong></summary>
 
+- **v0.1.73**: Honors explicit Codex usage restrictions and supports the Fast Radar card layout.
 - **v0.1.72**: Preserves complete important-notice headlines, multi-paragraph bodies, safe same-origin image links, and legacy reset notices.
 - **v0.1.71**: Supports compact Fast Radar comparisons with complete summaries and test methodology while retaining legacy-format compatibility.
 - **v0.1.70**: Supports layered official reset notices with headlines, expected times, explanations, and safe source links.
