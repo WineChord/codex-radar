@@ -196,7 +196,7 @@ If verification or installation fails, the current version stays in place and th
 - [CodexRadar current data](https://codexradar.com/current.json): public entitlement events, Model IQ, Quota Radar, and compatibility fields.
 - [CodexRadar Intelligence Efficiency data](https://codexradar.com/data/intelligence-efficiency.json): multi-model IQ, cost, runtime, and pass counts.
 - [CodexRadar community ratings](https://codexradar.com/api/model-ratings): public model ratings.
-- [CodexRadar Insights](https://api.codexradar.com/api/v1/radar-insights): scenario recommendations and degradation alerts.
+- [CodexRadar Insights](https://codexradar.com/api/radar-insights): scenario recommendations and degradation alerts.
 - [CodexRadar RSS](https://codexradar.com/feed.xml): a compatibility source for public entitlement events.
 - Local Codex managed session or independent app-server: weekly quota, short-window quota, account identity, and authoritative details needed by reset-credit auto-use.
 

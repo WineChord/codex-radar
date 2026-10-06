@@ -380,6 +380,10 @@ final class RadarModelTests: XCTestCase {
             AppConstants.radarInsightsRefreshIntervalSeconds,
             600
         )
+        XCTAssertEqual(
+            AppConstants.radarInsightsURL.absoluteString,
+            "https://codexradar.com/api/radar-insights"
+        )
         XCTAssertTrue(insights.recommendations.isEmpty)
     }
 

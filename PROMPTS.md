@@ -131,6 +131,8 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 
 | 107 | [`Prompt-Id: 107 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+107%22&type=commits) | 将评分条目存在但尚无投票视为正常空状态，避免实时契约误报。 |
 
+| 108 | [`Prompt-Id: 108 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+108%22&type=commits) | 跟随 CodexRadar 智能洞察迁移到当前同源接口，恢复场景推荐与降智预警。 |
+
 ## Prompts
 
 ### 1. 初始想法
@@ -831,4 +833,10 @@ commit 要求是可以点击的链接
 
 ```text
 对 Codex Radar Sentinel 做例行契约维护：模型评分端点已包含当前模型条目但暂时没有投票时，应保留“暂无评分”的正常空状态。实时验证仍须确认模型条目存在，并在有投票时要求有效平均分，避免正常空数据阻断完整 macOS 验证与打包。
+```
+
+### 108. 智能洞察接口迁移兼容
+
+```text
+对 Codex Radar Sentinel 做例行兼容性维护：CodexRadar 首页已将场景推荐与降智预警迁移到同源接口，而旧 API 路由返回明确的未找到错误。将应用、实时契约、双语数据来源和维护说明统一到当前公开接口，保留既有严格解码、缓存与隐私边界，并通过双架构 macOS、实时数据、截图和安装包验证后发布修复。
 ```

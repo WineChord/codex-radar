@@ -36,7 +36,7 @@ public enum AppConstants {
 
     public static let codexRadarBaseURL = URL(string: "https://codexradar.com")!
     public static let radarInsightsURL = URL(
-        string: "https://api.codexradar.com/api/v1/radar-insights"
+        string: "https://codexradar.com/api/radar-insights"
     )!
     public static let currentPath = "current.json"
     public static let feedPath = "feed.xml"

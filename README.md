@@ -196,7 +196,7 @@ https://github.com/WineChord/codex-radar/releases/latest
 - [CodexRadar current.json](https://codexradar.com/current.json)：公开权益事件、Model IQ、额度雷达和兼容字段。
 - [CodexRadar 智力效率数据](https://codexradar.com/data/intelligence-efficiency.json)：多模型 IQ、费用、耗时和通过数。
 - [CodexRadar 社区体感数据](https://codexradar.com/api/model-ratings)：模型社区评分。
-- [CodexRadar 智能洞察](https://api.codexradar.com/api/v1/radar-insights)：场景推荐和降智预警。
+- [CodexRadar 智能洞察](https://codexradar.com/api/radar-insights)：场景推荐和降智预警。
 - [CodexRadar RSS](https://codexradar.com/feed.xml)：公开权益事件的兼容来源。
 - 本机 Codex 受管会话或独立 app-server：周额度、短窗额度、登录身份和重置卡自动使用所需的权威明细。
 
