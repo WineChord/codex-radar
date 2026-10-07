@@ -380,6 +380,10 @@ final class RadarModelTests: XCTestCase {
             AppConstants.radarInsightsRefreshIntervalSeconds,
             600
         )
+        XCTAssertEqual(
+            AppConstants.radarInsightsURL.absoluteString,
+            "https://codexradar.com/api/radar-insights"
+        )
         XCTAssertTrue(insights.recommendations.isEmpty)
     }
 
@@ -985,6 +989,15 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(current.fastRadar?.title, "Fast 加速雷达")
         XCTAssertEqual(current.fastRadar?.subtitle, "GPT-6 Astra")
         XCTAssertEqual(current.fastRadar?.method, "每档测试：Standard 3 次 + Fast 3 次，同一道计数题。")
+        let currentMarkup = html.replacingOccurrences(
+            of: #"(?s)<details class="fast-radar-explain">.*?</details>"#,
+            with: #"<p class="fast-radar-method"><strong>测试方法：</strong> 使用同一道计数题，配对比较 Standard 与 Fast。</p>"#,
+            options: .regularExpression
+        )
+        let updated = try CodexRadarClient.currentFromHomepageHTML(currentMarkup)
+        XCTAssertEqual(updated.fastRadar?.method, "测试方法： 使用同一道计数题，配对比较 Standard 与 Fast。")
+        XCTAssertEqual(updated.fastRadar?.summary, current.fastRadar?.summary)
+
     }
 
     func testBuildsFastRadarFromCurrentCardMarkupWithNestedHistory() throws {

@@ -49,6 +49,13 @@ https://github.com/WineChord/codex-radar/releases/latest
 
 ## 最新变化
 
+### v0.1.76：额度连接自动恢复
+
+- 自动重建持有过期凭证的独立额度连接；Codex 已正常登录时，不再直接要求重新登录。
+- 读取失败时明确标记保存的额度，暂缓用量建议；成功刷新后恢复实时显示。
+- 跟随洞察服务的新地址；服务暂不可用时显示状态、保留已有数据并自动重试，本机额度继续独立刷新。
+- 兼容 Fast 雷达当前的测试方法说明格式。
+
 ### v0.1.75：自动发现 Codex 安装位置
 
 - 固定路径失效时，自动发现 macOS 已运行或已登记的 Codex / ChatGPT 应用，并在应用包内查找 CLI，兼容应用改名、移动和内部目录变化。
@@ -59,14 +66,10 @@ https://github.com/WineChord/codex-radar/releases/latest
 - 自动识别 Codex / ChatGPT 新版内嵌 CLI，修复桌面应用更新后“找不到 Codex”及当前额度未知的问题。
 - 保留旧版安装路径、独立 CLI、PATH 与自定义路径兼容；旧快捷链接失效时仍可找到可用程序。
 
-### v0.1.73：额度状态与 Fast 雷达兼容性
-
-- 尊重 Codex 服务端明确返回的用量权限、支出上限和限额状态，避免仍受限或权限未知时误报“额度已恢复”。
-- 兼容 Fast 加速雷达当前的卡片布局，恢复摘要、模型指标和测试方法解析，同时保留旧格式支持。
-
 <details>
 <summary><strong>更早版本</strong></summary>
 
+- **v0.1.73**：尊重 Codex 服务端明确的用量限制，并兼容 Fast 雷达卡片布局。
 - **v0.1.72**：完整同步重要公告标题、多段正文与安全的同源图片链接，并保留旧版重置公告兼容。
 - **v0.1.71**：兼容 Fast 雷达紧凑对比布局，完整同步速览摘要与测试方法，并保留旧格式支持。
 - **v0.1.70**：兼容分层的官方重置公告，保留标题、预计时间、说明和安全来源链接。
@@ -196,7 +199,7 @@ https://github.com/WineChord/codex-radar/releases/latest
 - [CodexRadar current.json](https://codexradar.com/current.json)：公开权益事件、Model IQ、额度雷达和兼容字段。
 - [CodexRadar 智力效率数据](https://codexradar.com/data/intelligence-efficiency.json)：多模型 IQ、费用、耗时和通过数。
 - [CodexRadar 社区体感数据](https://codexradar.com/api/model-ratings)：模型社区评分。
-- [CodexRadar 智能洞察](https://api.codexradar.com/api/v1/radar-insights)：场景推荐和降智预警。
+- [CodexRadar 智能洞察](https://codexradar.com/api/radar-insights)：场景推荐和降智预警。
 - [CodexRadar RSS](https://codexradar.com/feed.xml)：公开权益事件的兼容来源。
 - 本机 Codex 受管会话或独立 app-server：周额度、短窗额度、登录身份和重置卡自动使用所需的权威明细。
 

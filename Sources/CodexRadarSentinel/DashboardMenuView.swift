@@ -1855,17 +1855,31 @@ struct DashboardMenuView: View {
     private var codexRadarInsightsSection: some View {
         let groups = radarRecommendationGroups
         let alerts = radarDegradationItems
-        if !groups.isEmpty || !alerts.isEmpty {
+        if !groups.isEmpty || !alerts.isEmpty || store.radarInsightsUnavailable {
             collapsibleSection(
                 isExpanded: renderedExpansionBinding(for: .insights),
                 systemImage: DashboardSection.insights.systemImage,
                 title: DashboardSection.insights.label(language: language),
-                trailing: insightsSectionSummary(alerts: alerts)
+                trailing: store.radarInsightsUnavailable
+                    ? text("暂不可用", "Unavailable")
+                    : insightsSectionSummary(alerts: alerts)
             ) {
                 VStack(alignment: .leading, spacing: 7) {
-                    HStack(spacing: Layout.tileSpacing) {
-                        radarInsightPickTile(groups)
-                        radarInsightAlertTile(alerts)
+                    if store.radarInsightsUnavailable {
+                        Text(text(
+                            "洞察服务暂不可用，稍后自动重试。", "Insights are temporarily unavailable; the app will retry."
+                        ) + (state.radarInsights != nil ? text(
+                            " 下方为上次保存的数据。", " Data below is the last saved reading."
+                        ) : ""))
+                            .font(.system(size: metrics.caption))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !groups.isEmpty || !alerts.isEmpty {
+                        HStack(spacing: Layout.tileSpacing) {
+                            radarInsightPickTile(groups)
+                            radarInsightAlertTile(alerts)
+                        }
                     }
 
                     if let updated = radarInsightsUpdatedLabel {
@@ -1877,7 +1891,7 @@ struct DashboardMenuView: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
 
-                    if store.isDashboardDisclosureVisible(
+                    if (!groups.isEmpty || !alerts.isEmpty), store.isDashboardDisclosureVisible(
                         .radarInsightsDetails
                     ) {
                         collapsibleSection(

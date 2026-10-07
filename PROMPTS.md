@@ -131,7 +131,11 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 
 | 107 | [`Prompt-Id: 107 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+107%22&type=commits) | 将评分条目存在但尚无投票视为正常空状态，避免实时契约误报。 |
 
-| 109 | [aecba25](https://github.com/WineChord/codex-radar/commit/aecba25), [`Prompt-Id: 109 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+109%22&type=commits) | 自动重建凭证过期的独立额度连接，并区分保存的额度与实时数据。 |
+| 108 | [cd7b8a7](https://github.com/WineChord/codex-radar/commit/cd7b8a7), [de9d2be](https://github.com/WineChord/codex-radar/commit/de9d2be), [`Prompt-Id: 108 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+108%22&type=commits) | 跟随 CodexRadar 智能洞察迁移到当前同源接口，恢复场景推荐与降智预警。 |
+
+| 109 | [aecba25](https://github.com/WineChord/codex-radar/commit/aecba25), [a0b6047](https://github.com/WineChord/codex-radar/commit/a0b6047), [`Prompt-Id: 109 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+109%22&type=commits) | 自动重建凭证过期的独立额度连接，并区分保存的额度与实时数据。 |
+
+| 110 | [`Prompt-Id: 110 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+110%22&type=commits) | 完成额度连接恢复、洞察故障降级、验证与发布。 |
 
 ## Prompts
 
@@ -835,8 +839,20 @@ commit 要求是可以点击的链接
 对 Codex Radar Sentinel 做例行契约维护：模型评分端点已包含当前模型条目但暂时没有投票时，应保留“暂无评分”的正常空状态。实时验证仍须确认模型条目存在，并在有投票时要求有效平均分，避免正常空数据阻断完整 macOS 验证与打包。
 ```
 
+### 108. 智能洞察接口迁移兼容
+
+```text
+对 Codex Radar Sentinel 做例行兼容性维护：CodexRadar 首页已将场景推荐与降智预警迁移到同源接口，而旧 API 路由返回明确的未找到错误。将应用、实时契约、双语数据来源和维护说明统一到当前公开接口，保留既有严格解码、缓存与隐私边界，并通过双架构 macOS、实时数据、截图和安装包验证后发布修复。
+```
+
 ### 109. 登录失效与额度旧数据提示
 
 ```text
 优化额度连接凭证过期的恢复：独立额度读取进程可能保留旧凭证，即使 Codex 桌面端仍可正常使用。先重建独立只读连接并重试一次；绑定账户的重置卡会话不自动重连。识别多行认证错误，提示检查连接与登录状态，避免误判桌面端已退出登录或暴露原始响应。保留上次额度以供参考，但明确标记未更新，菜单栏不再将旧额度显示为实时读数。完成验证后按发布门禁处理。
+```
+
+### 110. 连接恢复与发布收尾
+
+```text
+完善额度连接自动恢复并完成集成发布。洞察上游临时不可用时，应清楚显示服务状态与缓存标记，继续独立刷新本机额度；验证恢复、缓存保护和严格响应格式检查。通过双架构构建、界面、安装包及安装验证后发布，清理本次开发分支与临时产物。
 ```

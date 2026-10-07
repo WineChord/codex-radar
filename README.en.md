@@ -49,6 +49,13 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 
 ## What's New
 
+### v0.1.76: Recover quota connections automatically
+
+- Reconnect a standalone quota reader holding expired credentials without assuming the Codex app is signed out.
+- Mark saved quota when a read fails and pause usage guidance until a successful refresh restores current readings.
+- Follow the new insights endpoint; show outages, retain saved data, and retry while local quota continues refreshing independently.
+- Support the current Fast Radar methodology text format.
+
 ### v0.1.75: Discover Codex installations automatically
 
 - When fixed paths fail, discovers running or registered Codex / ChatGPT apps through macOS and locates their bundled CLI, handling renamed or moved apps and changed internal layouts.
@@ -59,14 +66,10 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 - Detects the CLI embedded in current Codex / ChatGPT desktop apps, fixing missing-binary errors and unknown quota after desktop updates.
 - Retains legacy bundles, standalone CLI, PATH, and custom-path support; a broken legacy shortcut no longer prevents bundled CLI discovery.
 
-### v0.1.73: Quota-state and Fast Radar compatibility
-
-- Honors explicit Codex usage permission, spend-control, and rate-limit signals so restricted or unknown states are not misreported as quota recovery.
-- Supports the current Fast Radar card layout, restoring summaries, model metrics, and test methodology while retaining legacy-format compatibility.
-
 <details>
 <summary><strong>Earlier releases</strong></summary>
 
+- **v0.1.73**: Honors explicit Codex usage restrictions and supports the Fast Radar card layout.
 - **v0.1.72**: Preserves complete important-notice headlines, multi-paragraph bodies, safe same-origin image links, and legacy reset notices.
 - **v0.1.71**: Supports compact Fast Radar comparisons with complete summaries and test methodology while retaining legacy-format compatibility.
 - **v0.1.70**: Supports layered official reset notices with headlines, expected times, explanations, and safe source links.
@@ -196,7 +199,7 @@ If verification or installation fails, the current version stays in place and th
 - [CodexRadar current data](https://codexradar.com/current.json): public entitlement events, Model IQ, Quota Radar, and compatibility fields.
 - [CodexRadar Intelligence Efficiency data](https://codexradar.com/data/intelligence-efficiency.json): multi-model IQ, cost, runtime, and pass counts.
 - [CodexRadar community ratings](https://codexradar.com/api/model-ratings): public model ratings.
-- [CodexRadar Insights](https://api.codexradar.com/api/v1/radar-insights): scenario recommendations and degradation alerts.
+- [CodexRadar Insights](https://codexradar.com/api/radar-insights): scenario recommendations and degradation alerts.
 - [CodexRadar RSS](https://codexradar.com/feed.xml): a compatibility source for public entitlement events.
 - Local Codex managed session or independent app-server: weekly quota, short-window quota, account identity, and authoritative details needed by reset-credit auto-use.
 

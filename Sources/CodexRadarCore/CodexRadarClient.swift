@@ -759,6 +759,13 @@ public struct CodexRadarClient {
             ))
         }
 
+        if method.isEmpty {
+            method = cleanHTMLMultilineText(firstCapture(
+                #"<p\s+[^>]*class="(?:[^"]*\s)?fast-radar-method(?:\s[^"]*)?"[^>]*>(.*?)</p>"#,
+                in: section
+            ))
+        }
+
         guard !summary.isEmpty || !rows.isEmpty else {
             return nil
         }

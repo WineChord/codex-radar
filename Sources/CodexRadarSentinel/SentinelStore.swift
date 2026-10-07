@@ -150,6 +150,8 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published private(set) var radarInsightsUnavailable = false
+
     @Published var menuTextSize: DashboardTextSize {
         didSet {
             defaults.set(menuTextSize.rawValue, forKey: DefaultsKey.menuTextSize)
@@ -1478,6 +1480,9 @@ final class SentinelStore: NSObject, ObservableObject {
         documentationState.modelIQ = Self.documentationModelIQ()
         documentationState.modelRatings = Self.documentationModelRatings()
         documentationState.radarInsights = Self.documentationRadarInsights()
+        let insightsFailure = ProcessInfo.processInfo.environment["CODEX_RADAR_VISUAL_TEST_INSIGHTS_UNAVAILABLE"]
+        radarInsightsUnavailable = insightsFailure != nil
+        if insightsFailure == "empty" { documentationState.radarInsights = nil }
         documentationState.lastUpdatedAt = Self.documentationUpdatedAt
         if ProcessInfo.processInfo.environment[
             "CODEX_RADAR_VISUAL_TEST_CONNECTION_ERROR"
@@ -2137,10 +2142,20 @@ final class SentinelStore: NSObject, ObservableObject {
             defer {
                 self.radarInsightsTask = nil
             }
-            if case .success(let insights?) =
-                await self.fetchRadarInsightsResult(),
-               self.shouldAcceptRadarInsights(insights) {
-                self.state.radarInsights = insights
+            let result = await self.fetchRadarInsightsResult()
+            guard !Task.isCancelled else { return }
+            switch result {
+            case .success(let insights?):
+                if self.shouldAcceptRadarInsights(insights) {
+                    self.state.radarInsights = insights
+                    self.radarInsightsUnavailable = false
+                } else {
+                    self.radarInsightsUnavailable = true
+                }
+            case .success(nil):
+                break // A throttled read must retain the last availability state.
+            case .failure:
+                self.radarInsightsUnavailable = true
             }
         }
     }
