@@ -7,11 +7,11 @@ final class DashboardConnectionErrorCopyTests: XCTestCase {
 
         XCTAssertEqual(
             DashboardConnectionErrorCopy.text(for: raw, language: .zhHans),
-            "Codex 登录已失效。请打开 Codex 重新登录，再点“刷新”。"
+            "Radar 的额度连接认证失败。请先点“刷新”；若仍失败，请检查 Codex 登录状态。"
         )
         XCTAssertEqual(
             DashboardConnectionErrorCopy.text(for: raw, language: .en),
-            "Codex sign-in has expired or is unavailable. Open Codex and sign in again, then choose Refresh."
+            "Radar could not authenticate its quota connection. Choose Refresh; if it still fails, check your sign-in in Codex."
         )
     }
 
@@ -29,7 +29,7 @@ final class DashboardConnectionErrorCopyTests: XCTestCase {
             let copy = DashboardConnectionErrorCopy.text(
                 for: raw, language: language, hasCachedQuota: true
             )
-            XCTAssertTrue(copy.contains(language == .en ? "sign in again" : "重新登录"))
+            XCTAssertTrue(copy.contains(language == .en ? "check your sign-in" : "检查 Codex 登录状态"))
             XCTAssertTrue(copy.contains(language == .en ? "last saved" : "上次保存"))
             XCTAssertFalse(copy.contains("{"))
             XCTAssertFalse(copy.contains("token_expired"))

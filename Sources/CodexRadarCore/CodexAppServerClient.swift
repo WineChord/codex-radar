@@ -104,10 +104,24 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
     }
 
     public func readRateLimits() async throws -> RateLimitResponse {
-        let result: RateLimitResponse = try await performRead(
-            method: "account/rateLimits/read",
-            params: nil
-        )
+        let result: RateLimitResponse
+        do {
+            result = try await performRead(method: "account/rateLimits/read", params: nil)
+        } catch {
+            // A long-lived standalone reader can retain credentials replaced by the app.
+            // Recreate only our reader and retry once; bound reset-credit sessions must
+            // never reconnect across their verified account/dispatch boundary.
+            guard allowsAutomaticRestart,
+                  transport == .standaloneStdio,
+                  case .rpcError(_, let message) = error as? ClientError,
+                  CodexAuthenticationError.matches(message),
+                  !Task.isCancelled else {
+                throw error
+            }
+            shutdown()
+            try Task.checkCancellation()
+            result = try await performRead(method: "account/rateLimits/read", params: nil)
+        }
         hasCompletedRead = true
         hasCompletedReadOnCurrentProcess = process?.isRunning == true
             && initialized

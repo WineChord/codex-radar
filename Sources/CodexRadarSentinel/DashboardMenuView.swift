@@ -36,8 +36,8 @@ enum DashboardConnectionErrorCopy {
     ) -> String {
         if CodexAuthenticationError.matches(error) {
             let guidance = language.text(
-                "Codex 登录已失效。请打开 Codex 重新登录，再点“刷新”。",
-                "Codex sign-in has expired or is unavailable. Open Codex and sign in again, then choose Refresh."
+                "Radar 的额度连接认证失败。请先点“刷新”；若仍失败，请检查 Codex 登录状态。",
+                "Radar could not authenticate its quota connection. Choose Refresh; if it still fails, check your sign-in in Codex."
             )
             return guidance + (hasCachedQuota ? language.text(
                 " 下方额度为上次保存的数据。",

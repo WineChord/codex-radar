@@ -131,7 +131,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 
 | 107 | [`Prompt-Id: 107 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+107%22&type=commits) | 将评分条目存在但尚无投票视为正常空状态，避免实时契约误报。 |
 
-| 109 | [`Prompt-Id: 109 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+109%22&type=commits) | 登录失效时提供明确恢复操作，并区分保存的额度与实时数据。 |
+| 109 | [aecba25](https://github.com/WineChord/codex-radar/commit/aecba25), [`Prompt-Id: 109 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+109%22&type=commits) | 自动重建凭证过期的独立额度连接，并区分保存的额度与实时数据。 |
 
 ## Prompts
 
@@ -838,5 +838,5 @@ commit 要求是可以点击的链接
 ### 109. 登录失效与额度旧数据提示
 
 ```text
-优化登录凭证过期时的连接提示：识别多行错误中的登录失效信息，显示重新登录操作，避免暴露原始响应和误导性自动重试提示。保留上次额度以供参考，但明确标记未更新，菜单栏不再将旧额度显示为实时读数。完成验证后按发布门禁处理。
+优化额度连接凭证过期的恢复：独立额度读取进程可能保留旧凭证，即使 Codex 桌面端仍可正常使用。先重建独立只读连接并重试一次；绑定账户的重置卡会话不自动重连。识别多行认证错误，提示检查连接与登录状态，避免误判桌面端已退出登录或暴露原始响应。保留上次额度以供参考，但明确标记未更新，菜单栏不再将旧额度显示为实时读数。完成验证后按发布门禁处理。
 ```
