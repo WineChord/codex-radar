@@ -197,6 +197,21 @@ final class RadarInsightsOrchestrationTests: XCTestCase {
             self.firstRecommendationIQ(in: store) == 96
         }
 
+        // A quota credential failure preserves saved data without marking it current.
+        let savedQuota = store.dashboardState.rateLimits
+        await appServer.setAuthenticationFailure(true)
+        store.refreshNow()
+        try await waitUntil { store.dashboardState.rateLimitError != nil }
+        XCTAssertEqual(store.dashboardState.rateLimits, savedQuota)
+        XCTAssertTrue(store.dashboardState.lastError?.contains("token_expired") == true)
+        XCTAssertEqual(firstRecommendationIQ(in: store), 96)
+
+        await appServer.setAuthenticationFailure(false)
+        store.refreshNow()
+        try await waitUntil { store.dashboardState.rateLimitError == nil }
+        XCTAssertEqual(store.dashboardState.rateLimits, savedQuota)
+        XCTAssertNil(store.dashboardState.lastError)
+
         let finalNetworkSnapshot = controller.snapshot()
         let finalAppServerSnapshot = await appServer.snapshot()
         XCTAssertEqual(finalNetworkSnapshot.requestCount, 5)
@@ -320,9 +335,19 @@ private actor RadarInsightsTestAppServer:
     )
     private var rateLimitReadCount = 0
     private var consumeCallCount = 0
+    private var authenticationFailure = false
+
+    func setAuthenticationFailure(_ enabled: Bool) {
+        authenticationFailure = enabled
+    }
 
     func readRateLimits() async throws -> RateLimitResponse {
         rateLimitReadCount += 1
+        if authenticationFailure {
+            throw CodexAppServerClient.ClientError.rpcError(
+                code: nil, message: "failed to fetch codex rate limits: token_expired"
+            )
+        }
         return response
     }
 

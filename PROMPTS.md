@@ -131,6 +131,8 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 
 | 107 | [`Prompt-Id: 107 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+107%22&type=commits) | 将评分条目存在但尚无投票视为正常空状态，避免实时契约误报。 |
 
+| 109 | [`Prompt-Id: 109 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+109%22&type=commits) | 登录失效时提供明确恢复操作，并区分保存的额度与实时数据。 |
+
 ## Prompts
 
 ### 1. 初始想法
@@ -831,4 +833,10 @@ commit 要求是可以点击的链接
 
 ```text
 对 Codex Radar Sentinel 做例行契约维护：模型评分端点已包含当前模型条目但暂时没有投票时，应保留“暂无评分”的正常空状态。实时验证仍须确认模型条目存在，并在有投票时要求有效平均分，避免正常空数据阻断完整 macOS 验证与打包。
+```
+
+### 109. 登录失效与额度旧数据提示
+
+```text
+优化登录凭证过期时的连接提示：识别多行错误中的登录失效信息，显示重新登录操作，避免暴露原始响应和误导性自动重试提示。保留上次额度以供参考，但明确标记未更新，菜单栏不再将旧额度显示为实时读数。完成验证后按发布门禁处理。
 ```

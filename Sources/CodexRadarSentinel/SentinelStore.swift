@@ -119,9 +119,7 @@ enum RateLimitReadRecovery {
 
     static func isTransientMessage(_ message: String) -> Bool {
         let normalized = message.lowercased()
-        guard !normalized.contains("authentication required"),
-              !normalized.contains("not logged in"),
-              !normalized.contains("signed out") else {
+        guard !CodexAuthenticationError.matches(message) else {
             return false
         }
         return [
@@ -1487,6 +1485,15 @@ final class SentinelStore: NSObject, ObservableObject {
             documentationState.lastError =
                 "failed to fetch codex rate limits: error sending request for url (https://chatgpt.com/backend-api/wham/usage)"
         }
+        if ProcessInfo.processInfo.environment[
+            "CODEX_RADAR_VISUAL_TEST_CONNECTION_ERROR"
+        ] == "auth" {
+            documentationState.lastError = """
+            failed to fetch codex rate limits: HTTP 401
+            {"error": {"message": "Your authentication token has expired. Please sign in again.", "code": "token_expired"}}
+            """
+        }
+        documentationState.rateLimitError = documentationState.lastError
         state = documentationState
         resetCreditSnapshot = Self.documentationResetCreditSnapshot()
         resetCreditPhase = .idle
@@ -2066,6 +2073,7 @@ final class SentinelStore: NSObject, ObservableObject {
         switch results.rateLimits {
         case .success(let payload):
             next.rateLimits = payload.dashboard
+            next.rateLimitError = nil
             recordQuotaHistory(
                 payload.dashboard,
                 at: quotaHistoryNow
@@ -2073,6 +2081,7 @@ final class SentinelStore: NSObject, ObservableObject {
             cacheResetCreditsFromAppServer(payload.response.rateLimitResetCredits)
             scheduleResetCreditProtectionEvaluation()
         case .failure(let error):
+            next.rateLimitError = error.localizedDescription
             errors.append(error.localizedDescription)
         }
 

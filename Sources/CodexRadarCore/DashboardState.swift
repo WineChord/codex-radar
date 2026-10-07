@@ -9,6 +9,7 @@ public struct DashboardState: Equatable {
     public var radarInsights: RadarInsightsEnvelope?
     public var lastUpdatedAt: Date?
     public var lastError: String?
+    public var rateLimitError: String?
 
     public init(
         rateLimits: RateLimitDashboard? = nil,
@@ -18,7 +19,8 @@ public struct DashboardState: Equatable {
         modelRatings: ModelRatingsEnvelope? = nil,
         radarInsights: RadarInsightsEnvelope? = nil,
         lastUpdatedAt: Date? = nil,
-        lastError: String? = nil
+        lastError: String? = nil,
+        rateLimitError: String? = nil
     ) {
         self.rateLimits = rateLimits
         self.current = current
@@ -28,6 +30,7 @@ public struct DashboardState: Equatable {
         self.radarInsights = radarInsights
         self.lastUpdatedAt = lastUpdatedAt
         self.lastError = lastError
+        self.rateLimitError = rateLimitError
     }
 
     public var statusTitle: String {
