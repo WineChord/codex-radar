@@ -33,6 +33,9 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         pacingStrategy: QuotaPacingStrategy = .timeProportional,
         holidayCalendar: HolidayCalendar? = nil
     ) -> String {
+        if state.rateLimitError != nil && (self == .weeklyQuota || self == .shortQuota || self == .quotaPace) {
+            return "—"
+        }
         switch self {
         case .weeklyQuota:
             return DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)
@@ -58,6 +61,9 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         language: AppLanguage,
         options: StatusBarDisplayOptions
     ) -> String {
+        if state.rateLimitError != nil && (self == .weeklyQuota || self == .shortQuota || self == .quotaPace) {
+            return "—"
+        }
         switch self {
         case .weeklyQuota:
             return DisplayFormatters.percent(

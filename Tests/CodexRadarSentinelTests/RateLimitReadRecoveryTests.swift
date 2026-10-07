@@ -53,6 +53,26 @@ final class RateLimitReadRecoveryTests: XCTestCase {
         XCTAssertEqual(readCount, 1)
     }
 
+    func testWrappedExpiredCredentialIsNotRetried() async throws {
+        for reason in [
+            "Your authentication token has expired. Please sign in again.",
+            "token_expired", "invalid_token", "refresh_token_reused",
+        ] {
+            let service = RateLimitRecoveryTestService(failures: [
+                .rpcError(code: nil, message: "failed to fetch codex rate limits: \(reason)"),
+            ])
+            var slept = false
+            do {
+                _ = try await RateLimitReadRecovery.read(from: service, sleep: { _ in slept = true })
+                XCTFail("Expected the credential error")
+            } catch CodexAppServerClient.ClientError.rpcError { }
+            XCTAssertFalse(slept)
+            let count = await service.readCount
+            XCTAssertEqual(count, 1)
+        }
+        XCTAssertTrue(RateLimitReadRecovery.isTransientMessage("failed to fetch codex rate limits: timed out"))
+    }
+
     func testPersistentTransientFailureStopsAfterOneRetry() async throws {
         let failure = CodexAppServerClient.ClientError.rpcError(
             code: nil,

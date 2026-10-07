@@ -119,9 +119,7 @@ enum RateLimitReadRecovery {
 
     static func isTransientMessage(_ message: String) -> Bool {
         let normalized = message.lowercased()
-        guard !normalized.contains("authentication required"),
-              !normalized.contains("not logged in"),
-              !normalized.contains("signed out") else {
+        guard !CodexAuthenticationError.matches(message) else {
             return false
         }
         return [
@@ -151,6 +149,8 @@ final class SentinelStore: NSObject, ObservableObject {
             updateTitleForStatusItem()
         }
     }
+
+    @Published private(set) var radarInsightsUnavailable = false
 
     @Published var menuTextSize: DashboardTextSize {
         didSet {
@@ -1480,6 +1480,9 @@ final class SentinelStore: NSObject, ObservableObject {
         documentationState.modelIQ = Self.documentationModelIQ()
         documentationState.modelRatings = Self.documentationModelRatings()
         documentationState.radarInsights = Self.documentationRadarInsights()
+        let insightsFailure = ProcessInfo.processInfo.environment["CODEX_RADAR_VISUAL_TEST_INSIGHTS_UNAVAILABLE"]
+        radarInsightsUnavailable = insightsFailure != nil
+        if insightsFailure == "empty" { documentationState.radarInsights = nil }
         documentationState.lastUpdatedAt = Self.documentationUpdatedAt
         if ProcessInfo.processInfo.environment[
             "CODEX_RADAR_VISUAL_TEST_CONNECTION_ERROR"
@@ -1487,6 +1490,15 @@ final class SentinelStore: NSObject, ObservableObject {
             documentationState.lastError =
                 "failed to fetch codex rate limits: error sending request for url (https://chatgpt.com/backend-api/wham/usage)"
         }
+        if ProcessInfo.processInfo.environment[
+            "CODEX_RADAR_VISUAL_TEST_CONNECTION_ERROR"
+        ] == "auth" {
+            documentationState.lastError = """
+            failed to fetch codex rate limits: HTTP 401
+            {"error": {"message": "Your authentication token has expired. Please sign in again.", "code": "token_expired"}}
+            """
+        }
+        documentationState.rateLimitError = documentationState.lastError
         state = documentationState
         resetCreditSnapshot = Self.documentationResetCreditSnapshot()
         resetCreditPhase = .idle
@@ -2066,6 +2078,7 @@ final class SentinelStore: NSObject, ObservableObject {
         switch results.rateLimits {
         case .success(let payload):
             next.rateLimits = payload.dashboard
+            next.rateLimitError = nil
             recordQuotaHistory(
                 payload.dashboard,
                 at: quotaHistoryNow
@@ -2073,6 +2086,7 @@ final class SentinelStore: NSObject, ObservableObject {
             cacheResetCreditsFromAppServer(payload.response.rateLimitResetCredits)
             scheduleResetCreditProtectionEvaluation()
         case .failure(let error):
+            next.rateLimitError = error.localizedDescription
             errors.append(error.localizedDescription)
         }
 
@@ -2128,10 +2142,20 @@ final class SentinelStore: NSObject, ObservableObject {
             defer {
                 self.radarInsightsTask = nil
             }
-            if case .success(let insights?) =
-                await self.fetchRadarInsightsResult(),
-               self.shouldAcceptRadarInsights(insights) {
-                self.state.radarInsights = insights
+            let result = await self.fetchRadarInsightsResult()
+            guard !Task.isCancelled else { return }
+            switch result {
+            case .success(let insights?):
+                if self.shouldAcceptRadarInsights(insights) {
+                    self.state.radarInsights = insights
+                    self.radarInsightsUnavailable = false
+                } else {
+                    self.radarInsightsUnavailable = true
+                }
+            case .success(nil):
+                break // A throttled read must retain the last availability state.
+            case .failure:
+                self.radarInsightsUnavailable = true
             }
         }
     }

@@ -34,17 +34,19 @@ enum DashboardConnectionErrorCopy {
         language: AppLanguage,
         hasCachedQuota: Bool = false
     ) -> String {
-        error.split(separator: "\n", omittingEmptySubsequences: false)
+        if CodexAuthenticationError.matches(error) {
+            let guidance = language.text(
+                "Radar 的额度连接认证失败。请先点“刷新”；若仍失败，请检查 Codex 登录状态。",
+                "Radar could not authenticate its quota connection. Choose Refresh; if it still fails, check your sign-in in Codex."
+            )
+            return guidance + (hasCachedQuota ? language.text(
+                " 下方额度为上次保存的数据。",
+                " Quota below is the last saved reading."
+            ) : "")
+        }
+        return error.split(separator: "\n", omittingEmptySubsequences: false)
             .map { line in
                 let normalized = line.lowercased()
-                if normalized.contains("authentication required")
-                    || normalized.contains("not logged in")
-                    || normalized.contains("signed out") {
-                    return language.text(
-                        "Codex 尚未登录。请先打开 Codex 完成登录，再点“刷新”。",
-                        "Codex is signed out. Open Codex and sign in, then choose Refresh."
-                    )
-                }
                 guard normalized.contains("failed to fetch codex rate limits")
                     || normalized.contains("wham/usage")
                     || normalized.contains("codex app-server request timed out")
@@ -862,11 +864,16 @@ struct DashboardMenuView: View {
             isExpanded: renderedExpansionBinding(for: .quota),
             systemImage: DashboardSection.quota.systemImage,
             title: DashboardSection.quota.label(language: language),
-            trailing: DisplayFormatters.percent(
-                state.rateLimits?.weeklyRemainingPercent
-            )
+            trailing: state.rateLimitError == nil
+                ? DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)
+                : text("未更新", "Not updated")
         ) {
             VStack(alignment: .leading, spacing: 7) {
+                if state.rateLimitError != nil, state.rateLimits != nil {
+                    Text(text("上次保存的额度", "Last saved quota"))
+                        .font(.system(size: metrics.caption))
+                        .foregroundStyle(.secondary)
+                }
                 HStack(spacing: Layout.tileSpacing) {
                     quotaTile(
                         title: text("周额度", "Weekly"),
@@ -932,10 +939,10 @@ struct DashboardMenuView: View {
     }
 
     private var quotaPacingSection: some View {
-        let pacing = state.rateLimits?.quotaPacing(
+        let pacing = state.rateLimitError == nil ? state.rateLimits?.quotaPacing(
             strategy: store.quotaPacingStrategy,
             holidayCalendar: store.quotaPacingHolidayCalendar
-        )
+        ) : nil
         return collapsibleSection(
             isExpanded: renderedExpansionBinding(for: .usagePace),
             systemImage: DashboardSection.usagePace.systemImage,
@@ -980,7 +987,10 @@ struct DashboardMenuView: View {
                     )
                 } else {
                     expandableCaptionText(
-                        text(
+                        state.rateLimitError != nil ? text(
+                            "额度未更新，暂时无法提供用量建议。",
+                            "Quota is not updated; usage guidance is unavailable."
+                        ) : text(
                             "还没有读取到周额度 reset 时间，暂时无法计算建议剩余。",
                             "Weekly reset timing is not loaded yet, so the target remaining quota is unavailable."
                         ),
@@ -1845,17 +1855,31 @@ struct DashboardMenuView: View {
     private var codexRadarInsightsSection: some View {
         let groups = radarRecommendationGroups
         let alerts = radarDegradationItems
-        if !groups.isEmpty || !alerts.isEmpty {
+        if !groups.isEmpty || !alerts.isEmpty || store.radarInsightsUnavailable {
             collapsibleSection(
                 isExpanded: renderedExpansionBinding(for: .insights),
                 systemImage: DashboardSection.insights.systemImage,
                 title: DashboardSection.insights.label(language: language),
-                trailing: insightsSectionSummary(alerts: alerts)
+                trailing: store.radarInsightsUnavailable
+                    ? text("暂不可用", "Unavailable")
+                    : insightsSectionSummary(alerts: alerts)
             ) {
                 VStack(alignment: .leading, spacing: 7) {
-                    HStack(spacing: Layout.tileSpacing) {
-                        radarInsightPickTile(groups)
-                        radarInsightAlertTile(alerts)
+                    if store.radarInsightsUnavailable {
+                        Text(text(
+                            "洞察服务暂不可用，稍后自动重试。", "Insights are temporarily unavailable; the app will retry."
+                        ) + (state.radarInsights != nil ? text(
+                            " 下方为上次保存的数据。", " Data below is the last saved reading."
+                        ) : ""))
+                            .font(.system(size: metrics.caption))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !groups.isEmpty || !alerts.isEmpty {
+                        HStack(spacing: Layout.tileSpacing) {
+                            radarInsightPickTile(groups)
+                            radarInsightAlertTile(alerts)
+                        }
                     }
 
                     if let updated = radarInsightsUpdatedLabel {
@@ -1867,7 +1891,7 @@ struct DashboardMenuView: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
 
-                    if store.isDashboardDisclosureVisible(
+                    if (!groups.isEmpty || !alerts.isEmpty), store.isDashboardDisclosureVisible(
                         .radarInsightsDetails
                     ) {
                         collapsibleSection(
@@ -3071,10 +3095,15 @@ struct DashboardMenuView: View {
     }
 
     private func errorSection(_ error: String) -> some View {
-        let visibleError = DashboardConnectionErrorCopy.text(
-            for: error,
-            language: language,
-            hasCachedQuota: state.rateLimits != nil
+        // Translate the quota failure independently so unrelated Radar errors remain visible.
+        let quotaError = state.rateLimitError ?? error
+        let visibleError = error.replacingOccurrences(
+            of: quotaError,
+            with: DashboardConnectionErrorCopy.text(
+                for: quotaError,
+                language: language,
+                hasCachedQuota: state.rateLimits != nil
+            )
         )
         return VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("连接", "Connection"), systemImage: "exclamationmark.triangle")
@@ -3084,6 +3113,12 @@ struct DashboardMenuView: View {
                 collapsedLines: 4,
                 fontSize: metrics.label
             )
+            if CodexAuthenticationError.matches(quotaError) {
+                Button(text("打开 Codex", "Open Codex")) {
+                    store.openCodexApp()
+                }
+                .buttonStyle(.bordered)
+            }
         }
     }
 

@@ -26,10 +26,14 @@ packages and bilingual screenshots are retained as Actions artifacts for 7 days.
 These candidate packages are not published updates; they may carry the current
 source version and must not replace an existing release.
 
-Live source outages or schema changes fail the contract check. Inspect the exact
-failure and preserve deterministic unit tests; do not weaken assertions merely
-to turn a failing check green. No job needs a personal Codex login or real reset
-credits. Real-account login, notifications, launch-at-login, sleep/wake behavior
+Core live-source outages and schema changes fail the contract check. Optional
+insights HTTP 502/503/504 responses are reported as degraded availability, with
+mandatory offline tests for the visible unavailable state, cache retention,
+recovery, and independent quota refresh. Other HTTP failures, transport failures,
+and malformed successful responses still fail. Run with
+`CODEX_RADAR_STRICT_INSIGHTS=1` to require upstream insights availability as well.
+Do not replace failed content checks with cached fixtures or invented data.
+No job needs a personal Codex login or real reset credits. Real-account login, notifications, launch-at-login, sleep/wake behavior
 and installation/update smoke tests still require a representative Mac session.
 
 ## Publish a release

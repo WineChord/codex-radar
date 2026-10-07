@@ -5,6 +5,114 @@ import XCTest
 
 @MainActor
 final class RadarInsightsOrchestrationTests: XCTestCase {
+    func testUnavailableInsightsPreserveQuotaAndRecoverWithoutInventedData() async throws {
+        let identifier = UUID().uuidString
+        let suiteName = "com.codexradar.sentinel.insights-tests.\(identifier)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(false, forKey: "automaticUpdatesEnabled")
+        defaults.set(false, forKey: "resetCreditAutoRefreshEnabled")
+        defaults.set(false, forKey: "predictionNotificationsEnabled")
+        defaults.set(false, forKey: "iqNotificationsEnabled")
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "codex-radar-insights-tests-\(identifier)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: false
+        )
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RadarInsightsStoreURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let controller = RadarInsightsStoreURLProtocol.controller
+        let uptime = RadarInsightsTestUptime(100)
+        let appServer = RadarInsightsTestAppServer()
+        controller.reset(mode: .unavailable(502))
+
+        let baseURL = URL(string: "https://sentinel-insights.test/")!
+        let store = SentinelStore(
+            defaults: defaults,
+            radarClient: CodexRadarClient(
+                baseURL: baseURL,
+                radarInsightsURL: baseURL.appending(
+                    path: "api/v1/radar-insights"
+                ),
+                session: session
+            ),
+            appServerClient: appServer,
+            resetCreditProtectionLedgerStore:
+                ResetCreditProtectionLedgerStore(
+                    url: directory.appendingPathComponent("ledger.json")
+                ),
+            resetCreditProtectionAuthorizationStore:
+                ResetCreditProtectionAuthorizationStore(
+                    url: directory.appendingPathComponent(
+                        "authorization.json"
+                    ),
+                    dispatchLockURL: directory.appendingPathComponent(
+                        "authorization.lock"
+                    )
+                ),
+            resetCreditProtectionProcessLockURL: directory
+                .appendingPathComponent("process.lock"),
+            radarInsightsUptime: {
+                uptime.value
+            },
+            quotaHistoryStore: QuotaHistoryStore(
+                url: directory.appendingPathComponent(
+                    "quota-history.json"
+                )
+            ),
+            resetCreditProtectionDestructiveActionsAllowed: false
+        )
+        defer {
+            controller.releaseSuspendedRequest()
+            store.stop()
+            // The cancelled refresh task can still be unwinding through
+            // URLSession. Let the per-test session live until those tasks
+            // release it instead of invalidating it underneath them.
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        store.refreshNow()
+        try await waitUntil {
+            store.radarInsightsUnavailable && store.dashboardState.rateLimits != nil
+        }
+        XCTAssertNil(store.dashboardState.radarInsights)
+        XCTAssertNil(store.dashboardState.rateLimitError)
+        XCTAssertNil(store.dashboardState.lastError)
+
+        uptime.advance(by: 601)
+        controller.configure(mode: .immediate(insightsPayload(iq: 91, updatedAt: "2026-07-26T02:00:00Z")))
+        store.refreshNow()
+        try await waitUntil { self.firstRecommendationIQ(in: store) == 91 }
+        XCTAssertFalse(store.radarInsightsUnavailable)
+        let saved = store.dashboardState.radarInsights
+        for status in [502, 503, 504] {
+            uptime.advance(by: 601)
+            controller.configure(mode: .unavailable(status))
+            store.refreshNow()
+            try await waitUntil { store.radarInsightsUnavailable }
+            XCTAssertEqual(store.dashboardState.radarInsights, saved)
+            XCTAssertNil(store.dashboardState.rateLimitError)
+            store.refreshNow()
+            try await Task.sleep(nanoseconds: 20_000_000)
+            XCTAssertTrue(store.radarInsightsUnavailable)
+            uptime.advance(by: 601)
+            controller.configure(mode: .immediate(insightsPayload(iq: 91, updatedAt: "2026-07-26T02:00:00Z")))
+            store.refreshNow()
+            try await waitUntil { !store.radarInsightsUnavailable }
+        }
+        XCTAssertEqual(controller.snapshot().sensitiveHeaderCount, 0)
+        let final = await appServer.snapshot()
+        XCTAssertEqual(final.consumeCallCount, 0)
+    }
+
     func testRefreshIsIndependentSingleFlightThrottledAndKeepsNewestGoodData()
         async throws
     {
@@ -197,6 +305,21 @@ final class RadarInsightsOrchestrationTests: XCTestCase {
             self.firstRecommendationIQ(in: store) == 96
         }
 
+        // A quota credential failure preserves saved data without marking it current.
+        let savedQuota = store.dashboardState.rateLimits
+        await appServer.setAuthenticationFailure(true)
+        store.refreshNow()
+        try await waitUntil { store.dashboardState.rateLimitError != nil }
+        XCTAssertEqual(store.dashboardState.rateLimits, savedQuota)
+        XCTAssertTrue(store.dashboardState.lastError?.contains("token_expired") == true)
+        XCTAssertEqual(firstRecommendationIQ(in: store), 96)
+
+        await appServer.setAuthenticationFailure(false)
+        store.refreshNow()
+        try await waitUntil { store.dashboardState.rateLimitError == nil }
+        XCTAssertEqual(store.dashboardState.rateLimits, savedQuota)
+        XCTAssertNil(store.dashboardState.lastError)
+
         let finalNetworkSnapshot = controller.snapshot()
         let finalAppServerSnapshot = await appServer.snapshot()
         XCTAssertEqual(finalNetworkSnapshot.requestCount, 5)
@@ -320,9 +443,19 @@ private actor RadarInsightsTestAppServer:
     )
     private var rateLimitReadCount = 0
     private var consumeCallCount = 0
+    private var authenticationFailure = false
+
+    func setAuthenticationFailure(_ enabled: Bool) {
+        authenticationFailure = enabled
+    }
 
     func readRateLimits() async throws -> RateLimitResponse {
         rateLimitReadCount += 1
+        if authenticationFailure {
+            throw CodexAppServerClient.ClientError.rpcError(
+                code: nil, message: "failed to fetch codex rate limits: token_expired"
+            )
+        }
         return response
     }
 
@@ -404,6 +537,7 @@ private final class RadarInsightsURLProtocolController:
     enum Mode {
         case suspended(Data)
         case immediate(Data)
+        case unavailable(Int)
     }
 
     struct Plan: @unchecked Sendable {
@@ -453,6 +587,8 @@ private final class RadarInsightsURLProtocolController:
             sensitiveHeaderCount += 1
         }
         switch mode {
+        case .unavailable(let status):
+            return Plan(data: Data("Unavailable".utf8), statusCode: status, gate: nil)
         case .suspended(let data):
             return Plan(
                 data: data,

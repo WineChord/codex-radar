@@ -137,6 +137,9 @@ enum DocumentationScreenshotRenderer {
             )
         }
         configureLayoutProfileIfRequested(store)
+        if ProcessInfo.processInfo.environment["CODEX_RADAR_VISUAL_TEST_COLLAPSE_QUOTA"] == "1" {
+            store.setDashboardSection(.quota, expanded: false)
+        }
         if ProcessInfo.processInfo.environment[
             attentionEnvironmentKey
         ] == "1" {

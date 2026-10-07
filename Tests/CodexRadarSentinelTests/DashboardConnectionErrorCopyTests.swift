@@ -7,12 +7,34 @@ final class DashboardConnectionErrorCopyTests: XCTestCase {
 
         XCTAssertEqual(
             DashboardConnectionErrorCopy.text(for: raw, language: .zhHans),
-            "Codex 尚未登录。请先打开 Codex 完成登录，再点“刷新”。"
+            "Radar 的额度连接认证失败。请先点“刷新”；若仍失败，请检查 Codex 登录状态。"
         )
         XCTAssertEqual(
             DashboardConnectionErrorCopy.text(for: raw, language: .en),
-            "Codex is signed out. Open Codex and sign in, then choose Refresh."
+            "Radar could not authenticate its quota connection. Choose Refresh; if it still fails, check your sign-in in Codex."
         )
+    }
+
+    func testMultilineExpiredTokenShowsRecoveryWithoutRawResponse() {
+        let raw = """
+        failed to fetch codex rate limits: HTTP 401
+        {
+          "error": {
+            "message": "Your authentication token has expired. Please sign in again.",
+            "code": "token_expired"
+          }
+        }
+        """
+        for language in AppLanguage.allCases {
+            let copy = DashboardConnectionErrorCopy.text(
+                for: raw, language: language, hasCachedQuota: true
+            )
+            XCTAssertTrue(copy.contains(language == .en ? "check your sign-in" : "检查 Codex 登录状态"))
+            XCTAssertTrue(copy.contains(language == .en ? "last saved" : "上次保存"))
+            XCTAssertFalse(copy.contains("{"))
+            XCTAssertFalse(copy.contains("token_expired"))
+            XCTAssertFalse(copy.contains(language == .en ? "retry automatically" : "自动重试"))
+        }
     }
 
     func testAppServerTimeoutUsesRetryCopy() {

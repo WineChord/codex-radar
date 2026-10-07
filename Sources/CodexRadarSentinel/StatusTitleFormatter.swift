@@ -108,6 +108,9 @@ enum StatusTitleFormatter {
     }
 
     private static func quotaColor(for state: DashboardState, remaining: Int?) -> NSColor {
+        if state.rateLimitError != nil {
+            return .secondaryLabelColor
+        }
         if state.rateLimits?.isBlocked == true {
             return .systemRed
         }
@@ -128,7 +131,8 @@ enum StatusTitleFormatter {
         strategy: QuotaPacingStrategy,
         holidayCalendar: HolidayCalendar?
     ) -> NSColor {
-        guard let pacing = state.rateLimits?.quotaPacing(
+        guard state.rateLimitError == nil,
+              let pacing = state.rateLimits?.quotaPacing(
             strategy: strategy,
             holidayCalendar: holidayCalendar
         ) else {

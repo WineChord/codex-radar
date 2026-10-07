@@ -3,6 +3,75 @@ import XCTest
 @testable import CodexRadarCore
 
 final class CodexAppServerClientTransportTests: XCTestCase {
+    func testExpiredCredentialAfterSuccessfulReadReconnectsOnce() async throws {
+        try await checkCredentialRecovery(mode: "after-success", allowsRestart: true, expectedLaunches: 2, succeeds: true)
+    }
+
+    func testPersistentCredentialFailureStopsAfterOneReconnect() async throws {
+        try await checkCredentialRecovery(mode: "persistent", allowsRestart: true, expectedLaunches: 2, succeeds: false)
+    }
+
+    func testBoundSessionNeverReconnectsOnCredentialFailure() async throws {
+        try await checkCredentialRecovery(mode: "after-success", allowsRestart: false, expectedLaunches: 1, succeeds: false)
+    }
+
+    func testNonAuthenticationFailureDoesNotReconnect() async throws {
+        try await checkCredentialRecovery(mode: "network", allowsRestart: true, expectedLaunches: 1, succeeds: false)
+    }
+
+    private func checkCredentialRecovery(
+        mode: String, allowsRestart: Bool, expectedLaunches: Int, succeeds: Bool
+    ) async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("radar-auth-recovery-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("fake-codex")
+        let counter = directory.appendingPathComponent("launches")
+        let script = """
+        #!/usr/bin/python3
+        import json,sys,pathlib
+        counter=pathlib.Path('\(counter.path)')
+        launch=int(counter.read_text())+1 if counter.exists() else 1
+        counter.write_text(str(launch))
+        reads=0
+        for line in sys.stdin:
+            request=json.loads(line)
+            method=request['method']
+            if method=='initialize':
+                result={'userAgent':'fake','codexHome':'/tmp','platformFamily':'unix','platformOs':'macos'}
+            elif method=='account/rateLimits/read':
+                reads+=1
+                fail=('\(mode)' in ['persistent','network'] or (launch==1 and reads>1))
+                if fail:
+                    message='token_expired' if '\(mode)'!='network' else 'connection reset'
+                    print(json.dumps({'id':request['id'],'error':{'code':-32000,'message':message}}),flush=True)
+                    continue
+                result={'rateLimits':{'limitId':'codex','planType':'pro'},'rateLimitsByLimitId':None,'rateLimitResetCredits':None}
+            else:
+                raise RuntimeError('Unexpected RPC')
+            print(json.dumps({'id':request['id'],'result':result}),flush=True)
+        """
+        try Data(script.utf8).write(to: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        let client = CodexAppServerClient(binaryURLProvider: { executable }, allowsAutomaticRestart: allowsRestart)
+        if mode == "after-success" {
+            let initial = try await client.readRateLimits()
+            XCTAssertEqual(initial.rateLimits.planType, "pro")
+        }
+        do {
+            let result = try await client.readRateLimits()
+            XCTAssertTrue(succeeds)
+            XCTAssertEqual(result.rateLimits.planType, "pro")
+        } catch CodexAppServerClient.ClientError.rpcError {
+            XCTAssertFalse(succeeds)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        await client.shutdown()
+        XCTAssertEqual(try String(contentsOf: counter), String(expectedLaunches))
+    }
+
     func testClosedInputPipeReturnsProcessUnavailableAndNextReadRestarts()
         async throws
     {
