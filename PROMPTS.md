@@ -134,9 +134,8 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 108 | [cd7b8a7](https://github.com/WineChord/codex-radar/commit/cd7b8a7), [de9d2be](https://github.com/WineChord/codex-radar/commit/de9d2be), [`Prompt-Id: 108 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+108%22&type=commits) | 跟随 CodexRadar 智能洞察迁移到当前同源接口，恢复场景推荐与降智预警。 |
 
 | 109 | [aecba25](https://github.com/WineChord/codex-radar/commit/aecba25), [a0b6047](https://github.com/WineChord/codex-radar/commit/a0b6047), [`Prompt-Id: 109 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+109%22&type=commits) | 自动重建凭证过期的独立额度连接，并区分保存的额度与实时数据。 |
-
 | 110 | [`Prompt-Id: 110 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+110%22&type=commits) | 完成额度连接恢复、洞察故障降级、验证与发布。 |
-| 111 | [Prompt-Id: 111](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+111%22&type=commits) | 断网额度缓存、成功时间与重启恢复。 |
+| 111 | [628b62a](https://github.com/WineChord/codex-radar/commit/628b62a) | 断网额度缓存、成功时间与重启恢复。 |
 
 ## Prompts
 
