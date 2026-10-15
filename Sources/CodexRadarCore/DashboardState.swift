@@ -7,6 +7,11 @@ public struct DashboardState: Equatable {
     public var modelIQ: ModelIQEnvelope?
     public var modelRatings: ModelRatingsEnvelope?
     public var radarInsights: RadarInsightsEnvelope?
+    public var quotaUpdatedAt: Date?
+    public var restoredQuota = false
+    public var hasCachedQuota: Bool {
+        rateLimits != nil && (restoredQuota || rateLimitError != nil)
+    }
     public var lastUpdatedAt: Date?
     public var lastError: String?
     public var rateLimitError: String?

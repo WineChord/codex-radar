@@ -449,6 +449,8 @@ final class SentinelStore: NSObject, ObservableObject {
     private let resetCreditProtectionClock:
         () -> ResetCreditProtectionClockSample
     private let radarInsightsUptime: () -> TimeInterval
+    private let quotaCacheStore: QuotaCacheStore?
+    @Published private(set) var quotaCacheStorageUnavailable = false
     private let quotaHistoryStore: QuotaHistoryStore
     private let quotaHistoryClock: () -> Date
     private var lifecycleObservers: [(NotificationCenter, NSObjectProtocol)] = []
@@ -476,6 +478,7 @@ final class SentinelStore: NSObject, ObservableObject {
         radarInsightsUptime: @escaping () -> TimeInterval = {
             ProcessInfo.processInfo.systemUptime
         },
+        quotaCacheStore: QuotaCacheStore? = nil,
         quotaHistoryStore: QuotaHistoryStore? = nil,
         quotaHistoryClock: @escaping () -> Date = Date.init,
         resetCreditProtectionDestructiveActionsAllowed: Bool? = nil
@@ -500,6 +503,8 @@ final class SentinelStore: NSObject, ObservableObject {
             )
         let resolvedAppServerClient = appServerClient ?? CodexAppServerClient()
 
+        self.quotaCacheStore = quotaCacheStore
+            ?? (defaults === UserDefaults.standard ? QuotaCacheStore() : nil)
         self.defaults = defaults
         self.radarClient = radarClient
         self.appServerClient = resolvedAppServerClient
@@ -734,6 +739,18 @@ final class SentinelStore: NSObject, ObservableObject {
         self.notificationMemory = Self.loadNotificationMemory(defaults: defaults)
         self.resetCreditSnapshot = Self.loadResetCreditSnapshot(defaults: defaults)
         super.init()
+        if initialPreview == .live && !rendersDocumentation && !capturesStatusScreenshot,
+           let cacheStore = self.quotaCacheStore {
+            do {
+                if let saved = try cacheStore.load() {
+                    state.rateLimits = saved.quota
+                    state.quotaUpdatedAt = saved.updatedAt
+                    state.restoredQuota = true
+                }
+            } catch {
+                quotaCacheStorageUnavailable = true
+            }
+        }
     }
 
     private var resetCreditProtectionJournal: ResetCreditProtectionAttemptJournal? {
@@ -1483,6 +1500,7 @@ final class SentinelStore: NSObject, ObservableObject {
         let insightsFailure = ProcessInfo.processInfo.environment["CODEX_RADAR_VISUAL_TEST_INSIGHTS_UNAVAILABLE"]
         radarInsightsUnavailable = insightsFailure != nil
         if insightsFailure == "empty" { documentationState.radarInsights = nil }
+        documentationState.quotaUpdatedAt = Self.documentationUpdatedAt
         documentationState.lastUpdatedAt = Self.documentationUpdatedAt
         if ProcessInfo.processInfo.environment[
             "CODEX_RADAR_VISUAL_TEST_CONNECTION_ERROR"
@@ -1497,6 +1515,12 @@ final class SentinelStore: NSObject, ObservableObject {
             failed to fetch codex rate limits: HTTP 401
             {"error": {"message": "Your authentication token has expired. Please sign in again.", "code": "token_expired"}}
             """
+        }
+        if ProcessInfo.processInfo.environment["CODEX_RADAR_VISUAL_TEST_CONNECTION_ERROR"] == "network" {
+            documentationState.lastError = "The operation couldn’t be completed. (NSURLErrorDomain error -1001.)"
+        }
+        if ProcessInfo.processInfo.environment["CODEX_RADAR_VISUAL_TEST_CONNECTION_ERROR"] == "restored" {
+            documentationState.restoredQuota = true
         }
         documentationState.rateLimitError = documentationState.lastError
         state = documentationState
@@ -2079,6 +2103,18 @@ final class SentinelStore: NSObject, ObservableObject {
         case .success(let payload):
             next.rateLimits = payload.dashboard
             next.rateLimitError = nil
+            next.restoredQuota = false
+            next.quotaUpdatedAt = quotaHistoryNow
+            if let quotaCacheStore {
+                do {
+                    try quotaCacheStore.save(QuotaCacheStore.Reading(
+                        quota: payload.dashboard, updatedAt: quotaHistoryNow
+                    ))
+                    quotaCacheStorageUnavailable = false
+                } catch {
+                    quotaCacheStorageUnavailable = true
+                }
+            }
             recordQuotaHistory(
                 payload.dashboard,
                 at: quotaHistoryNow

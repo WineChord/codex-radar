@@ -66,6 +66,17 @@ enum DashboardConnectionErrorCopy {
             }
             .joined(separator: "\n")
     }
+
+    static func networkText(for error: String, language: AppLanguage) -> String {
+        error.replacingOccurrences(
+            of: #"(?:The operation couldn.t be completed\.\s*)?\(NSURLErrorDomain error -\d+\.\)"#,
+            with: language.text(
+                "网络请求暂时失败，应用会自动重试。",
+                "A network request failed temporarily. The app will retry automatically."
+            ),
+            options: .regularExpression
+        )
+    }
 }
 
 struct DashboardMenuView: View {
@@ -789,30 +800,40 @@ struct DashboardMenuView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: headerSymbol)
-                .font(.system(size: metrics.headerIcon, weight: .semibold))
-                .foregroundStyle(headerColor)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(actionText)
-                    .font(.system(size: metrics.headerTitle, weight: .semibold))
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: headerSymbol)
+                    .font(.system(size: metrics.headerIcon, weight: .semibold))
+                    .foregroundStyle(headerColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(actionText)
+                        .font(.system(size: metrics.headerTitle, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                    if !state.hasCachedQuota {
+                        Text(headerDetailText)
+                            .font(.system(size: metrics.caption))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                    }
+                }
+                Spacer()
+                Text(menuBarTitle)
+                    .font(.system(size: metrics.badge, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(headerColor)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                Text(headerDetailText)
+                    .minimumScaleFactor(0.75)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(headerColor.opacity(0.12), in: Capsule())
+            }
+            if state.hasCachedQuota {
+                Text(quotaUpdateDescription)
                     .font(.system(size: metrics.caption))
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
-            Text(menuBarTitle)
-                .font(.system(size: metrics.badge, weight: .semibold, design: .monospaced))
-                .foregroundStyle(headerColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(headerColor.opacity(0.12), in: Capsule())
         }
     }
 
@@ -859,20 +880,33 @@ struct DashboardMenuView: View {
         )
     }
 
+    private var quotaUpdateDescription: String {
+        let date = DisplayFormatters.compactDateTime(state.quotaUpdatedAt)
+        return state.hasCachedQuota
+            ? text("缓存 · 上次成功更新 \(date)", "Saved · Last successful update \(date)")
+            : text("额度更新 \(date)", "Quota updated \(date)")
+    }
+
     private var quotaSection: some View {
         collapsibleSection(
             isExpanded: renderedExpansionBinding(for: .quota),
             systemImage: DashboardSection.quota.systemImage,
             title: DashboardSection.quota.label(language: language),
-            trailing: state.rateLimitError == nil
-                ? DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)
-                : text("未更新", "Not updated")
+            trailing: StatusMetric.weeklyQuota.value(for: state, language: language)
         ) {
             VStack(alignment: .leading, spacing: 7) {
-                if state.rateLimitError != nil, state.rateLimits != nil {
-                    Text(text("上次保存的额度", "Last saved quota"))
+                if state.rateLimits != nil && !state.hasCachedQuota {
+                    Text(quotaUpdateDescription)
                         .font(.system(size: metrics.caption))
                         .foregroundStyle(.secondary)
+                }
+                if store.quotaCacheStorageUnavailable {
+                    Text(text(
+                        "额度缓存无法保存或读取，重启后可能无法保留。",
+                        "Quota cache could not be saved or read; it may not survive a restart."
+                    ))
+                    .font(.system(size: metrics.caption))
+                    .foregroundStyle(.orange)
                 }
                 HStack(spacing: Layout.tileSpacing) {
                     quotaTile(
@@ -939,7 +973,7 @@ struct DashboardMenuView: View {
     }
 
     private var quotaPacingSection: some View {
-        let pacing = state.rateLimitError == nil ? state.rateLimits?.quotaPacing(
+        let pacing = !state.hasCachedQuota ? state.rateLimits?.quotaPacing(
             strategy: store.quotaPacingStrategy,
             holidayCalendar: store.quotaPacingHolidayCalendar
         ) : nil
@@ -987,7 +1021,7 @@ struct DashboardMenuView: View {
                     )
                 } else {
                     expandableCaptionText(
-                        state.rateLimitError != nil ? text(
+                        state.hasCachedQuota ? text(
                             "额度未更新，暂时无法提供用量建议。",
                             "Quota is not updated; usage guidance is unavailable."
                         ) : text(
@@ -3097,13 +3131,16 @@ struct DashboardMenuView: View {
     private func errorSection(_ error: String) -> some View {
         // Translate the quota failure independently so unrelated Radar errors remain visible.
         let quotaError = state.rateLimitError ?? error
-        let visibleError = error.replacingOccurrences(
+        let translatedError = error.replacingOccurrences(
             of: quotaError,
             with: DashboardConnectionErrorCopy.text(
                 for: quotaError,
                 language: language,
                 hasCachedQuota: state.rateLimits != nil
             )
+        )
+        let visibleError = DashboardConnectionErrorCopy.networkText(
+            for: translatedError, language: language
         )
         return VStack(alignment: .leading, spacing: 7) {
             sectionTitle(text("连接", "Connection"), systemImage: "exclamationmark.triangle")

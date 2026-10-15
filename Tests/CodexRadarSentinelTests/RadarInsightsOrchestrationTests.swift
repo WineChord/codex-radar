@@ -151,6 +151,7 @@ final class RadarInsightsOrchestrationTests: XCTestCase {
         )
 
         let baseURL = URL(string: "https://sentinel-insights.test/")!
+        let quotaCache = QuotaCacheStore(url: directory.appendingPathComponent("quota.json"))
         let store = SentinelStore(
             defaults: defaults,
             radarClient: CodexRadarClient(
@@ -179,6 +180,7 @@ final class RadarInsightsOrchestrationTests: XCTestCase {
             radarInsightsUptime: {
                 uptime.value
             },
+            quotaCacheStore: quotaCache,
             quotaHistoryStore: QuotaHistoryStore(
                 url: directory.appendingPathComponent(
                     "quota-history.json"
@@ -307,10 +309,15 @@ final class RadarInsightsOrchestrationTests: XCTestCase {
 
         // A quota credential failure preserves saved data without marking it current.
         let savedQuota = store.dashboardState.rateLimits
+        let successfulQuotaDate = try XCTUnwrap(store.dashboardState.quotaUpdatedAt)
+        XCTAssertEqual(try quotaCache.load()?.updatedAt, successfulQuotaDate)
         await appServer.setAuthenticationFailure(true)
         store.refreshNow()
         try await waitUntil { store.dashboardState.rateLimitError != nil }
         XCTAssertEqual(store.dashboardState.rateLimits, savedQuota)
+        XCTAssertEqual(store.dashboardState.quotaUpdatedAt, successfulQuotaDate)
+        XCTAssertEqual(try quotaCache.load()?.updatedAt, successfulQuotaDate)
+        XCTAssertTrue(store.dashboardState.hasCachedQuota)
         XCTAssertTrue(store.dashboardState.lastError?.contains("token_expired") == true)
         XCTAssertEqual(firstRecommendationIQ(in: store), 96)
 
@@ -320,11 +327,38 @@ final class RadarInsightsOrchestrationTests: XCTestCase {
         XCTAssertEqual(store.dashboardState.rateLimits, savedQuota)
         XCTAssertNil(store.dashboardState.lastError)
 
+        XCTAssertFalse(store.dashboardState.hasCachedQuota)
+        XCTAssertGreaterThan(try XCTUnwrap(store.dashboardState.quotaUpdatedAt), successfulQuotaDate)
+        let restarted = SentinelStore(
+            defaults: defaults,
+            radarClient: CodexRadarClient(baseURL: baseURL, session: session),
+            appServerClient: appServer,
+            quotaCacheStore: quotaCache,
+            quotaHistoryStore: QuotaHistoryStore(url: directory.appendingPathComponent("restart-history.json")),
+            resetCreditProtectionDestructiveActionsAllowed: false
+        )
+        defer { restarted.stop() }
+        XCTAssertEqual(restarted.dashboardState.rateLimits, savedQuota)
+        XCTAssertTrue(restarted.dashboardState.hasCachedQuota)
+        XCTAssertEqual(restarted.dashboardState.quotaUpdatedAt, store.dashboardState.quotaUpdatedAt)
+
         let finalNetworkSnapshot = controller.snapshot()
         let finalAppServerSnapshot = await appServer.snapshot()
         XCTAssertEqual(finalNetworkSnapshot.requestCount, 5)
         XCTAssertEqual(finalNetworkSnapshot.sensitiveHeaderCount, 0)
         XCTAssertEqual(finalAppServerSnapshot.consumeCallCount, 0)
+
+        await appServer.setAuthenticationFailure(true)
+        restarted.start()
+        try await waitUntil { restarted.dashboardState.rateLimitError != nil }
+        let cachedDate = restarted.dashboardState.quotaUpdatedAt
+        XCTAssertTrue(restarted.dashboardState.hasCachedQuota)
+        XCTAssertEqual(restarted.dashboardState.rateLimits, savedQuota)
+        await appServer.setAuthenticationFailure(false)
+        // Exercise the production polling timer without a manual refresh.
+        try await waitUntil(timeout: 65) { !restarted.dashboardState.hasCachedQuota }
+        XCTAssertNil(restarted.dashboardState.rateLimitError)
+        XCTAssertGreaterThan(try XCTUnwrap(restarted.dashboardState.quotaUpdatedAt), try XCTUnwrap(cachedDate))
     }
 
     private func firstRecommendationIQ(

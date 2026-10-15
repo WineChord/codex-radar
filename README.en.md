@@ -49,6 +49,12 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 
 ## What's New
 
+### v0.1.77: Keep saved quota through outages and restarts
+
+- Keep the last quota in the menu bar with a Saved label during connection failures, and show the last successful update time in the menu.
+- Store quota in a private local file across restarts; automatically refresh and restore live readings when the connection recovers.
+- Pause usage guidance while quota is cached, simplify network errors, and report cache read or write failures.
+
 ### v0.1.76: Recover quota connections automatically
 
 - Reconnect a standalone quota reader holding expired credentials without assuming the Codex app is signed out.
@@ -61,14 +67,10 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 - When fixed paths fail, discovers running or registered Codex / ChatGPT apps through macOS and locates their bundled CLI, handling renamed or moved apps and changed internal layouts.
 - The Codex button uses the system-discovered app location. Custom CLI paths retain priority, and bundle discovery has bounded scope and work.
 
-### v0.1.74: Restore local quota reads with the new bundled Codex CLI
-
-- Detects the CLI embedded in current Codex / ChatGPT desktop apps, fixing missing-binary errors and unknown quota after desktop updates.
-- Retains legacy bundles, standalone CLI, PATH, and custom-path support; a broken legacy shortcut no longer prevents bundled CLI discovery.
-
 <details>
 <summary><strong>Earlier releases</strong></summary>
 
+- **v0.1.74**: Restores local quota reads through the new bundled Codex / ChatGPT CLI while retaining legacy and custom paths.
 - **v0.1.73**: Honors explicit Codex usage restrictions and supports the Fast Radar card layout.
 - **v0.1.72**: Preserves complete important-notice headlines, multi-paragraph bodies, safe same-origin image links, and legacy reset notices.
 - **v0.1.71**: Supports compact Fast Radar comparisons with complete summaries and test methodology while retaining legacy-format compatibility.

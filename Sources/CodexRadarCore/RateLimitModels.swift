@@ -33,7 +33,7 @@ public struct RateLimitResponse: Decodable, Equatable {
     }
 }
 
-public struct RateLimitSnapshot: Decodable, Equatable {
+public struct RateLimitSnapshot: Codable, Equatable {
     public let limitId: String?
     public let limitName: String?
     public let primary: RateLimitWindow?
@@ -60,7 +60,7 @@ public struct RateLimitSnapshot: Decodable, Equatable {
     }
 }
 
-public struct RateLimitWindow: Decodable, Equatable {
+public struct RateLimitWindow: Codable, Equatable {
     public let usedPercent: Double
     public let windowDurationMins: Double?
     public let resetsAt: Int?
@@ -71,7 +71,7 @@ public struct RateLimitWindow: Decodable, Equatable {
     }
 }
 
-public struct CreditsSnapshot: Decodable, Equatable {
+public struct CreditsSnapshot: Codable, Equatable {
     public let hasCredits: Bool
     public let unlimited: Bool
     public let balance: String?
@@ -108,7 +108,7 @@ public struct RateLimitResetCredit: Decodable, Equatable {
     }
 }
 
-public struct RateLimitDashboard: Equatable {
+public struct RateLimitDashboard: Codable, Equatable {
     public let snapshot: RateLimitSnapshot
     public let allBuckets: [String: RateLimitSnapshot]
     public let ordinaryUsageAllowed: Bool?

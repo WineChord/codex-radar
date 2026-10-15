@@ -136,6 +136,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 109 | [aecba25](https://github.com/WineChord/codex-radar/commit/aecba25), [a0b6047](https://github.com/WineChord/codex-radar/commit/a0b6047), [`Prompt-Id: 109 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+109%22&type=commits) | 自动重建凭证过期的独立额度连接，并区分保存的额度与实时数据。 |
 
 | 110 | [`Prompt-Id: 110 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+110%22&type=commits) | 完成额度连接恢复、洞察故障降级、验证与发布。 |
+| 111 | [Prompt-Id: 111](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+111%22&type=commits) | 断网额度缓存、成功时间与重启恢复。 |
 
 ## Prompts
 
@@ -855,4 +856,10 @@ commit 要求是可以点击的链接
 
 ```text
 完善额度连接自动恢复并完成集成发布。洞察上游临时不可用时，应清楚显示服务状态与缓存标记，继续独立刷新本机额度；验证恢复、缓存保护和严格响应格式检查。通过双架构构建、界面、安装包及安装验证后发布，清理本次开发分支与临时产物。
+```
+
+### 111. 断网额度缓存与重启恢复
+
+```text
+在网络暂时不可用时继续显示上次额度与成功更新时间，明确标记缓存；将额度保存到本机，重启后恢复参考读数。连接恢复后自动刷新，成功后恢复实时状态。验证缓存读写、失败保护、重启及自动恢复，通过双语界面、双架构构建与安装包检查后发布。
 ```

@@ -33,14 +33,20 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         pacingStrategy: QuotaPacingStrategy = .timeProportional,
         holidayCalendar: HolidayCalendar? = nil
     ) -> String {
-        if state.rateLimitError != nil && (self == .weeklyQuota || self == .shortQuota || self == .quotaPace) {
+        if state.hasCachedQuota && self == .quotaPace {
             return "—"
         }
         switch self {
         case .weeklyQuota:
-            return DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)
+            return cachedQuotaLabel(
+                DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent),
+                state: state, language: language
+            )
         case .shortQuota:
-            return DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent)
+            return cachedQuotaLabel(
+                DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent),
+                state: state, language: language
+            )
         case .quotaPace:
             guard let pacing = state.rateLimits?.quotaPacing(
                 strategy: pacingStrategy,
@@ -61,20 +67,20 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         language: AppLanguage,
         options: StatusBarDisplayOptions
     ) -> String {
-        if state.rateLimitError != nil && (self == .weeklyQuota || self == .shortQuota || self == .quotaPace) {
+        if state.hasCachedQuota && self == .quotaPace {
             return "—"
         }
         switch self {
         case .weeklyQuota:
-            return DisplayFormatters.percent(
+            return cachedQuotaLabel(DisplayFormatters.percent(
                 state.rateLimits?.weeklyRemainingPercent,
                 includesSymbol: options.percentDisplayMode.includesSymbol
-            )
+            ), state: state, language: language)
         case .shortQuota:
-            return DisplayFormatters.percent(
+            return cachedQuotaLabel(DisplayFormatters.percent(
                 state.rateLimits?.shortRemainingPercent,
                 includesSymbol: options.percentDisplayMode.includesSymbol
-            )
+            ), state: state, language: language)
         case .quotaPace:
             guard let pacing = state.rateLimits?.quotaPacing(
                 strategy: options.quotaPacingStrategy,
@@ -100,6 +106,10 @@ enum StatusMetric: String, CaseIterable, Identifiable {
                 holidayCalendar: options.holidayCalendar
             )
         }
+    }
+
+    private func cachedQuotaLabel(_ value: String, state: DashboardState, language: AppLanguage) -> String {
+        state.hasCachedQuota ? language.text("缓存", "Saved ") + value : value
     }
 
     static func signalValue(for state: DashboardState, language: AppLanguage) -> String {

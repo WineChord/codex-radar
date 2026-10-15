@@ -83,4 +83,15 @@ final class DashboardConnectionErrorCopyTests: XCTestCase {
             raw
         )
     }
+    func testNetworkTimeoutIsReadableAndPreservesUnrelatedErrors() {
+        let raw = "The operation couldn’t be completed. (NSURLErrorDomain error -1001.)\nOther service failed"
+        for language in AppLanguage.allCases {
+            let copy = DashboardConnectionErrorCopy.networkText(for: raw, language: language)
+            XCTAssertTrue(copy.contains(language.text("自动重试", "retry automatically")))
+            XCTAssertTrue(copy.contains("Other service failed"))
+            XCTAssertFalse(copy.contains("NSURLErrorDomain"))
+            XCTAssertFalse(copy.contains("couldn’t"))
+        }
+    }
+
 }
