@@ -7,10 +7,13 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+VISIBILITY_ATTEMPTS = 12
+VISIBILITY_DELAY_SECONDS = 5
 
 
 def run(*args):
@@ -49,7 +52,7 @@ def verify_assets(directory, version):
 
 
 class Publisher:
-    def __init__(self, repo, version, sha, command=run):
+    def __init__(self, repo, version, sha, command=run, sleeper=time.sleep):
         version_tuple(version)
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
             raise ValueError("GH_REPO must identify owner/repository")
@@ -59,6 +62,7 @@ class Publisher:
         self.tag = "v" + version
         self.marker = f"<!-- codex-radar-release-source: {sha} -->"
         self.command = command
+        self.sleeper = sleeper
 
     def gh(self, *args):
         return self.command("gh", *args)
@@ -92,11 +96,25 @@ class Publisher:
                     raise ValueError("Release version must be newer than every published stable version")
         return existing
 
-    def current_release(self):
-        matches = [r for r in self.releases() if r["tag_name"] == self.tag]
-        if len(matches) != 1:
-            raise ValueError("Expected exactly one staged release")
-        return matches[0]
+    def current_release(self, attempts=1, expected_assets=None):
+        for attempt in range(attempts):
+            matches = [r for r in self.releases() if r["tag_name"] == self.tag]
+            if len(matches) > 1:
+                raise ValueError("Expected exactly one staged release")
+            if len(matches) == 1:
+                staged = matches[0]
+                if expected_assets is None:
+                    return staged
+                present = {asset["name"] for asset in staged["assets"]}
+                if not present.issubset(expected_assets):
+                    raise ValueError("Draft contains unexpected assets; inspect it before retrying")
+                if len(staged["assets"]) == len(expected_assets) and present == expected_assets:
+                    return staged
+            if attempt + 1 < attempts:
+                self.sleeper(VISIBILITY_DELAY_SECONDS)
+        if expected_assets is not None and len(matches) == 1:
+            raise ValueError("Uploaded release asset list is incomplete")
+        raise ValueError("Expected exactly one staged release")
 
     def publish(self, directory, notes, mode):
         if mode not in ("release", "draft"):
@@ -111,7 +129,7 @@ class Publisher:
                 self.gh("release", "create", self.tag, "--repo", self.repo,
                         "--target", self.sha, "--title", self.tag,
                         "--notes-file", str(notes_path), "--draft")
-            staged = self.current_release()
+            staged = self.current_release(attempts=VISIBILITY_ATTEMPTS)
             if not staged["draft"] or self.marker not in (staged.get("body") or ""):
                 raise ValueError("Release staging state changed; stopping")
             present = {asset["name"] for asset in staged["assets"]}
@@ -120,10 +138,11 @@ class Publisher:
             missing = [str(directory / name) for name in hashes if name not in present]
             if missing:
                 self.gh("release", "upload", self.tag, *missing, "--repo", self.repo)
-            staged = self.current_release()
+            staged = self.current_release(
+                attempts=VISIBILITY_ATTEMPTS,
+                expected_assets=set(hashes),
+            )
             assets = staged["assets"]
-            if len(assets) != len(hashes) or {a["name"] for a in assets} != set(hashes):
-                raise ValueError("Uploaded release asset list is incomplete")
             for asset in assets:
                 if asset["state"] != "uploaded" or asset["size"] != (directory / asset["name"]).stat().st_size:
                     raise ValueError("Uploaded asset state or size is incorrect")
