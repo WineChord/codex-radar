@@ -137,6 +137,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 110 | [`Prompt-Id: 110 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+110%22&type=commits) | 完成额度连接恢复、洞察故障降级、验证与发布。 |
 | 111 | [628b62a](https://github.com/WineChord/codex-radar/commit/628b62a) | 断网额度缓存、成功时间与重启恢复。 |
 | 112 | [`Prompt-Id: 112 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+112%22&type=commits) | 对 GitHub 草稿与资产的短暂可见延迟进行有限重试，减少可恢复的首次发布失败。 |
+| 113 | [`Prompt-Id: 113 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+113%22&type=commits) | 兼容 Fast 雷达当前定义列表形式的测试方法与新增标记，保持实时契约有效。 |
 
 ## Prompts
 
@@ -868,4 +869,10 @@ commit 要求是可以点击的链接
 
 ```text
 发布流程在 GitHub 新建草稿或上传资产后短暂未返回最新状态时，进行有限重试；仍严格拒绝重复 Release、冲突资产、错误标签与校验失败，避免短暂一致性延迟导致发布首次执行失败。
+```
+
+### 113. Fast 雷达方法定义列表兼容
+
+```text
+对 Codex Radar Sentinel 做例行兼容性维护：Fast 加速雷达把测试方法改为定义列表并为新模型增加标记后，完整解析方法与边界，避免把标记混入模型名；保留旧结构兼容，并通过离线回归、实时契约、双架构 macOS 构建、截图和安装包校验后整合修复。
 ```

@@ -143,7 +143,13 @@ final class LiveCodexRadarContractTests: XCTestCase {
             }
         }
         XCTAssertGreaterThanOrEqual(homepageCurrent.fastRadar?.rows.count ?? 0, 1)
-        if html.contains("fast-radar-explain") || html.contains("fast-radar-method") {
+        if html.range(
+            of: #"<(?:div|details)\b[^>]*class="[^"]*\b(?:fast-radar-explain|fast-method-details)\b[^"]*"[^>]*>"#,
+            options: .regularExpression
+        ) != nil || html.range(
+            of: #"<p\b[^>]*class="[^"]*\bfast-radar-method\b[^"]*"[^>]*>"#,
+            options: .regularExpression
+        ) != nil {
             XCTAssertFalse(
                 homepageCurrent.fastRadar?.method?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
