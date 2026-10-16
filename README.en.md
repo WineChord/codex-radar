@@ -49,6 +49,12 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 
 ## What's New
 
+### v0.1.78: Follow the latest Fast Radar methodology
+
+- Parse Fast Radar's current definition-list methodology so test conditions, measurements, and boundaries remain complete.
+- Keep the `NEW` badge out of model names while retaining compatibility with the previous page structure.
+- Wait for newly created GitHub drafts and assets to become visible, reducing first-attempt release failures for complete packages.
+
 ### v0.1.77: Keep saved quota through outages and restarts
 
 - Keep the last quota in the menu bar with a Saved label during connection failures, and show the last successful update time in the menu.
@@ -62,14 +68,10 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 - Follow the new insights endpoint; show outages, retain saved data, and retry while local quota continues refreshing independently.
 - Support the current Fast Radar methodology text format.
 
-### v0.1.75: Discover Codex installations automatically
-
-- When fixed paths fail, discovers running or registered Codex / ChatGPT apps through macOS and locates their bundled CLI, handling renamed or moved apps and changed internal layouts.
-- The Codex button uses the system-discovered app location. Custom CLI paths retain priority, and bundle discovery has bounded scope and work.
-
 <details>
 <summary><strong>Earlier releases</strong></summary>
 
+- **v0.1.75**: Discovers renamed or moved Codex / ChatGPT apps and bundled CLIs across internal layout changes.
 - **v0.1.74**: Restores local quota reads through the new bundled Codex / ChatGPT CLI while retaining legacy and custom paths.
 - **v0.1.73**: Honors explicit Codex usage restrictions and supports the Fast Radar card layout.
 - **v0.1.72**: Preserves complete important-notice headlines, multi-paragraph bodies, safe same-origin image links, and legacy reset notices.

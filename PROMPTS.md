@@ -138,6 +138,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 111 | [628b62a](https://github.com/WineChord/codex-radar/commit/628b62a) | 断网额度缓存、成功时间与重启恢复。 |
 | 112 | [`Prompt-Id: 112 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+112%22&type=commits) | 对 GitHub 草稿与资产的短暂可见延迟进行有限重试，减少可恢复的首次发布失败。 |
 | 113 | [`Prompt-Id: 113 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+113%22&type=commits) | 兼容 Fast 雷达当前定义列表形式的测试方法与新增标记，保持实时契约有效。 |
+| 114 | [`Prompt-Id: 114 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+114%22&type=commits) | 将已验证修复准备为 v0.1.78，并完成正式发布门禁与产物核验。 |
 
 ## Prompts
 
@@ -875,4 +876,10 @@ commit 要求是可以点击的链接
 
 ```text
 对 Codex Radar Sentinel 做例行兼容性维护：Fast 加速雷达把测试方法改为定义列表并为新模型增加标记后，完整解析方法与边界，避免把标记混入模型名；保留旧结构兼容，并通过离线回归、实时契约、双架构 macOS 构建、截图和安装包校验后整合修复。
+```
+
+### 114. v0.1.78 正式发布
+
+```text
+将已验证的 Fast 雷达方法定义列表兼容与发布草稿可见性重试作为 v0.1.78 patch 发布；同步应用、安装包、双语 README 与发布说明版本，通过当前 main 的完整 macOS 发布门禁后生成并核验正式 Release、Tag、ZIP、DMG 与 SHA256。
 ```
