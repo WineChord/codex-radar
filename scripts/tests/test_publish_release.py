@@ -24,6 +24,11 @@ class FakeGitHub:
         self.fail_upload = False
         self.corrupt_download = False
         self.fail_read = False
+        self.release_visibility_delay = 0
+        self.pending_release_reads = 0
+        self.asset_visibility_delay = 0
+        self.pending_asset_reads = 0
+        self.stale_assets = []
 
     def __call__(self, *args):
         self.calls.append(args)
@@ -34,7 +39,14 @@ class FakeGitHub:
                 raise subprocess.CalledProcessError(1, args)
             if args[-1].endswith("/latest"):
                 return json.dumps(self.items[-1])
-            return json.dumps([self.items])
+            items = json.loads(json.dumps(self.items))
+            if self.pending_release_reads:
+                self.pending_release_reads -= 1
+                items = items[:-1]
+            elif self.pending_asset_reads:
+                self.pending_asset_reads -= 1
+                items[-1]["assets"] = self.stale_assets
+            return json.dumps([items])
         action = args[2]
         if action == "create":
             notes = Path(args[args.index("--notes-file") + 1]).read_text()
@@ -42,13 +54,16 @@ class FakeGitHub:
                                "prerelease": False, "body": notes,
                                "target_commitish": SHA, "assets": [],
                                "html_url": "https://github.com/example/repo/releases/tag/v" + VERSION})
+            self.pending_release_reads = self.release_visibility_delay
         elif action == "upload":
+            self.stale_assets = list(self.items[-1]["assets"])
             for value in args[4:args.index("--repo")]:
                 path = Path(value)
                 self.files[path.name] = path.read_bytes()
                 self.items[-1]["assets"].append({"name": path.name, "state": "uploaded", "size": path.stat().st_size})
                 if self.fail_upload:
                     raise subprocess.CalledProcessError(1, args)
+            self.pending_asset_reads = self.asset_visibility_delay
         elif action == "download":
             destination = Path(args[args.index("--dir") + 1])
             for name, data in self.files.items():
@@ -79,7 +94,10 @@ class PublishReleaseTests(unittest.TestCase):
             lines.append(hashlib.sha256(data).hexdigest() + "  " + name)
         (self.directory / names[2]).write_text("\n".join(lines) + "\n")
         self.server = FakeGitHub()
-        self.publisher = release.Publisher("example/repo", VERSION, SHA, self.server)
+        self.sleeps = []
+        self.publisher = release.Publisher(
+            "example/repo", VERSION, SHA, self.server, self.sleeps.append
+        )
 
     def publish(self, mode="release"):
         return self.publisher.publish(self.directory, "# v0.1.73\n\nCompatibility fixes.\n", mode)
@@ -91,6 +109,18 @@ class PublishReleaseTests(unittest.TestCase):
         self.assertLess(actions.index("download"), actions.index("edit"))
         self.assertFalse(self.server.items[-1]["draft"])
         self.assertEqual(len(self.server.files), 3)
+
+    def test_new_draft_visibility_delay_is_retried(self):
+        self.server.release_visibility_delay = 2
+        self.publish()
+        self.assertFalse(self.server.items[-1]["draft"])
+        self.assertEqual(self.sleeps[:2], [release.VISIBILITY_DELAY_SECONDS] * 2)
+
+    def test_uploaded_asset_visibility_delay_is_retried(self):
+        self.server.asset_visibility_delay = 2
+        self.publish()
+        self.assertFalse(self.server.items[-1]["draft"])
+        self.assertEqual(self.sleeps[:2], [release.VISIBILITY_DELAY_SECONDS] * 2)
 
     def test_existing_correct_tag_is_supported(self):
         self.server.tag = SHA

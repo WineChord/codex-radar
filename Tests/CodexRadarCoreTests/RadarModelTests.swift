@@ -1059,6 +1059,42 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(fastRadar.method, "三个模型均为 medium；每模型使用三组独立 Standard/Fast 配对。")
     }
 
+    func testBuildsFastRadarMethodFromCurrentDefinitionList() throws {
+        let html = """
+        <html><head>
+          <title>10月14日 Sol medium: IQ指数 110.3, 81/112, 费用 $7.3, 耗时 34分钟, cache命中率 97.2%</title>
+        </head><body>
+          <section class="fast-radar" id="fast-radar" aria-label="Fast 加速雷达">
+            <div class="fast-radar-head"><h2>Fast 加速雷达</h2>
+              <div class="fast-radar-meta"><span>10月14日 12:28</span><span>GPT-6.1 Sol · medium</span></div>
+            </div>
+            <div class="fast-radar-cards">
+              <article class="fast-radar-card">
+                <h3>GPT-6.1 Sol medium<span class="fast-radar-new">NEW</span><small>3/3 组有效配对</small></h3>
+                <dl>
+                  <div class="fast-radar-metric" data-fast-metric="e2e_seconds"><dt>总耗时 <small>(秒)</small></dt><dd class="fast-radar-pair"><span>52.63</span> → <span>35.96</span></dd><dd class="fast-radar-change">缩短 31.7%</dd></div>
+                  <div class="fast-radar-metric" data-fast-metric="ttft_seconds"><dt>首字等待 <small>(秒)</small></dt><dd class="fast-radar-pair"><span>9.16</span> → <span>6.86</span></dd><dd class="fast-radar-change">缩短 25.1%</dd></div>
+                  <div class="fast-radar-metric" data-fast-metric="tps"><dt>输出速度 <small>(token/秒)</small></dt><dd class="fast-radar-pair"><span>47.73</span> → <span>71.24</span></dd><dd class="fast-radar-change">提升 49.3%</dd></div>
+                </dl>
+              </article>
+            </div>
+            <details class="fast-method-details"><summary>短上下文下测试 · 方法与边界</summary><dl>
+              <div><dt>环境与档位</dt><dd>通过 Codex app-server 测量，均为 medium。</dd></div>
+              <div><dt>次数与顺序</dt><dd>每个模型 3 组完整配对、6 次样本。</dd></div>
+            </dl><p><a href="data/fast-radar-method.json">查看完整指标</a></p></details>
+          </section>
+        </body></html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(html)
+
+        XCTAssertEqual(current.fastRadar?.rows.first?.model, "GPT-6.1 Sol medium")
+        XCTAssertEqual(
+            current.fastRadar?.method,
+            "环境与档位：通过 Codex app-server 测量，均为 medium。\n次数与顺序：每个模型 3 组完整配对、6 次样本。"
+        )
+    }
+
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(currentWithoutIQJSON.utf8))
         let merged = try CodexRadarClient.currentByMergingHomepageModelIQ(

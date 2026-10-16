@@ -719,11 +719,19 @@ public struct CodexRadarClient {
             ).compactMap { groups -> [String: Any]? in
                 let card = groups[safe: 0] ?? ""
                 let headingHTML = firstCapture(#"<h3(?:\s+[^>]*)?>(.*?)</h3>"#, in: card) ?? ""
-                let model = cleanHTMLText(headingHTML.replacingOccurrences(
-                    of: #"(?s)<small\b[^>]*>.*?</small>"#,
-                    with: "",
-                    options: .regularExpression
-                ))
+                let model = cleanHTMLText(
+                    headingHTML
+                        .replacingOccurrences(
+                            of: #"(?s)<span\b[^>]*class="[^"]*\bfast-radar-new\b[^"]*"[^>]*>.*?</span>"#,
+                            with: "",
+                            options: .regularExpression
+                        )
+                        .replacingOccurrences(
+                            of: #"(?s)<small\b[^>]*>.*?</small>"#,
+                            with: "",
+                            options: .regularExpression
+                        )
+                )
                 guard !model.isEmpty,
                       let e2e = fastRadarCardMetric("e2e_seconds", in: card),
                       let ttft = fastRadarCardMetric("ttft_seconds", in: card),
@@ -764,6 +772,21 @@ public struct CodexRadarClient {
                 #"<p\s+[^>]*class="(?:[^"]*\s)?fast-radar-method(?:\s[^"]*)?"[^>]*>(.*?)</p>"#,
                 in: section
             ))
+        }
+
+        if method.isEmpty, let details = firstCapture(
+            #"<details\s+[^>]*class="(?:[^"]*\s)?fast-method-details(?:\s[^"]*)?"[^>]*>\s*<summary(?:\s+[^>]*)?>.*?</summary>(.*?)</details>"#,
+            in: section
+        ) {
+            method = allMatches(
+                #"<div(?:\s+[^>]*)?>\s*<dt(?:\s+[^>]*)?>(.*?)</dt>\s*<dd(?:\s+[^>]*)?>(.*?)</dd>\s*</div>"#,
+                in: details
+            ).compactMap { groups -> String? in
+                let label = cleanHTMLText(groups[safe: 0])
+                let detail = cleanHTMLMultilineText(groups[safe: 1])
+                guard !label.isEmpty, !detail.isEmpty else { return nil }
+                return "\(label)：\(detail)"
+            }.joined(separator: "\n")
         }
 
         guard !summary.isEmpty || !rows.isEmpty else {
