@@ -1095,6 +1095,51 @@ final class RadarModelTests: XCTestCase {
         )
     }
 
+    func testBuildsFastRadarFromTierTableCards() throws {
+        let html = """
+        <html><body>
+          <section class="fast-radar" id="fast-radar" aria-label="Fast 加速雷达">
+            <div class="fast-radar-head"><h2>Fast 加速雷达</h2>
+              <div class="fast-radar-meta"><span>10月18日 05:32</span><span>短上下文下测试</span></div>
+            </div>
+            <div class="fast-radar-cards">
+              <article class="fast-radar-card" data-fast-current-model="astra">
+                <h3>GPT-6 Astra <span class="fast-radar-new">NEW</span><small>medium · 短上下文下测试</small></h3>
+                <table class="fast-tier-table" data-fast-tier-table>
+                  <thead><tr><th>指标</th><th data-fast-tier-header="standard">Standard</th><th data-fast-tier-header="fast">Fast</th><th data-fast-tier-header="ultrafast">Ultrafast</th></tr></thead>
+                  <tbody>
+                    <tr><th scope="row">总耗时（秒）</th><td data-fast-tier="standard" data-fast-metric="e2e_seconds">36.31</td><td data-fast-tier="fast" data-fast-metric="e2e_seconds">20.28</td><td data-fast-tier="ultrafast" data-fast-metric="e2e_seconds">7.32</td></tr>
+                    <tr><th scope="row">首字等待（秒）</th><td data-fast-tier="standard" data-fast-metric="ttft_seconds">5.44</td><td data-fast-tier="fast" data-fast-metric="ttft_seconds">3.33</td><td data-fast-tier="ultrafast" data-fast-metric="ttft_seconds">3.18</td></tr>
+                    <tr><th scope="row">输出速度（token/s）</th><td data-fast-tier="standard" data-fast-metric="tps">67.21</td><td data-fast-tier="fast" data-fast-metric="tps">122.34</td><td data-fast-tier="ultrafast" data-fast-metric="tps">526.87</td></tr>
+                  </tbody>
+                </table>
+              </article>
+            </div>
+            <details class="fast-method-details"><summary>短上下文下测试 · 方法与边界</summary><dl>
+              <div><dt>环境与档位</dt><dd>通过 Codex app-server 测量，均为 medium。</dd></div>
+              <div><dt>适用范围</dt><dd>小样本结果不代表稳定加速承诺。</dd></div>
+            </dl></details>
+          </section>
+        </body></html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(html)
+        let fastRadar = try XCTUnwrap(current.fastRadar)
+
+        XCTAssertEqual(fastRadar.rows.count, 1)
+        XCTAssertEqual(fastRadar.rows.first?.model, "GPT-6 Astra")
+        XCTAssertEqual(fastRadar.rows.first?.e2e?.label, "总耗时（秒）")
+        XCTAssertEqual(fastRadar.rows.first?.e2e?.range, "36.31 → 20.28")
+        XCTAssertEqual(fastRadar.rows.first?.e2e?.value, "缩短 44.1%")
+        XCTAssertEqual(fastRadar.rows.first?.ttft?.value, "缩短 38.8%")
+        XCTAssertEqual(fastRadar.rows.first?.tps?.value, "提升 82.0%")
+        XCTAssertEqual(
+            fastRadar.summary.map(\.value),
+            ["缩短 44.1%", "缩短 38.8%", "提升 82.0%"]
+        )
+        XCTAssertTrue(fastRadar.method?.contains("小样本结果不代表稳定加速承诺") == true)
+    }
+
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(currentWithoutIQJSON.utf8))
         let merged = try CodexRadarClient.currentByMergingHomepageModelIQ(
