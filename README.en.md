@@ -49,6 +49,12 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 
 ## What's New
 
+### v0.1.79: Support the latest Fast and Quota Radar formats
+
+- Support Fast Radar's Standard, Fast, and Ultrafast tier table, restoring model metrics and Standard-to-Fast change summaries.
+- Support the Quota Radar schema 3 plan matrix with plan prices, per-model weekly quotas, and API-equivalent values, clearly identified as approximate public references rather than local remaining quota.
+- Retain compatibility with both radars' previous page or data formats.
+
 ### v0.1.78: Follow the latest Fast Radar methodology
 
 - Parse Fast Radar's current definition-list methodology so test conditions, measurements, and boundaries remain complete.
@@ -61,16 +67,10 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 - Store quota in a private local file across restarts; automatically refresh and restore live readings when the connection recovers.
 - Pause usage guidance while quota is cached, simplify network errors, and report cache read or write failures.
 
-### v0.1.76: Recover quota connections automatically
-
-- Reconnect a standalone quota reader holding expired credentials without assuming the Codex app is signed out.
-- Mark saved quota when a read fails and pause usage guidance until a successful refresh restores current readings.
-- Follow the new insights endpoint; show outages, retain saved data, and retry while local quota continues refreshing independently.
-- Support the current Fast Radar methodology text format.
-
 <details>
 <summary><strong>Earlier releases</strong></summary>
 
+- **v0.1.76**: Recovers quota connections automatically and follows the current insights service address.
 - **v0.1.75**: Discovers renamed or moved Codex / ChatGPT apps and bundled CLIs across internal layout changes.
 - **v0.1.74**: Restores local quota reads through the new bundled Codex / ChatGPT CLI while retaining legacy and custom paths.
 - **v0.1.73**: Honors explicit Codex usage restrictions and supports the Fast Radar card layout.
