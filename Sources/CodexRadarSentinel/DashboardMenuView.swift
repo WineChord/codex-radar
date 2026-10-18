@@ -2344,13 +2344,17 @@ struct DashboardMenuView: View {
     @ViewBuilder
     private var codexRadarQuotaSection: some View {
         if let quotaRadar = state.modelIQ?.quotaRadar,
-           !quotaRadar.rows.isEmpty {
+           quotaRadar.hasData {
             VStack(alignment: .leading, spacing: 7) {
                 sectionTitle(text("CodexRadar 额度雷达", "CodexRadar Quota Radar"), systemImage: "chart.bar.xaxis")
-                quotaRadarTable(quotaRadar)
+                if quotaRadar.plans.isEmpty {
+                    quotaRadarTable(quotaRadar)
+                } else {
+                    quotaRadarPlanTable(quotaRadar)
+                }
                 expandableCaptionText(
                     quotaRadarSummary(quotaRadar),
-                    key: "quota-radar-summary-\(quotaRadar.updatedAt ?? "")-\(quotaRadar.basisWindowLabel ?? "")",
+                    key: "quota-radar-summary-\(quotaRadar.updatedAt ?? quotaRadar.recordedAt ?? "")-\(quotaRadar.basisWindowLabel ?? "")",
                     collapsedLines: 3
                 )
             }
@@ -2696,6 +2700,55 @@ struct DashboardMenuView: View {
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
     }
 
+    private func quotaRadarPlanTable(_ quotaRadar: QuotaRadar) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(quotaRadar.plans) { plan in
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Text(quotaRadarPlanLabel(plan))
+                            .font(.system(size: metrics.label, weight: .semibold))
+                            .lineLimit(1)
+                        Spacer(minLength: 6)
+                        if let monthlyUSD = plan.monthlyUSD {
+                            Text(text("$\(formatQuotaNumber(monthlyUSD))/月", "$\(formatQuotaNumber(monthlyUSD))/mo"))
+                                .font(.system(size: metrics.caption, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    HStack(spacing: 6) {
+                        Text(text("模型", "Model"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(text("每周 1亿", "100M/wk"))
+                            .frame(width: 70, alignment: .trailing)
+                        Text(text("API≈", "API≈"))
+                            .frame(width: 74, alignment: .trailing)
+                    }
+                    .font(.system(size: metrics.caption, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                    ForEach(plan.rows) { row in
+                        HStack(spacing: 6) {
+                            Text(row.label ?? row.model ?? text("未知模型", "Unknown"))
+                                .font(.system(size: metrics.label, weight: .medium))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(formatQuotaNumber(row.weeklyTokens100M))
+                                .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                                .frame(width: 70, alignment: .trailing)
+                            Text(DisplayFormatters.costUSD(row.weeklyAPIEquivalentUSD))
+                                .font(.system(size: metrics.label, weight: .medium, design: .monospaced))
+                                .frame(width: 74, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+
     private func fastRadarSummaryTile(_ item: FastRadarSummaryItem) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(item.label ?? text("指标", "Metric"))
@@ -3018,6 +3071,17 @@ struct DashboardMenuView: View {
     }
 
     private func quotaRadarSummary(_ quotaRadar: QuotaRadar) -> String {
+        if !quotaRadar.plans.isEmpty {
+            let update = DisplayFormatters.compactDateTime(RadarDateParser.date(from: quotaRadar.recordedAt))
+            let note = language == .zhHans
+                ? quotaRadar.referenceNote?.zh
+                : quotaRadar.referenceNote?.en
+            let fallback = text(
+                "各套餐周额度及 API 等价值来自公开参考快照，数值为近似值，不是本机剩余额度。",
+                "Weekly quota and API-equivalent values come from a public reference snapshot; values are approximate, not local remaining quota."
+            )
+            return text("记录 (update)；", "Recorded (update); ") + (note ?? fallback)
+        }
         let update = DisplayFormatters.compactDateTime(RadarDateParser.date(from: quotaRadar.updatedAt))
         let basis = quotaRadar.basisWindowLabel ?? text("未知窗口", "unknown window")
         let cost = DisplayFormatters.costUSD(quotaRadar.costUSD)
@@ -3042,6 +3106,21 @@ struct DashboardMenuView: View {
         }
         let sign = value >= 0 ? "+" : "-"
         return "\(sign)\(DisplayFormatters.costUSD(abs(value)))"
+    }
+
+    private func quotaRadarPlanLabel(_ plan: QuotaRadarPlan) -> String {
+        let localized = language == .zhHans ? plan.label?.zh : plan.label?.en
+        return localized ?? plan.id
+    }
+
+    private func formatQuotaNumber(_ value: Double?) -> String {
+        guard let value, value.isFinite, value >= 0 else {
+            return DisplayFormatters.percentPlaceholder
+        }
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.2f", value)
     }
 
     private func modelIQRowLabel(_ row: ModelIQLatestRow) -> String {

@@ -815,14 +815,27 @@ public struct ModelIQDataSource: Decodable, Equatable {
 }
 
 public struct QuotaRadar: Decodable, Equatable {
+    public let schema: Int?
+    public let type: String?
     public let date: String?
     public let updatedAt: String?
+    public let recordedAt: String?
     public let basisDate: String?
     public let basisWindowLabel: String?
     public let costUSD: Double?
     public let totalTokens: Int?
+    public let tokenUnit: String?
+    public let currency: String?
+    public let approximate: Bool?
+    public let referenceNote: RadarLocalizedText?
+    public let referenceURL: String?
     public let rows: [QuotaRadarRow]
     public let trend: [QuotaRadarTrendPoint]
+    public let plans: [QuotaRadarPlan]
+
+    public var hasData: Bool {
+        !rows.isEmpty || !plans.isEmpty
+    }
 
     public var sevenDayTrendDelta20x: Double? {
         guard trend.count >= 2,
@@ -841,26 +854,91 @@ public struct QuotaRadar: Decodable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
+        case schema
+        case type
         case date
         case updatedAt = "updated_at"
+        case recordedAt = "recorded_at"
         case basisDate = "basis_date"
         case basisWindowLabel = "basis_window_label"
         case costUSD = "cost_usd"
         case totalTokens = "total_tokens"
+        case tokenUnit = "token_unit"
+        case currency
+        case approximate
+        case referenceNote = "reference_note"
+        case referenceURL = "reference_url"
         case rows
         case trend
+        case plans
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try container.decodeIfPresent(Int.self, forKey: .schema)
+        type = try container.decodeIfPresent(String.self, forKey: .type)
         date = try container.decodeIfPresent(String.self, forKey: .date)
         updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        recordedAt = try container.decodeIfPresent(String.self, forKey: .recordedAt)
         basisDate = try container.decodeIfPresent(String.self, forKey: .basisDate)
         basisWindowLabel = try container.decodeIfPresent(String.self, forKey: .basisWindowLabel)
         costUSD = try container.decodeIfPresent(Double.self, forKey: .costUSD)
         totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
+        tokenUnit = try container.decodeIfPresent(String.self, forKey: .tokenUnit)
+        currency = try container.decodeIfPresent(String.self, forKey: .currency)
+        approximate = try container.decodeIfPresent(Bool.self, forKey: .approximate)
+        referenceNote = try container.decodeIfPresent(RadarLocalizedText.self, forKey: .referenceNote)
+        referenceURL = try container.decodeIfPresent(String.self, forKey: .referenceURL)
         rows = try container.decodeIfPresent([QuotaRadarRow].self, forKey: .rows) ?? []
         trend = try container.decodeIfPresent([QuotaRadarTrendPoint].self, forKey: .trend) ?? []
+        plans = try container.decodeIfPresent([QuotaRadarPlan].self, forKey: .plans) ?? []
+    }
+}
+
+public struct RadarLocalizedText: Decodable, Equatable {
+    public let zh: String?
+    public let en: String?
+}
+
+public struct QuotaRadarPlan: Decodable, Equatable, Identifiable {
+    public let id: String
+    public let label: RadarLocalizedText?
+    public let monthlyUSD: Double?
+    public let rows: [QuotaRadarPlanRow]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case label
+        case monthlyUSD = "monthly_usd"
+        case rows
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        label = try container.decodeIfPresent(RadarLocalizedText.self, forKey: .label)
+        monthlyUSD = try container.decodeIfPresent(Double.self, forKey: .monthlyUSD)
+        rows = try container.decodeIfPresent([QuotaRadarPlanRow].self, forKey: .rows) ?? []
+    }
+}
+
+public struct QuotaRadarPlanRow: Decodable, Equatable, Identifiable {
+    public let model: String?
+    public let label: String?
+    public let weeklyTokens100M: Double?
+    public let weeklyAPIEquivalentUSD: Double?
+    public let status: String?
+
+    public var id: String {
+        model ?? label ?? "\(weeklyTokens100M ?? -1)-\(weeklyAPIEquivalentUSD ?? -1)"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case label
+        case weeklyTokens100M = "weekly_tokens_100m"
+        case weeklyAPIEquivalentUSD = "weekly_api_equivalent_usd"
+        case status
     }
 }
 

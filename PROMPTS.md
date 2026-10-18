@@ -140,6 +140,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 113 | [`Prompt-Id: 113 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+113%22&type=commits) | 兼容 Fast 雷达当前定义列表形式的测试方法与新增标记，保持实时契约有效。 |
 | 114 | [`Prompt-Id: 114 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+114%22&type=commits) | 将已验证修复准备为 v0.1.78，并完成正式发布门禁与产物核验。 |
 | 115 | [`Prompt-Id: 115 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+115%22&type=commits) | 兼容 Fast 雷达三档表格，恢复 Standard 到 Fast 的模型指标与摘要，并在验证后发布。 |
+| 116 | [`Prompt-Id: 116 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+116%22&type=commits) | 兼容额度雷达 schema 3 套餐矩阵，保留旧版额度等价值格式并恢复实时契约。 |
 
 ## Prompts
 
@@ -889,4 +890,10 @@ commit 要求是可以点击的链接
 
 ```text
 对 Codex Radar Sentinel 做例行兼容性维护：Fast 雷达改为 Standard、Fast、Ultrafast 三档表格后，恢复模型及 Standard 到 Fast 指标与摘要解析，保留旧卡片和方法说明兼容；通过离线回归、实时契约、双架构 macOS 构建、截图和安装包校验后发布修复。
+```
+
+### 116. 额度雷达套餐矩阵兼容
+
+```text
+对 Codex Radar Sentinel 做例行契约维护：额度雷达从旧版档位估算切换到 schema 3 套餐矩阵后，解析并展示套餐、月价、各模型周额度及 API 等价值，清楚保留近似参考与非本机剩余额度语义；继续兼容旧格式，并通过离线回归、实时契约、双架构 macOS 构建、截图和安装包校验后发布。
 ```

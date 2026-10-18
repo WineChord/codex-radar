@@ -455,6 +455,73 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(rating.count, 0)
     }
 
+    func testDecodesQuotaRadarPlanMatrix() throws {
+        let iq = try JSONDecoder().decode(
+            ModelIQEnvelope.self,
+            from: Data(
+                """
+                {
+                  "quota_radar": {
+                    "schema": 3,
+                    "type": "quota_reference_snapshot",
+                    "recorded_at": "2026-10-17T13:01:28.809672+08:00",
+                    "token_unit": "100M_tokens_per_week",
+                    "currency": "USD",
+                    "approximate": true,
+                    "reference_note": {
+                      "zh": "公开参考快照",
+                      "en": "Public reference snapshot"
+                    },
+                    "reference_url": "https://modeldial.com",
+                    "plans": [
+                      {
+                        "id": "pro100",
+                        "label": {"zh": "Pro 100", "en": "Pro 100"},
+                        "monthly_usd": 100,
+                        "rows": [
+                          {
+                            "model": "gpt-5.6-sol-ultra",
+                            "label": "GPT-5.6 Sol ultra",
+                            "weekly_tokens_100m": 1.25,
+                            "weekly_api_equivalent_usd": 250,
+                            "status": "reference"
+                          },
+                          {
+                            "model": "gpt-5.5-codex",
+                            "label": "GPT-5.5 Codex",
+                            "weekly_tokens_100m": null,
+                            "weekly_api_equivalent_usd": null,
+                            "status": "no_sample"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+                """.utf8
+            )
+        )
+
+        let quota = try XCTUnwrap(iq.quotaRadar)
+        XCTAssertTrue(quota.hasData)
+        XCTAssertEqual(quota.schema, 3)
+        XCTAssertEqual(quota.type, "quota_reference_snapshot")
+        XCTAssertEqual(quota.tokenUnit, "100M_tokens_per_week")
+        XCTAssertEqual(quota.currency, "USD")
+        XCTAssertEqual(quota.approximate, true)
+        XCTAssertEqual(quota.referenceNote?.zh, "公开参考快照")
+        XCTAssertEqual(quota.referenceURL, "https://modeldial.com")
+        XCTAssertTrue(quota.rows.isEmpty)
+        XCTAssertEqual(quota.plans.count, 1)
+        XCTAssertEqual(quota.plans[0].id, "pro100")
+        XCTAssertEqual(quota.plans[0].monthlyUSD, 100)
+        XCTAssertEqual(quota.plans[0].rows.count, 2)
+        XCTAssertEqual(quota.plans[0].rows[0].weeklyTokens100M, 1.25)
+        XCTAssertEqual(quota.plans[0].rows[0].weeklyAPIEquivalentUSD, 250)
+        XCTAssertNil(quota.plans[0].rows[1].weeklyTokens100M)
+        XCTAssertEqual(quota.plans[0].rows[1].status, "no_sample")
+    }
+
     func testDecodesEmbeddedCurrentPayload() throws {
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(currentV2JSON.utf8))
 
