@@ -823,18 +823,80 @@ public struct CodexRadarClient {
         let pattern = #"<div\b(?=[^>]*class="[^"]*\bfast-radar-metric\b[^"]*")(?=[^>]*data-fast-metric=""#
             + escapedKey
             + #"")[^>]*>(.*?)</div>"#
-        guard let metric = firstCapture(pattern, in: card) else {
+        if let metric = firstCapture(pattern, in: card) {
+            let payload = fastRadarMetricPayload(
+                label: firstCapture(#"<dt(?:\s+[^>]*)?>(.*?)</dt>"#, in: metric),
+                range: firstCapture(#"<dd\b[^>]*class="[^"]*\bfast-radar-pair\b[^"]*"[^>]*>(.*?)</dd>"#, in: metric),
+                value: firstCapture(#"<dd\b[^>]*class="[^"]*\bfast-radar-change\b[^"]*"[^>]*>(.*?)</dd>"#, in: metric)
+            )
+            if payload.values.contains(where: { !$0.isEmpty }) {
+                return payload
+            }
+        }
+
+        let tierRow = allMatches(#"<tr\b[^>]*>(.*?)</tr>"#, in: card)
+            .compactMap { $0[safe: 0] }
+            .first { row in
+                fastRadarTierValue("standard", key: escapedKey, in: row) != nil
+                    || fastRadarTierValue("fast", key: escapedKey, in: row) != nil
+            }
+        guard let tierRow else {
             return nil
         }
-        let payload = fastRadarMetricPayload(
-            label: firstCapture(#"<dt(?:\s+[^>]*)?>(.*?)</dt>"#, in: metric),
-            range: firstCapture(#"<dd\b[^>]*class="[^"]*\bfast-radar-pair\b[^"]*"[^>]*>(.*?)</dd>"#, in: metric),
-            value: firstCapture(#"<dd\b[^>]*class="[^"]*\bfast-radar-change\b[^"]*"[^>]*>(.*?)</dd>"#, in: metric)
+        let label = cleanHTMLText(firstCapture(#"<th\b[^>]*scope="row"[^>]*>(.*?)</th>"#, in: tierRow))
+        let standard = cleanHTMLText(fastRadarTierValue("standard", key: escapedKey, in: tierRow))
+        let fast = cleanHTMLText(fastRadarTierValue("fast", key: escapedKey, in: tierRow))
+        guard !standard.isEmpty, !fast.isEmpty else {
+            return nil
+        }
+        return fastRadarMetricPayload(
+            label: label,
+            range: "\(standard) → \(fast)",
+            value: fastRadarTierChange(key: key, standard: standard, fast: fast)
         )
-        guard payload.values.contains(where: { !$0.isEmpty }) else {
+    }
+
+    private static func fastRadarTierValue(_ tier: String, key: String, in row: String) -> String? {
+        let escapedTier = NSRegularExpression.escapedPattern(for: tier)
+        return firstCapture(
+            #"<td\b(?=[^>]*data-fast-tier=""#
+                + escapedTier
+                + #"")(?=[^>]*data-fast-metric=""#
+                + key
+                + #"")[^>]*>(.*?)</td>"#,
+            in: row
+        )
+    }
+
+    private static func fastRadarTierChange(key: String, standard: String, fast: String) -> String {
+        guard let standardValue = fastRadarNumber(standard), standardValue > 0,
+              let fastValue = fastRadarNumber(fast) else {
+            return "不可测"
+        }
+        let change: Double
+        if key == "tps" {
+            change = (fastValue / standardValue - 1) * 100
+        } else {
+            change = (1 - fastValue / standardValue) * 100
+        }
+        if abs(change) < 0.05 {
+            return "持平"
+        }
+        if change > 0 {
+            return String(format: key == "tps" ? "提升 %.1f%%" : "缩短 %.1f%%", change)
+        }
+        return String(format: "慢 %.1f%%", abs(change))
+    }
+
+    private static func fastRadarNumber(_ value: String) -> Double? {
+        let normalized = value.replacingOccurrences(of: ",", with: "")
+        guard let match = normalized.range(
+            of: #"[-+]?(?:\d+(?:\.\d*)?|\.\d+)"#,
+            options: .regularExpression
+        ) else {
             return nil
         }
-        return payload
+        return Double(normalized[match])
     }
 
     private static func firstBalancedSection(withClass className: String, in html: String) -> String? {

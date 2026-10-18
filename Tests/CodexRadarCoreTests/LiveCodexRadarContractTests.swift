@@ -30,7 +30,11 @@ final class LiveCodexRadarContractTests: XCTestCase {
         XCTAssertTrue(current.modelIQ?.latestRows.contains {
             $0.snapshot.model == "gpt-5.6-sol" && $0.snapshot.reasoningEffort == "ultra"
         } == true)
-        XCTAssertGreaterThanOrEqual(current.modelIQ?.quotaRadar?.rows.count ?? 0, 1)
+        let quotaRadar = try XCTUnwrap(current.modelIQ?.quotaRadar)
+        XCTAssertTrue(
+            !quotaRadar.rows.isEmpty
+                || (!quotaRadar.plans.isEmpty && quotaRadar.plans.allSatisfy { !$0.rows.isEmpty })
+        )
         try assertValidResetJudgementIfPresent(current.resetJudgement)
         XCTAssertNotNil(current.communityKnowledge?.prompt)
         XCTAssertGreaterThanOrEqual(current.communityKnowledges.count, 1)

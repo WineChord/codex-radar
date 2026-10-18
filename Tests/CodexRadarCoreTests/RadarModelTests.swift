@@ -455,6 +455,73 @@ final class RadarModelTests: XCTestCase {
         XCTAssertEqual(rating.count, 0)
     }
 
+    func testDecodesQuotaRadarPlanMatrix() throws {
+        let iq = try JSONDecoder().decode(
+            ModelIQEnvelope.self,
+            from: Data(
+                """
+                {
+                  "quota_radar": {
+                    "schema": 3,
+                    "type": "quota_reference_snapshot",
+                    "recorded_at": "2026-10-17T13:01:28.809672+08:00",
+                    "token_unit": "100M_tokens_per_week",
+                    "currency": "USD",
+                    "approximate": true,
+                    "reference_note": {
+                      "zh": "公开参考快照",
+                      "en": "Public reference snapshot"
+                    },
+                    "reference_url": "https://modeldial.com",
+                    "plans": [
+                      {
+                        "id": "pro100",
+                        "label": {"zh": "Pro 100", "en": "Pro 100"},
+                        "monthly_usd": 100,
+                        "rows": [
+                          {
+                            "model": "gpt-5.6-sol-ultra",
+                            "label": "GPT-5.6 Sol ultra",
+                            "weekly_tokens_100m": 1.25,
+                            "weekly_api_equivalent_usd": 250,
+                            "status": "reference"
+                          },
+                          {
+                            "model": "gpt-5.5-codex",
+                            "label": "GPT-5.5 Codex",
+                            "weekly_tokens_100m": null,
+                            "weekly_api_equivalent_usd": null,
+                            "status": "no_sample"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+                """.utf8
+            )
+        )
+
+        let quota = try XCTUnwrap(iq.quotaRadar)
+        XCTAssertTrue(quota.hasData)
+        XCTAssertEqual(quota.schema, 3)
+        XCTAssertEqual(quota.type, "quota_reference_snapshot")
+        XCTAssertEqual(quota.tokenUnit, "100M_tokens_per_week")
+        XCTAssertEqual(quota.currency, "USD")
+        XCTAssertEqual(quota.approximate, true)
+        XCTAssertEqual(quota.referenceNote?.zh, "公开参考快照")
+        XCTAssertEqual(quota.referenceURL, "https://modeldial.com")
+        XCTAssertTrue(quota.rows.isEmpty)
+        XCTAssertEqual(quota.plans.count, 1)
+        XCTAssertEqual(quota.plans[0].id, "pro100")
+        XCTAssertEqual(quota.plans[0].monthlyUSD, 100)
+        XCTAssertEqual(quota.plans[0].rows.count, 2)
+        XCTAssertEqual(quota.plans[0].rows[0].weeklyTokens100M, 1.25)
+        XCTAssertEqual(quota.plans[0].rows[0].weeklyAPIEquivalentUSD, 250)
+        XCTAssertNil(quota.plans[0].rows[1].weeklyTokens100M)
+        XCTAssertEqual(quota.plans[0].rows[1].status, "no_sample")
+    }
+
     func testDecodesEmbeddedCurrentPayload() throws {
         let current = try JSONDecoder().decode(RadarCurrent.self, from: Data(currentV2JSON.utf8))
 
@@ -1093,6 +1160,53 @@ final class RadarModelTests: XCTestCase {
             current.fastRadar?.method,
             "环境与档位：通过 Codex app-server 测量，均为 medium。\n次数与顺序：每个模型 3 组完整配对、6 次样本。"
         )
+    }
+
+    func testBuildsFastRadarFromTierTableCards() throws {
+        let html = """
+        <html><head>
+          <title>10月18日 Astra medium: IQ指数 109.0, 81/112, 费用 $7.3, 耗时 34分钟, cache命中率 97.2%</title>
+        </head><body>
+          <section class="fast-radar" id="fast-radar" aria-label="Fast 加速雷达">
+            <div class="fast-radar-head"><h2>Fast 加速雷达</h2>
+              <div class="fast-radar-meta"><span>10月18日 05:32</span><span>短上下文下测试</span></div>
+            </div>
+            <div class="fast-radar-cards">
+              <article class="fast-radar-card" data-fast-current-model="astra">
+                <h3>GPT-6 Astra <span class="fast-radar-new">NEW</span><small>medium · 短上下文下测试</small></h3>
+                <table class="fast-tier-table" data-fast-tier-table>
+                  <thead><tr><th>指标</th><th data-fast-tier-header="standard">Standard</th><th data-fast-tier-header="fast">Fast</th><th data-fast-tier-header="ultrafast">Ultrafast</th></tr></thead>
+                  <tbody>
+                    <tr><th scope="row">总耗时（秒）</th><td data-fast-tier="standard" data-fast-metric="e2e_seconds">36.31</td><td data-fast-tier="fast" data-fast-metric="e2e_seconds">20.28</td><td data-fast-tier="ultrafast" data-fast-metric="e2e_seconds">7.32</td></tr>
+                    <tr><th scope="row">首字等待（秒）</th><td data-fast-tier="standard" data-fast-metric="ttft_seconds">5.44</td><td data-fast-tier="fast" data-fast-metric="ttft_seconds">3.33</td><td data-fast-tier="ultrafast" data-fast-metric="ttft_seconds">3.18</td></tr>
+                    <tr><th scope="row">输出速度（token/s）</th><td data-fast-tier="standard" data-fast-metric="tps">67.21</td><td data-fast-tier="fast" data-fast-metric="tps">122.34</td><td data-fast-tier="ultrafast" data-fast-metric="tps">526.87</td></tr>
+                  </tbody>
+                </table>
+              </article>
+            </div>
+            <details class="fast-method-details"><summary>短上下文下测试 · 方法与边界</summary><dl>
+              <div><dt>环境与档位</dt><dd>通过 Codex app-server 测量，均为 medium。</dd></div>
+              <div><dt>适用范围</dt><dd>小样本结果不代表稳定加速承诺。</dd></div>
+            </dl></details>
+          </section>
+        </body></html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(html)
+        let fastRadar = try XCTUnwrap(current.fastRadar)
+
+        XCTAssertEqual(fastRadar.rows.count, 1)
+        XCTAssertEqual(fastRadar.rows.first?.model, "GPT-6 Astra")
+        XCTAssertEqual(fastRadar.rows.first?.e2e?.label, "总耗时（秒）")
+        XCTAssertEqual(fastRadar.rows.first?.e2e?.range, "36.31 → 20.28")
+        XCTAssertEqual(fastRadar.rows.first?.e2e?.value, "缩短 44.1%")
+        XCTAssertEqual(fastRadar.rows.first?.ttft?.value, "缩短 38.8%")
+        XCTAssertEqual(fastRadar.rows.first?.tps?.value, "提升 82.0%")
+        XCTAssertEqual(
+            fastRadar.summary.map(\.value),
+            ["缩短 44.1%", "缩短 38.8%", "提升 82.0%"]
+        )
+        XCTAssertTrue(fastRadar.method?.contains("小样本结果不代表稳定加速承诺") == true)
     }
 
     func testMergesHomepageIQWhenCurrentPayloadOmitsModelIQ() throws {
