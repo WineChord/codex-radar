@@ -15,8 +15,20 @@ final class CodexAppServerClientTransportTests: XCTestCase {
         try await checkCredentialRecovery(mode: "after-success", allowsRestart: false, expectedLaunches: 1, succeeds: false)
     }
 
-    func testNonAuthenticationFailureDoesNotReconnect() async throws {
-        try await checkCredentialRecovery(mode: "network", allowsRestart: true, expectedLaunches: 1, succeeds: false)
+    func testNetworkFailureAfterSuccessfulReadReconnectsOnce() async throws {
+        try await checkCredentialRecovery(mode: "network-after-success", allowsRestart: true, expectedLaunches: 2, succeeds: true)
+    }
+
+    func testPersistentNetworkFailureStopsAfterOneReconnect() async throws {
+        try await checkCredentialRecovery(mode: "network", allowsRestart: true, expectedLaunches: 2, succeeds: false)
+    }
+
+    func testBoundSessionNeverReconnectsOnNetworkFailure() async throws {
+        try await checkCredentialRecovery(mode: "network", allowsRestart: false, expectedLaunches: 1, succeeds: false)
+    }
+
+    func testUnknownFailureDoesNotReconnect() async throws {
+        try await checkCredentialRecovery(mode: "unknown", allowsRestart: true, expectedLaunches: 1, succeeds: false)
     }
 
     private func checkCredentialRecovery(
@@ -42,9 +54,14 @@ final class CodexAppServerClientTransportTests: XCTestCase {
                 result={'userAgent':'fake','codexHome':'/tmp','platformFamily':'unix','platformOs':'macos'}
             elif method=='account/rateLimits/read':
                 reads+=1
-                fail=('\(mode)' in ['persistent','network'] or (launch==1 and reads>1))
+                fail=('\(mode)' in ['persistent','network','unknown'] or (launch==1 and reads>1))
                 if fail:
-                    message='token_expired' if '\(mode)'!='network' else 'connection reset'
+                    if '\(mode)'.startswith('network'):
+                        message='connection reset'
+                    elif '\(mode)'=='unknown':
+                        message='invalid response format'
+                    else:
+                        message='token_expired'
                     print(json.dumps({'id':request['id'],'error':{'code':-32000,'message':message}}),flush=True)
                     continue
                 result={'rateLimits':{'limitId':'codex','planType':'pro'},'rateLimitsByLimitId':None,'rateLimitResetCredits':None}
@@ -55,7 +72,7 @@ final class CodexAppServerClientTransportTests: XCTestCase {
         try Data(script.utf8).write(to: executable)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
         let client = CodexAppServerClient(binaryURLProvider: { executable }, allowsAutomaticRestart: allowsRestart)
-        if mode == "after-success" {
+        if mode == "after-success" || mode == "network-after-success" {
             let initial = try await client.readRateLimits()
             XCTAssertEqual(initial.rateLimits.planType, "pro")
         }

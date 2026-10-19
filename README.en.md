@@ -52,6 +52,7 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 ### v0.1.80: Quieter connection recovery
 
 - Keep existing quota displayed normally through brief outages and restarts while refreshing automatically in the background.
+- Recreate the standalone quota connection and retry once after temporary network failures or timeouts.
 - Remove repeated Saved labels and transient connection notices; keep the quota update time in quota details.
 - Retain guidance when no data is available, sign-in is required, or another error needs attention.
 

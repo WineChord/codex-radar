@@ -108,13 +108,12 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
         do {
             result = try await performRead(method: "account/rateLimits/read", params: nil)
         } catch {
-            // A long-lived standalone reader can retain credentials replaced by the app.
+            // A standalone reader can retain stale credentials or a failed network session.
             // Recreate only our reader and retry once; bound reset-credit sessions must
             // never reconnect across their verified account/dispatch boundary.
             guard allowsAutomaticRestart,
                   transport == .standaloneStdio,
-                  case .rpcError(_, let message) = error as? ClientError,
-                  CodexAuthenticationError.matches(message),
+                  shouldRestartQuotaRead(error),
                   !Task.isCancelled else {
                 throw error
             }
@@ -126,6 +125,24 @@ public actor CodexAppServerClient: ResetCreditProtectionAppServerServing {
         hasCompletedReadOnCurrentProcess = process?.isRunning == true
             && initialized
         return result
+    }
+
+    private func shouldRestartQuotaRead(_ error: Error) -> Bool {
+        guard let clientError = error as? ClientError else { return false }
+        switch clientError {
+        case .requestTimedOut, .processUnavailable:
+            return true
+        case .rpcError(_, let message):
+            if CodexAuthenticationError.matches(message) { return true }
+            let normalized = message.lowercased()
+            return [
+                "error sending request for url", "connection reset", "connection closed",
+                "network connection was lost", "temporarily unavailable", "timed out",
+                "http 500", "http 502", "http 503", "http 504",
+            ].contains { normalized.contains($0) }
+        default:
+            return false
+        }
     }
 
     public func readAccount() async throws -> CodexAccountResponse {
