@@ -142,6 +142,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 115 | [`Prompt-Id: 115 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+115%22&type=commits) | 兼容 Fast 雷达三档表格，恢复 Standard 到 Fast 的模型指标与摘要，并在验证后发布。 |
 | 116 | [`Prompt-Id: 116 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+116%22&type=commits) | 兼容额度雷达 schema 3 套餐矩阵，保留旧版额度等价值格式并恢复实时契约。 |
 | 117 | [`Prompt-Id: 117 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+117%22&type=commits) | 将 Fast 与额度雷达兼容修复准备为 v0.1.79，并完成正式发布门禁与产物核验。 |
+| 118 | [`Prompt-Id: 118 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+118%22&type=commits) | 已有额度正常显示，连接在后台自动恢复。 |
 
 ## Prompts
 
@@ -903,4 +904,10 @@ commit 要求是可以点击的链接
 
 ```text
 将已验证的 Fast 雷达三档表格与额度雷达 schema 3 套餐矩阵兼容修复作为 v0.1.79 patch 发布；同步应用、安装包、双语 README 与发布说明版本，通过当前 main 的完整 macOS 发布门禁后生成并核验正式 Release、Tag、ZIP、DMG 与 SHA256。
+```
+
+### 118. 安静的额度连接恢复
+
+```text
+让已有额度在短暂连接失败和重启后继续正常展示，将数据保留与自动重新获取作为内部恢复机制，移除重复的缓存标记及临时连接提示。保留额度详情中的更新时间与需要操作的错误提示，验证后台恢复、双语界面、双架构构建和安装包后发布。
 ```

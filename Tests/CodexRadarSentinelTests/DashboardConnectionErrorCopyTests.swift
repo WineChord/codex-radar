@@ -27,10 +27,9 @@ final class DashboardConnectionErrorCopyTests: XCTestCase {
         """
         for language in AppLanguage.allCases {
             let copy = DashboardConnectionErrorCopy.text(
-                for: raw, language: language, hasCachedQuota: true
+                for: raw, language: language
             )
             XCTAssertTrue(copy.contains(language == .en ? "check your sign-in" : "检查 Codex 登录状态"))
-            XCTAssertTrue(copy.contains(language == .en ? "last saved" : "上次保存"))
             XCTAssertFalse(copy.contains("{"))
             XCTAssertFalse(copy.contains("token_expired"))
             XCTAssertFalse(copy.contains(language == .en ? "retry automatically" : "自动重试"))
@@ -49,27 +48,25 @@ final class DashboardConnectionErrorCopyTests: XCTestCase {
         )
     }
 
-    func testTransientQuotaErrorKeepsCachedReadingWithoutLeakingURL() {
+    func testQuotaErrorWithoutDataDoesNotLeakURL() {
         let raw = "failed to fetch codex rate limits: error sending request for url (https://chatgpt.com/backend-api/wham/usage)"
 
         let chinese = DashboardConnectionErrorCopy.text(
             for: raw,
-            language: .zhHans,
-            hasCachedQuota: true
+            language: .zhHans
         )
         let english = DashboardConnectionErrorCopy.text(
             for: raw,
-            language: .en,
-            hasCachedQuota: true
+            language: .en
         )
 
         XCTAssertEqual(
             chinese,
-            "Codex 额度暂时未更新。下方仍是最近一次数据，应用会自动重试。"
+            "暂时无法连接 Codex 额度服务，应用会自动重试。"
         )
         XCTAssertEqual(
             english,
-            "Codex quota is temporarily unavailable. The latest saved reading remains below, and the app will retry automatically."
+            "Codex quota is temporarily unavailable. The app will retry automatically."
         )
         XCTAssertFalse(chinese.contains("https://"))
         XCTAssertFalse(english.contains("https://"))

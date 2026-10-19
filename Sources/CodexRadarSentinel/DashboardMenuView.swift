@@ -31,18 +31,14 @@ private enum DashboardVisualTestOverrides {
 enum DashboardConnectionErrorCopy {
     static func text(
         for error: String,
-        language: AppLanguage,
-        hasCachedQuota: Bool = false
+        language: AppLanguage
     ) -> String {
         if CodexAuthenticationError.matches(error) {
             let guidance = language.text(
                 "Radar 的额度连接认证失败。请先点“刷新”；若仍失败，请检查 Codex 登录状态。",
                 "Radar could not authenticate its quota connection. Choose Refresh; if it still fails, check your sign-in in Codex."
             )
-            return guidance + (hasCachedQuota ? language.text(
-                " 下方额度为上次保存的数据。",
-                " Quota below is the last saved reading."
-            ) : "")
+            return guidance
         }
         return error.split(separator: "\n", omittingEmptySubsequences: false)
             .map { line in
@@ -53,18 +49,42 @@ enum DashboardConnectionErrorCopy {
                     || normalized.contains("codex app-server is not available") else {
                     return String(line)
                 }
-                if hasCachedQuota {
-                    return language.text(
-                        "Codex 额度暂时未更新。下方仍是最近一次数据，应用会自动重试。",
-                        "Codex quota is temporarily unavailable. The latest saved reading remains below, and the app will retry automatically."
-                    )
-                }
                 return language.text(
                     "暂时无法连接 Codex 额度服务，应用会自动重试。",
                     "Codex quota is temporarily unavailable. The app will retry automatically."
                 )
             }
             .joined(separator: "\n")
+    }
+
+    static func visibleError(for state: DashboardState) -> String? {
+        guard let error = state.lastError else { return nil }
+        let quotaError = state.rateLimitError.flatMap {
+            error.hasSuffix($0) ? $0 : nil
+        }
+        let radarError = (quotaError.map {
+            String(error.dropLast($0.count))
+        } ?? error).trimmingCharacters(in: .whitespacesAndNewlines)
+        var visible: [String] = []
+        if !radarError.isEmpty, !(state.current != nil && isRecoverable(radarError)) {
+            visible.append(radarError)
+        }
+        if let quotaError, !(state.rateLimits != nil && isRecoverable(quotaError)) {
+            visible.append(quotaError)
+        }
+        return visible.isEmpty ? nil : visible.joined(separator: "\n")
+    }
+
+    private static func isRecoverable(_ error: String) -> Bool {
+        guard !CodexAuthenticationError.matches(error) else { return false }
+        let normalized = error.lowercased()
+        return [
+            "error sending request for url", "connection reset", "connection closed",
+            "network connection was lost", "temporarily unavailable", "timed out",
+            "codex app-server is not available", "nsurlerrordomain error -1001",
+            "nsurlerrordomain error -1005", "nsurlerrordomain error -1009",
+            "http 500", "http 502", "http 503", "http 504",
+        ].contains { normalized.contains($0) }
     }
 
     static func networkText(for error: String, language: AppLanguage) -> String {
@@ -214,7 +234,7 @@ struct DashboardMenuView: View {
             speedAlertBanner
         }
         header
-        if let error = state.lastError {
+        if let error = DashboardConnectionErrorCopy.visibleError(for: state) {
             errorSection(error)
         }
     }
@@ -800,40 +820,30 @@ struct DashboardMenuView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .center, spacing: 10) {
-                Image(systemName: headerSymbol)
-                    .font(.system(size: metrics.headerIcon, weight: .semibold))
-                    .foregroundStyle(headerColor)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(actionText)
-                        .font(.system(size: metrics.headerTitle, weight: .semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                    if !state.hasCachedQuota {
-                        Text(headerDetailText)
-                            .font(.system(size: metrics.caption))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.82)
-                    }
-                }
-                Spacer()
-                Text(menuBarTitle)
-                    .font(.system(size: metrics.badge, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(headerColor)
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: headerSymbol)
+                .font(.system(size: metrics.headerIcon, weight: .semibold))
+                .foregroundStyle(headerColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(actionText)
+                    .font(.system(size: metrics.headerTitle, weight: .semibold))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(headerColor.opacity(0.12), in: Capsule())
-            }
-            if state.hasCachedQuota {
-                Text(quotaUpdateDescription)
+                    .minimumScaleFactor(0.82)
+                Text(headerDetailText)
                     .font(.system(size: metrics.caption))
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
             }
+            Spacer()
+            Text(menuBarTitle)
+                .font(.system(size: metrics.badge, weight: .semibold, design: .monospaced))
+                .foregroundStyle(headerColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(headerColor.opacity(0.12), in: Capsule())
         }
     }
 
@@ -882,9 +892,7 @@ struct DashboardMenuView: View {
 
     private var quotaUpdateDescription: String {
         let date = DisplayFormatters.compactDateTime(state.quotaUpdatedAt)
-        return state.hasCachedQuota
-            ? text("缓存 · 上次成功更新 \(date)", "Saved · Last successful update \(date)")
-            : text("额度更新 \(date)", "Quota updated \(date)")
+        return text("额度更新 \(date)", "Quota updated \(date)")
     }
 
     private var quotaSection: some View {
@@ -895,18 +903,10 @@ struct DashboardMenuView: View {
             trailing: StatusMetric.weeklyQuota.value(for: state, language: language)
         ) {
             VStack(alignment: .leading, spacing: 7) {
-                if state.rateLimits != nil && !state.hasCachedQuota {
+                if state.rateLimits != nil {
                     Text(quotaUpdateDescription)
                         .font(.system(size: metrics.caption))
                         .foregroundStyle(.secondary)
-                }
-                if store.quotaCacheStorageUnavailable {
-                    Text(text(
-                        "额度缓存无法保存或读取，重启后可能无法保留。",
-                        "Quota cache could not be saved or read; it may not survive a restart."
-                    ))
-                    .font(.system(size: metrics.caption))
-                    .foregroundStyle(.orange)
                 }
                 HStack(spacing: Layout.tileSpacing) {
                     quotaTile(
@@ -1022,8 +1022,8 @@ struct DashboardMenuView: View {
                 } else {
                     expandableCaptionText(
                         state.hasCachedQuota ? text(
-                            "额度未更新，暂时无法提供用量建议。",
-                            "Quota is not updated; usage guidance is unavailable."
+                            "暂时无法提供用量建议。",
+                            "Usage guidance is temporarily unavailable."
                         ) : text(
                             "还没有读取到周额度 reset 时间，暂时无法计算建议剩余。",
                             "Weekly reset timing is not loaded yet, so the target remaining quota is unavailable."
@@ -3214,8 +3214,7 @@ struct DashboardMenuView: View {
             of: quotaError,
             with: DashboardConnectionErrorCopy.text(
                 for: quotaError,
-                language: language,
-                hasCachedQuota: state.rateLimits != nil
+                language: language
             )
         )
         let visibleError = DashboardConnectionErrorCopy.networkText(

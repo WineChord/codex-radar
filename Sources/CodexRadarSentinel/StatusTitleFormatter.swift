@@ -108,9 +108,6 @@ enum StatusTitleFormatter {
     }
 
     private static func quotaColor(for state: DashboardState, remaining: Int?) -> NSColor {
-        if state.hasCachedQuota {
-            return .secondaryLabelColor
-        }
         if state.rateLimits?.isBlocked == true {
             return .systemRed
         }

@@ -38,15 +38,9 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         }
         switch self {
         case .weeklyQuota:
-            return cachedQuotaLabel(
-                DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent),
-                state: state, language: language
-            )
+            return DisplayFormatters.percent(state.rateLimits?.weeklyRemainingPercent)
         case .shortQuota:
-            return cachedQuotaLabel(
-                DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent),
-                state: state, language: language
-            )
+            return DisplayFormatters.percent(state.rateLimits?.shortRemainingPercent)
         case .quotaPace:
             guard let pacing = state.rateLimits?.quotaPacing(
                 strategy: pacingStrategy,
@@ -72,15 +66,15 @@ enum StatusMetric: String, CaseIterable, Identifiable {
         }
         switch self {
         case .weeklyQuota:
-            return cachedQuotaLabel(DisplayFormatters.percent(
+            return DisplayFormatters.percent(
                 state.rateLimits?.weeklyRemainingPercent,
                 includesSymbol: options.percentDisplayMode.includesSymbol
-            ), state: state, language: language)
+            )
         case .shortQuota:
-            return cachedQuotaLabel(DisplayFormatters.percent(
+            return DisplayFormatters.percent(
                 state.rateLimits?.shortRemainingPercent,
                 includesSymbol: options.percentDisplayMode.includesSymbol
-            ), state: state, language: language)
+            )
         case .quotaPace:
             guard let pacing = state.rateLimits?.quotaPacing(
                 strategy: options.quotaPacingStrategy,
@@ -106,10 +100,6 @@ enum StatusMetric: String, CaseIterable, Identifiable {
                 holidayCalendar: options.holidayCalendar
             )
         }
-    }
-
-    private func cachedQuotaLabel(_ value: String, state: DashboardState, language: AppLanguage) -> String {
-        state.hasCachedQuota ? language.text("缓存", "Saved ") + value : value
     }
 
     static func signalValue(for state: DashboardState, language: AppLanguage) -> String {

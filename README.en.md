@@ -49,6 +49,12 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 
 ## What's New
 
+### v0.1.80: Quieter connection recovery
+
+- Keep existing quota displayed normally through brief outages and restarts while refreshing automatically in the background.
+- Remove repeated Saved labels and transient connection notices; keep the quota update time in quota details.
+- Retain guidance when no data is available, sign-in is required, or another error needs attention.
+
 ### v0.1.79: Support the latest Fast and Quota Radar formats
 
 - Support Fast Radar's Standard, Fast, and Ultrafast tier table, restoring model metrics and Standard-to-Fast change summaries.
@@ -61,14 +67,10 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 - Keep the `NEW` badge out of model names while retaining compatibility with the previous page structure.
 - Wait for newly created GitHub drafts and assets to become visible, reducing first-attempt release failures for complete packages.
 
-### v0.1.77: Keep saved quota through outages and restarts
-
-- Keep the last quota in the menu bar with a Saved label during connection failures, and show the last successful update time in the menu.
-- Store quota in a private local file across restarts; automatically refresh and restore live readings when the connection recovers.
-- Pause usage guidance while quota is cached, simplify network errors, and report cache read or write failures.
-
 <details>
 <summary><strong>Earlier releases</strong></summary>
+
+- **v0.1.77**: Preserves local quota and its successful update time across restarts, with automatic refresh after reconnection.
 
 - **v0.1.76**: Recovers quota connections automatically and follows the current insights service address.
 - **v0.1.75**: Discovers renamed or moved Codex / ChatGPT apps and bundled CLIs across internal layout changes.
