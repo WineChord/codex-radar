@@ -143,6 +143,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 116 | [`Prompt-Id: 116 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+116%22&type=commits) | 兼容额度雷达 schema 3 套餐矩阵，保留旧版额度等价值格式并恢复实时契约。 |
 | 117 | [`Prompt-Id: 117 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+117%22&type=commits) | 将 Fast 与额度雷达兼容修复准备为 v0.1.79，并完成正式发布门禁与产物核验。 |
 | 118 | [`Prompt-Id: 118 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+118%22&type=commits) | 已有额度正常显示，连接在后台自动恢复。 |
+| 119 | [`Prompt-Id: 119 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+119%22&type=commits) | 基于近期消耗速率的额度用尽时间预估。 |
 
 ## Prompts
 
@@ -910,4 +911,10 @@ commit 要求是可以点击的链接
 
 ```text
 让已有额度在短暂连接失败和重启后继续正常展示，将数据保留与自动重新获取作为内部恢复机制，移除重复的缓存标记及临时连接提示。保留额度详情中的更新时间与需要操作的错误提示；临时网络故障后重建独立只读连接并重试一次。验证后台恢复、双语界面、双架构构建和安装包后发布。
+```
+
+### 119. 额度用尽时间预估
+
+```text
+在额度详情中简洁展示按近期用量估算的剩余可用时间，并可展开对比最近 30 分钟、1 小时、2 小时和 5 小时的消耗速率与预计用尽时间。每个参考时段在一行内并列显示未来用尽时刻与剩余时长，控制纵向占用。处理重置、额度补充、记录断档、无消耗和数据不足，验证双语及全部字号的展示。
 ```

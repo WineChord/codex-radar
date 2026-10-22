@@ -46,7 +46,7 @@ final class DashboardLayoutTests: XCTestCase {
     func testNestedDisclosuresHaveOneRegisteredParentAndSafeDefaults() {
         XCTAssertEqual(
             DashboardDisclosure.children(of: .quota),
-            [.quotaHistory]
+            [.quotaForecast, .quotaHistory]
         )
         XCTAssertEqual(
             DashboardDisclosure.children(of: .modelIQ),
@@ -487,6 +487,8 @@ final class DashboardLayoutTests: XCTestCase {
         firstStore?.setDashboardSectionOrder(reordered)
         firstStore?.setDashboardSection(.resetCredits, expanded: true)
         firstStore?.setDashboardSection(.quota, expanded: false)
+        firstStore?.setDashboardDisclosure(.quotaForecast, expanded: true)
+        firstStore?.setDashboardDisclosure(.quotaForecast, visible: false)
         firstStore?.setDashboardDisclosure(
             .quotaHistory,
             expanded: true
@@ -519,6 +521,8 @@ final class DashboardLayoutTests: XCTestCase {
             secondStore.isDashboardSectionExpanded(.resetCredits)
         )
         XCTAssertFalse(secondStore.isDashboardSectionExpanded(.quota))
+        XCTAssertTrue(secondStore.isDashboardDisclosureExpanded(.quotaForecast))
+        XCTAssertFalse(secondStore.isDashboardDisclosureVisible(.quotaForecast))
         XCTAssertTrue(
             secondStore.isDashboardDisclosureExpanded(
                 .quotaHistory

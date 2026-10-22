@@ -282,6 +282,12 @@ final class SentinelStore: NSObject, ObservableObject {
         }
     }
 
+    @Published var quotaForecastExpanded: Bool {
+        didSet {
+            defaults.set(quotaForecastExpanded, forKey: DefaultsKey.quotaForecastExpanded)
+        }
+    }
+
     @Published var quotaHistoryExpanded: Bool {
         didSet {
             defaults.set(
@@ -403,6 +409,7 @@ final class SentinelStore: NSObject, ObservableObject {
         static let radarInsightsDetailsExpanded =
             "radarInsightsDetailsExpanded"
         static let quotaHistoryRange = "quotaHistoryRangeV1"
+        static let quotaForecastExpanded = "quotaForecastExpandedV1"
         static let quotaHistoryExpanded = "quotaHistoryExpandedV1"
         static let resetCreditSnapshot = "resetCreditSnapshot"
         static let resetCreditAutoRefreshEnabled = "resetCreditAutoRefreshEnabled"
@@ -604,6 +611,9 @@ final class SentinelStore: NSObject, ObservableObject {
         self.quotaHistoryRange = defaults.string(
             forKey: DefaultsKey.quotaHistoryRange
         ).flatMap(QuotaHistoryRange.init(rawValue:)) ?? .hours24
+        self.quotaForecastExpanded = defaults.object(
+            forKey: DefaultsKey.quotaForecastExpanded
+        ) as? Bool ?? DashboardDisclosure.quotaForecast.isExpandedByDefault
         self.quotaHistoryExpanded = defaults.object(
             forKey: DefaultsKey.quotaHistoryExpanded
         ) as? Bool
@@ -898,6 +908,8 @@ final class SentinelStore: NSObject, ObservableObject {
         _ disclosure: DashboardDisclosure
     ) -> Bool {
         switch disclosure {
+        case .quotaForecast:
+            return quotaForecastExpanded
         case .quotaHistory:
             return quotaHistoryExpanded
         case .modelIQDetails:
@@ -918,6 +930,8 @@ final class SentinelStore: NSObject, ObservableObject {
         expanded: Bool
     ) {
         switch disclosure {
+        case .quotaForecast:
+            quotaForecastExpanded = expanded
         case .quotaHistory:
             quotaHistoryExpanded = expanded
         case .modelIQDetails:
@@ -1492,6 +1506,23 @@ final class SentinelStore: NSObject, ObservableObject {
             live: DashboardState()
         )
         documentationState.rateLimits = Self.documentationRateLimits()
+        if let forecastMode = ProcessInfo.processInfo.environment["CODEX_RADAR_VISUAL_TEST_FORECAST"],
+           let weekly = documentationState.rateLimits?.weeklyBucket {
+            let minutes = forecastMode == "insufficient" ? 10 : 305
+            quotaHistory = QuotaHistoryTimeline(samples: stride(from: minutes, through: 0, by: -5).map { offset in
+                let hours = Double(offset) / 60
+                let consumed = forecastMode == "idle" ? 0
+                    : min(hours, 0.5) * 6
+                        + min(max(hours - 0.5, 0), 0.5) * 4
+                        + min(max(hours - 1, 0), 1) * 2
+                        + max(hours - 2, 0)
+                return QuotaHistorySample(
+                    timestamp: Self.documentationUpdatedAt.addingTimeInterval(-Double(offset) * 60),
+                    remainingPercent: 100 - weekly.usedPercent + consumed,
+                    resetsAt: weekly.resetsAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+                )
+            })
+        }
         documentationState.current = Self.documentationCurrent(language: language)
         documentationState.prediction = Self.documentationPrediction(language: language)
         documentationState.modelIQ = Self.documentationModelIQ()

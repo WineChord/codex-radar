@@ -152,6 +152,8 @@ The app records real points only after local weekly quota loads successfully. Wh
 
 History starts accumulating when this version first runs; earlier values are neither fabricated nor backfilled. Up to 31 days remain on the Mac. `Observed use` totals only balance decreases seen in the selected range and is not a replacement for server-side billing or usage analytics.
 
+`Time until empty` appears below the quota cards, collapsed by default with a projected depletion time and remaining duration that prefer the last hour and falls back to another fully recorded window. Expand it to compare hourly consumption, depletion times, and remaining durations in one row per window over the last 30 minutes, 1 hour, 2 hours, and 5 hours. Estimates use continuous local records without crossing quota refills, resets, or gaps longer than 20 minutes. Incomplete history, no recent consumption, and a reset arriving first have separate states. Projections assume unchanged usage and are only a guide. Use `Layout` to hide the section or expand it by default.
+
 ### Usage pacing
 
 `Pace rule` is collapsed by default. Expand the row to choose:

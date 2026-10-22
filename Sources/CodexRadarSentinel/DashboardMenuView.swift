@@ -931,11 +931,37 @@ struct DashboardMenuView: View {
                         .font(.system(size: metrics.caption))
                         .foregroundStyle(.secondary)
                 }
+                if store.isDashboardDisclosureVisible(.quotaForecast) {
+                    QuotaDepletionForecastView(
+                        timeline: store.displayedQuotaHistory,
+                        current: quotaForecastReading,
+                        language: language,
+                        metrics: metrics,
+                        isExpanded: disclosureExpansionBinding(
+                            for: .quotaForecast,
+                            forcedExpanded: ProcessInfo.processInfo.environment[
+                                "CODEX_RADAR_VISUAL_TEST_EXPAND_FORECAST"
+                            ] == "1"
+                        )
+                    )
+                }
                 if store.isDashboardDisclosureVisible(.quotaHistory) {
                     quotaHistorySection
                 }
             }
         }
+    }
+
+    private var quotaForecastReading: QuotaHistorySample? {
+        guard !state.hasCachedQuota,
+              !store.quotaHistoryStorageUnavailable,
+              let window = state.rateLimits?.weeklyBucket,
+              let updatedAt = state.quotaUpdatedAt else { return nil }
+        return QuotaHistorySample(
+            timestamp: updatedAt,
+            remainingPercent: min(100, max(0, 100 - window.usedPercent)),
+            resetsAt: window.resetsAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+        )
     }
 
     private var quotaHistorySection: some View {
