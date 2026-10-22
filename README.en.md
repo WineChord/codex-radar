@@ -49,6 +49,12 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 
 ## What's New
 
+### v0.1.81: Quota depletion forecasts
+
+- See the projected depletion time and remaining duration below quota cards, preferring usage from the last hour.
+- Expand to compare consumption over the last 30 minutes, 1 hour, 2 hours, and 5 hours in one compact row per window.
+- Avoid misleading estimates across resets, refills, gaps, or incomplete history; hide or default-expand it in Layout.
+
 ### v0.1.80: Quieter connection recovery
 
 - Keep existing quota displayed normally through brief outages and restarts while refreshing automatically in the background.
@@ -62,14 +68,10 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 - Support the Quota Radar schema 3 plan matrix with plan prices, per-model weekly quotas, and API-equivalent values, clearly identified as approximate public references rather than local remaining quota.
 - Retain compatibility with both radars' previous page or data formats.
 
-### v0.1.78: Follow the latest Fast Radar methodology
-
-- Parse Fast Radar's current definition-list methodology so test conditions, measurements, and boundaries remain complete.
-- Keep the `NEW` badge out of model names while retaining compatibility with the previous page structure.
-- Wait for newly created GitHub drafts and assets to become visible, reducing first-attempt release failures for complete packages.
-
 <details>
 <summary><strong>Earlier releases</strong></summary>
+
+- **v0.1.78**: Supports Fast Radar definition-list methodology with complete conditions and boundaries, and improves release synchronization waits.
 
 - **v0.1.77**: Preserves local quota and its successful update time across restarts, with automatic refresh after reconnection.
 

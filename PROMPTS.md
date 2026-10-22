@@ -144,6 +144,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 117 | [`Prompt-Id: 117 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+117%22&type=commits) | 将 Fast 与额度雷达兼容修复准备为 v0.1.79，并完成正式发布门禁与产物核验。 |
 | 118 | [`Prompt-Id: 118 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+118%22&type=commits) | 已有额度正常显示，连接在后台自动恢复。 |
 | 119 | [`Prompt-Id: 119 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+119%22&type=commits) | 基于近期消耗速率的额度用尽时间预估。 |
+| 120 | [`Prompt-Id: 120 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+120%22&type=commits) | 发布额度用尽时间预估版本。 |
 
 ## Prompts
 
@@ -917,4 +918,10 @@ commit 要求是可以点击的链接
 
 ```text
 在额度详情中简洁展示按近期用量估算的剩余可用时间，并可展开对比最近 30 分钟、1 小时、2 小时和 5 小时的消耗速率与预计用尽时间。每个参考时段在一行内并列显示未来用尽时刻与剩余时长，控制纵向占用。处理重置、额度补充、记录断档、无消耗和数据不足，验证双语及全部字号的展示。
+```
+
+### 120. v0.1.81 正式发布
+
+```text
+将已验证的额度用尽时间预估作为 v0.1.81 发布，同步版本、双语说明及截图，完成双架构 macOS 测试、实时契约和安装包校验后发布正式版本。
 ```
