@@ -46,11 +46,25 @@ final class QuotaDepletionForecastTests: XCTestCase {
         XCTAssertEqual(estimate.outcome, .depletes(at: now.addingTimeInterval(20 * 3600)))
     }
 
-    func testPartialWindowDoesNotPretendToBeAFullWindow() {
+    func testPartialWindowsUseActualElapsedTimeWithoutDilutingConsumption() throws {
         let current = sample(minutesAgo: 0, remaining: 40)
         let timeline = QuotaHistoryTimeline(samples: [sample(minutesAgo: 29, remaining: 43), current])
-        XCTAssertTrue(QuotaDepletionForecast.estimates(timeline: timeline, current: current)
-            .allSatisfy { $0.outcome == .insufficientData })
+        for estimate in QuotaDepletionForecast.estimates(timeline: timeline, current: current) {
+            XCTAssertEqual(try XCTUnwrap(estimate.hourlyConsumption), 3 * 60 / 29, accuracy: 0.00001)
+            XCTAssertEqual(estimate.observationDuration, 29 * 60)
+            guard case .depletes = estimate.outcome else { return XCTFail("Expected an estimate from partial history") }
+        }
+    }
+
+    func testTooLittleHistoryAndSingleReadingsWaitForAnotherPoll() {
+        let current = sample(minutesAgo: 0, remaining: 40)
+        for samples in [[current], [sample(minutesAgo: 0.5, remaining: 41), current]] {
+            XCTAssertTrue(QuotaDepletionForecast.estimates(timeline: .init(samples: samples), current: current)
+                .allSatisfy { $0.outcome == .insufficientData })
+        }
+        let samples = [sample(minutesAgo: 1, remaining: 40.1), current]
+        XCTAssertTrue(QuotaDepletionForecast.estimates(timeline: .init(samples: samples), current: current)
+            .allSatisfy { $0.hourlyConsumption != nil })
     }
 
     func testRefillAndResetBoundaryExcludeEarlierConsumption() {
@@ -64,7 +78,9 @@ final class QuotaDepletionForecastTests: XCTestCase {
         }
         let estimates = QuotaDepletionForecast.estimates(timeline: .init(samples: samples), current: current)
         XCTAssertEqual(estimates[0].hourlyConsumption, 6)
-        XCTAssertTrue(estimates.dropFirst().allSatisfy { $0.outcome == .insufficientData })
+        XCTAssertTrue(estimates.dropFirst().allSatisfy {
+            $0.hourlyConsumption == 6 && $0.observationDuration == 45 * 60
+        })
 
         let changedBoundary = history(current: 60).map { reading in
             QuotaHistorySample(timestamp: reading.timestamp, remainingPercent: reading.remainingPercent,
@@ -72,10 +88,12 @@ final class QuotaDepletionForecastTests: XCTestCase {
                     ? now.addingTimeInterval(86_400) : current.resetsAt)
         }
         let changed = QuotaDepletionForecast.estimates(timeline: .init(samples: changedBoundary), current: current)
-        XCTAssertTrue(changed.dropFirst().allSatisfy { $0.outcome == .insufficientData })
+        XCTAssertTrue(changed.dropFirst().allSatisfy {
+            $0.hourlyConsumption == 6 && $0.observationDuration == 45 * 60
+        })
     }
 
-    func testLongGapInvalidatesOnlyTheWindowsThatCrossIt() {
+    func testGapsWithinTheWindowAreInterpolated() {
         let current = sample(minutesAgo: 0, remaining: 40)
         let samples = history(current: 40).filter {
             let age = now.timeIntervalSince($0.timestamp) / 60
@@ -84,14 +102,44 @@ final class QuotaDepletionForecastTests: XCTestCase {
         let estimates = QuotaDepletionForecast.estimates(timeline: .init(samples: samples), current: current)
         XCTAssertEqual(estimates[0].hourlyConsumption, 6)
         XCTAssertEqual(estimates[1].hourlyConsumption, 6)
-        XCTAssertEqual(estimates[2].outcome, .insufficientData)
-        XCTAssertEqual(estimates[3].outcome, .insufficientData)
+        XCTAssertEqual(estimates[2].hourlyConsumption, 6)
+        XCTAssertEqual(estimates[3].hourlyConsumption, 6)
+    }
+
+    func testSparseReadingsInterpolateInsideMultiHourGaps() throws {
+        let samples = [sample(minutesAgo: 300, remaining: 80),
+                       sample(minutesAgo: 95, remaining: 55), sample(minutesAgo: 0, remaining: 50)]
+        let estimates = QuotaDepletionForecast.estimates(timeline: .init(samples: samples), current: samples.last!)
+        let expectedRates = [5 * 60.0 / 95, 5 * 60.0 / 95, (5 + 25 * 25.0 / 205) / 2, 6]
+        for (estimate, expected) in zip(estimates, expectedRates) {
+            XCTAssertEqual(try XCTUnwrap(estimate.hourlyConsumption), expected, accuracy: 0.00001)
+        }
+    }
+
+    func testOvernightGapsUseOnlyTheNewReadings() throws {
+        let current = sample(minutesAgo: 0, remaining: 40)
+        let samples = [sample(minutesAgo: 400, remaining: 80),
+                       sample(minutesAgo: 10, remaining: 41), current]
+        for estimate in QuotaDepletionForecast.estimates(timeline: .init(samples: samples), current: current) {
+            XCTAssertEqual(try XCTUnwrap(estimate.hourlyConsumption), 6, accuracy: 0.00001)
+            XCTAssertEqual(estimate.observationDuration, 10 * 60)
+        }
+    }
+
+    func testAnUnobservedResetCannotBeBridged() {
+        let reset = now.addingTimeInterval(-15 * 60)
+        let samples = [sample(minutesAgo: 60, remaining: 90, reset: reset),
+                       sample(minutesAgo: 10, remaining: 41), sample(minutesAgo: 0, remaining: 40)]
+        let estimates = QuotaDepletionForecast.estimates(timeline: .init(samples: samples), current: samples.last!)
+        XCTAssertTrue(estimates.allSatisfy { $0.hourlyConsumption == 6 && $0.observationDuration == 600 })
     }
 
     func testZeroConsumptionEmptyQuotaAndResetBeforeDepletionAreDistinct() {
         let idle = history(current: 50, rate: 0)
-        XCTAssertTrue(QuotaDepletionForecast.estimates(timeline: .init(samples: idle), current: idle.last!)
-            .allSatisfy { $0.outcome == .noConsumption && $0.hourlyConsumption == 0 })
+        for readings in [idle, [sample(minutesAgo: 10, remaining: 50), idle.last!]] {
+            XCTAssertTrue(QuotaDepletionForecast.estimates(timeline: .init(samples: readings), current: readings.last!)
+                .allSatisfy { $0.outcome == .noConsumption && $0.hourlyConsumption == 0 })
+        }
         XCTAssertTrue(QuotaDepletionForecast.estimates(timeline: .init(), current: sample(minutesAgo: 0, remaining: 0))
             .allSatisfy { $0.outcome == .alreadyDepleted })
         let reset = now.addingTimeInterval(3600)

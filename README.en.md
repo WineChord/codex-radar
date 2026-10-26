@@ -49,6 +49,12 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 
 ## What's New
 
+### v0.1.82: Forecasts from incomplete history
+
+- Estimate depletion from available history even when a full window or intermediate readings are missing.
+- Interpolate between readings while keeping reset, refill, and long offline boundaries.
+- Show the actual lookback in the collapsed summary and retain compact single-line rows.
+
 ### v0.1.81: Quota depletion forecasts
 
 - See the projected depletion time and remaining duration below quota cards, preferring usage from the last hour.
@@ -62,14 +68,10 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 - Remove repeated Saved labels and transient connection notices; keep the quota update time in quota details.
 - Retain guidance when no data is available, sign-in is required, or another error needs attention.
 
-### v0.1.79: Support the latest Fast and Quota Radar formats
-
-- Support Fast Radar's Standard, Fast, and Ultrafast tier table, restoring model metrics and Standard-to-Fast change summaries.
-- Support the Quota Radar schema 3 plan matrix with plan prices, per-model weekly quotas, and API-equivalent values, clearly identified as approximate public references rather than local remaining quota.
-- Retain compatibility with both radars' previous page or data formats.
-
 <details>
 <summary><strong>Earlier releases</strong></summary>
+
+- **v0.1.79**: Supports Fast Radar tier tables and the Quota Radar schema 3 plan matrix while retaining older formats.
 
 - **v0.1.78**: Supports Fast Radar definition-list methodology with complete conditions and boundaries, and improves release synchronization waits.
 
@@ -154,7 +156,7 @@ The app records real points only after local weekly quota loads successfully. Wh
 
 History starts accumulating when this version first runs; earlier values are neither fabricated nor backfilled. Up to 31 days remain on the Mac. `Observed use` totals only balance decreases seen in the selected range and is not a replacement for server-side billing or usage analytics.
 
-`Time until empty` appears below the quota cards, collapsed by default with a projected depletion time and remaining duration that prefer the last hour and falls back to another fully recorded window. Expand it to compare hourly consumption, depletion times, and remaining durations in one row per window over the last 30 minutes, 1 hour, 2 hours, and 5 hours. Estimates use continuous local records without crossing quota refills, resets, or gaps longer than 20 minutes. Incomplete history, no recent consumption, and a reset arriving first have separate states. Projections assume unchanged usage and are only a guide. Use `Layout` to hide the section or expand it by default.
+`Time until empty` appears below quota cards, collapsed by default and preferring the last hour, with both the projected depletion time and remaining duration. Expand it to compare the last 30 minutes, 1 hour, 2 hours, and 5 hours in one row per window. Shorter histories use their actual elapsed duration, and gaps are interpolated between available readings without modifying stored history. Estimates begin with two valid readings at least one minute apart and never bridge refills, resets, or gaps longer than five hours. Hover over a row for the actual lookback duration. No recent usage and resets arriving first have separate states. Results assume unchanged usage and are only a guide. Use `Layout` to hide the section or expand it by default.
 
 ### Usage pacing
 

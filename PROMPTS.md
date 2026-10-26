@@ -145,6 +145,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 118 | [`Prompt-Id: 118 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+118%22&type=commits) | 已有额度正常显示，连接在后台自动恢复。 |
 | 119 | [`Prompt-Id: 119 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+119%22&type=commits) | 基于近期消耗速率的额度用尽时间预估。 |
 | 120 | [`Prompt-Id: 120 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+120%22&type=commits) | 发布额度用尽时间预估版本。 |
+| 121 | [`Prompt-Id: 121 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+121%22&type=commits) | 放宽额度预估对记录完整性的要求。 |
 
 ## Prompts
 
@@ -924,4 +925,10 @@ commit 要求是可以点击的链接
 
 ```text
 将已验证的额度用尽时间预估作为 v0.1.81 发布，同步版本、双语说明及截图，完成双架构 macOS 测试、实时契约和安装包校验后发布正式版本。
+```
+
+### 121. 容忍缺失记录的额度预估
+
+```text
+让额度用尽时间预估利用已有记录，对中间缺口合理插值，并在历史不足整个参考时段时按实际时长计算。保留重置、额度补充与长时间断档的边界，维持紧凑的单行展示，完成测试与安装包验证后发布更新。
 ```

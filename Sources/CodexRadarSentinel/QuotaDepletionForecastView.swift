@@ -40,6 +40,8 @@ struct QuotaDepletionForecastView: View {
                     let forecast = estimates.first { $0.window == window }
                     HStack(spacing: 8) {
                         Text(windowLabel(window))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.9)
                             .frame(width: metrics.label * 5.5, alignment: .leading)
                         Text(rateLabel(forecast?.hourlyConsumption))
                             .monospacedDigit()
@@ -52,11 +54,13 @@ struct QuotaDepletionForecastView: View {
                     }
                     .font(.system(size: metrics.label))
                     .accessibilityElement(children: .combine)
+                    .help(observationLabel(forecast))
+                    .accessibilityHint(observationLabel(forecast))
                 }
 
                 Text(text(
-                    "按相同速率估算；重置后重新计算。",
-                    "Assumes unchanged usage; restarts after a reset."
+                    "按现有记录近似估算；重置后重新计算。",
+                    "Uses available history; assumes unchanged usage."
                 ))
                 .font(.system(size: metrics.caption))
                 .foregroundStyle(.secondary)
@@ -75,10 +79,10 @@ struct QuotaDepletionForecastView: View {
                         .font(.system(size: metrics.caption, weight: .medium))
                     if !isExpanded, let preferred = preferred(in: estimates) {
                         if case .depletes(let date) = preferred.outcome {
-                            Text("\(durationLabel(until: date)) · \(windowLabel(preferred.window))")
+                            Text("\(durationLabel(until: date)) · \(basisLabel(preferred))")
                                 .font(.system(size: metrics.caption))
                         } else {
-                            Text(windowLabel(preferred.window))
+                            Text(basisLabel(preferred))
                                 .font(.system(size: metrics.caption))
                         }
                     }
@@ -96,6 +100,25 @@ struct QuotaDepletionForecastView: View {
             return text(current == nil ? "暂无法估算" : "记录不足", current == nil ? "Unavailable" : "Gathering history")
         }
         return outcomeLabel(preferred.outcome)
+    }
+
+    private func basisLabel(_ forecast: QuotaDepletionForecast) -> String {
+        if forecast.observationDuration < forecast.window.duration {
+            let minutes = max(1, Int(forecast.observationDuration / 60))
+            return text("近 \(minutes) 分钟", "Last \(minutes) min")
+        }
+        return windowLabel(forecast.window)
+    }
+
+    private func observationLabel(_ forecast: QuotaDepletionForecast?) -> String {
+        guard let forecast, forecast.observationDuration > 0 else {
+            return text("按当前额度与已有记录估算。", "Based on current quota and available history.")
+        }
+        let minutes = max(1, Int(forecast.observationDuration / 60))
+        return text(
+            "参考近 \(minutes) 分钟的已有记录，缺口按相邻记录插值；假设后续速率不变。",
+            "Uses available readings over \(minutes) minutes, interpolating gaps and assuming unchanged usage."
+        )
     }
 
     private func resultLabel(_ forecast: QuotaDepletionForecast?) -> Text {

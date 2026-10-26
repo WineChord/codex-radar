@@ -1508,8 +1508,16 @@ final class SentinelStore: NSObject, ObservableObject {
         documentationState.rateLimits = Self.documentationRateLimits()
         if let forecastMode = ProcessInfo.processInfo.environment["CODEX_RADAR_VISUAL_TEST_FORECAST"],
            let weekly = documentationState.rateLimits?.weeklyBucket {
-            let minutes = forecastMode == "insufficient" ? 10 : 305
-            quotaHistory = QuotaHistoryTimeline(samples: stride(from: minutes, through: 0, by: -5).map { offset in
+            let minutes: Int
+            switch forecastMode {
+            case "insufficient": minutes = 0
+            case "partial": minutes = 10
+            default: minutes = 305
+            }
+            let offsets = stride(from: minutes, through: 0, by: -5).filter { offset in
+                forecastMode != "gapped" || [300, 95, 30, 0].contains(offset)
+            }
+            quotaHistory = QuotaHistoryTimeline(samples: offsets.map { offset in
                 let hours = Double(offset) / 60
                 let consumed = forecastMode == "idle" ? 0
                     : min(hours, 0.5) * 6
