@@ -642,7 +642,7 @@ public struct CodexRadarClient {
 
     private static func parseHomepageFastRadar(html: String) -> [String: Any]? {
         guard let section = firstBalancedSection(withClass: "fast-radar", in: html)
-            ?? firstBalancedSection(
+            ?? firstHeadingBlock(
                 containingAnyText: ["全站实时均速", "Sitewide live average speed"],
                 in: html
             ) else {
@@ -1001,51 +1001,34 @@ public struct CodexRadarClient {
         return nil
     }
 
-    private static func firstBalancedSection(
+    private static func firstHeadingBlock(
         containingAnyText needles: [String],
         in html: String
     ) -> String? {
-        guard let openingRegex = try? NSRegularExpression(
-            pattern: #"<section\b[^>]*>"#,
-            options: [.caseInsensitive]
-        ),
-        let tokenRegex = try? NSRegularExpression(
-            pattern: #"</?section\b[^>]*>"#,
-            options: [.caseInsensitive]
+        guard let headingRegex = try? NSRegularExpression(
+            pattern: #"<h2\b[^>]*>(.*?)</h2>"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
         ) else {
             return nil
         }
         let fullRange = NSRange(html.startIndex..<html.endIndex, in: html)
-        for opening in openingRegex.matches(in: html, range: fullRange).reversed() {
-            let searchRange = NSRange(
-                location: opening.range.location,
-                length: fullRange.length - opening.range.location
-            )
-            var depth = 0
-            for token in tokenRegex.matches(in: html, range: searchRange) {
-                let tokenText = capture(token, 0, in: html).lowercased()
-                if tokenText.hasPrefix("</") {
-                    depth -= 1
-                    if depth == 0 {
-                        let innerRange = NSRange(
-                            location: NSMaxRange(opening.range),
-                            length: token.range.location - NSMaxRange(opening.range)
-                        )
-                        guard let range = Range(innerRange, in: html) else {
-                            break
-                        }
-                        let section = String(html[range])
-                        if needles.contains(where: {
-                            section.range(of: $0, options: .caseInsensitive) != nil
-                        }) {
-                            return section
-                        }
-                        break
-                    }
-                } else {
-                    depth += 1
-                }
+        let headings = headingRegex.matches(in: html, range: fullRange)
+        for (index, heading) in headings.enumerated() {
+            let headingText = cleanHTMLText(capture(heading, 1, in: html))
+            guard needles.contains(where: {
+                headingText.range(of: $0, options: .caseInsensitive) != nil
+            }) else {
+                continue
             }
+            let blockEnd = headings[safe: index + 1]?.range.location ?? fullRange.length
+            let blockRange = NSRange(
+                location: heading.range.location,
+                length: blockEnd - heading.range.location
+            )
+            guard let range = Range(blockRange, in: html) else {
+                return nil
+            }
+            return String(html[range])
         }
         return nil
     }

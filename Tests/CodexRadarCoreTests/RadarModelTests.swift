@@ -958,7 +958,7 @@ final class RadarModelTests: XCTestCase {
             <title>10月26日 GPT-6.1 Sol: IQ指数 120.0, 20/20, 费用 $2.0, 耗时 20分钟, cache命中率 90%</title>
           </head>
           <body>
-            <section class="speed-overview" id="speed-radar">
+            <div class="speed-overview" id="speed-radar">
               <h2>全站实时均速</h2>
               <table>
                 <thead><tr>
@@ -977,7 +977,7 @@ final class RadarModelTests: XCTestCase {
                 </tbody>
               </table>
               <p>速度雷达 · 社区实测 · 最近5分钟 · 包含首字等待，客户端、上下文与档位混合。</p>
-            </section>
+            </div>
           </body>
         </html>
         """
