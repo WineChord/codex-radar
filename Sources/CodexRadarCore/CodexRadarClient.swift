@@ -642,6 +642,7 @@ public struct CodexRadarClient {
 
     private static func parseHomepageFastRadar(html: String) -> [String: Any]? {
         guard let section = firstBalancedSection(withClass: "fast-radar", in: html)
+            ?? firstBalancedSection(withClass: "speed-radar", in: html)
             ?? firstHeadingBlock(
                 containingAnyText: ["全站实时均速", "Sitewide live average speed"],
                 in: html
@@ -749,11 +750,18 @@ public struct CodexRadarClient {
         }
         if rows.isEmpty {
             rows = allMatches(#"<tr\b[^>]*>(.*?)</tr>"#, in: section).compactMap { groups -> [String: Any]? in
-                let cells = allMatches(#"<td\b[^>]*>(.*?)</td>"#, in: groups[safe: 0] ?? "")
+                let rowHTML = groups[safe: 0] ?? ""
+                let headerModel = cleanHTMLText(firstCapture(
+                    #"<th\b[^>]*scope="row"[^>]*>(.*?)</th>"#,
+                    in: rowHTML
+                ))
+                let cells = allMatches(#"<td\b[^>]*>(.*?)</td>"#, in: rowHTML)
                     .map { cleanHTMLText($0[safe: 0]) }
-                guard cells.count >= 6,
-                      let model = cells[safe: 0], !model.isEmpty,
-                      let speed = cells[safe: 2],
+                let offset = headerModel.isEmpty ? 1 : 0
+                let model = headerModel.isEmpty ? (cells[safe: 0] ?? "") : headerModel
+                guard cells.count >= offset + 5,
+                      !model.isEmpty,
+                      let speed = cells[safe: offset + 1],
                       speed.range(
                         of: #"\btok/s\b"#,
                         options: [.regularExpression, .caseInsensitive]
@@ -765,12 +773,12 @@ public struct CodexRadarClient {
                     "e2e": fastRadarMetricPayload(
                         label: "Harness · 请求",
                         range: nil,
-                        value: cells[safe: 1]
+                        value: cells[safe: offset]
                     ),
                     "ttft": fastRadarMetricPayload(
                         label: "请求合计",
                         range: nil,
-                        value: cells[safe: 4]
+                        value: cells[safe: offset + 3]
                     ),
                     "tps": fastRadarMetricPayload(
                         label: "实时均速",

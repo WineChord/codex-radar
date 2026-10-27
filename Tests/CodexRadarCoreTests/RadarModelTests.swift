@@ -967,11 +967,11 @@ final class RadarModelTests: XCTestCase {
                 </tr></thead>
                 <tbody>
                   <tr>
-                    <td><strong>GPT-6.1 Sol</strong></td><td>Codex 876</td>
+                    <th scope="row"><strong>GPT-6.1 Sol</strong></th><td>Codex 876</td>
                     <td><span>25.0 tok/s</span></td><td>—</td><td>876</td><td>43</td>
                   </tr>
                   <tr>
-                    <td>GPT-6 Astra</td><td>Codex 193</td>
+                    <th scope="row">GPT-6 Astra</th><td>Codex 193</td>
                     <td>21.5 tok/s</td><td>—</td><td>193</td><td>17</td>
                   </tr>
                 </tbody>
