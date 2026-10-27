@@ -146,6 +146,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 119 | [`Prompt-Id: 119 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+119%22&type=commits) | 基于近期消耗速率的额度用尽时间预估。 |
 | 120 | [`Prompt-Id: 120 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+120%22&type=commits) | 发布额度用尽时间预估版本。 |
 | 121 | [`Prompt-Id: 121 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+121%22&type=commits) | 放宽额度预估对记录完整性的要求。 |
+| 122 | [`Prompt-Id: 122 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+122%22&type=commits) | 兼容旧 Fast 雷达迁移后的全站实时均速表。 |
 
 ## Prompts
 
@@ -931,4 +932,11 @@ commit 要求是可以点击的链接
 
 ```text
 让额度用尽时间预估利用已有记录，对中间缺口合理插值，并在历史不足整个参考时段时按实际时长计算。保留重置、额度补充与长时间断档的边界，维持紧凑的单行展示，完成测试与安装包验证后发布更新。
+```
+
+
+### 122. 全站实时均速结构兼容
+
+```text
+对 Codex Radar Sentinel 做例行契约维护：CodexRadar 首页已将旧 Fast 雷达替换为全站实时均速表。解析当前模型、Harness 请求、实时 tok/s、请求合计和最近五分钟口径，同时保留旧 Fast 雷达结构兼容；空表仍视为正常空状态。通过离线回归、实时契约、双架构 macOS 构建和安装包校验后发布补丁。
 ```

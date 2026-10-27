@@ -36,7 +36,9 @@ public struct CodexRadarClient {
         let current: RadarCurrent
         do {
             let decoded = try decoder.decode(RadarCurrent.self, from: data)
-            guard decoded.modelIQ?.latest?.iqScore == nil || decoded.resetJudgement == nil || decoded.communityKnowledge == nil || decoded.siteAnnouncement == nil || decoded.fastRadar == nil,
+            guard decoded.modelIQ?.latest?.iqScore == nil || decoded.resetJudgement == nil || decoded.communityKnowledge == nil || decoded.siteAnnouncement == nil
+                || (decoded.fastRadar?.summary.isEmpty ?? true)
+                || (decoded.fastRadar?.rows.isEmpty ?? true),
                   let homepageHTML = try? await fetchHomepageHTML(),
                   let supplemented = try? Self.currentByMergingHomepageSignals(decoded, html: homepageHTML) else {
                 current = decoded
@@ -639,7 +641,11 @@ public struct CodexRadarClient {
     }
 
     private static func parseHomepageFastRadar(html: String) -> [String: Any]? {
-        guard let section = firstBalancedSection(withClass: "fast-radar", in: html) else {
+        guard let section = firstBalancedSection(withClass: "fast-radar", in: html)
+            ?? firstBalancedSection(
+                containingAnyText: ["全站实时均速", "Sitewide live average speed"],
+                in: html
+            ) else {
             return nil
         }
 
@@ -741,6 +747,50 @@ public struct CodexRadarClient {
                 return ["model": model, "e2e": e2e, "ttft": ttft, "tps": tps]
             }
         }
+        if rows.isEmpty {
+            rows = allMatches(#"<tr\\b[^>]*>(.*?)</tr>"#, in: section).compactMap { groups -> [String: Any]? in
+                let cells = allMatches(#"<td\\b[^>]*>(.*?)</td>"#, in: groups[safe: 0] ?? "")
+                    .map { cleanHTMLText($0[safe: 0]) }
+                guard cells.count >= 6,
+                      let model = cells[safe: 0], !model.isEmpty,
+                      let speed = cells[safe: 2],
+                      speed.range(
+                        of: #"\\btok/s\\b"#,
+                        options: [.regularExpression, .caseInsensitive]
+                      ) != nil else {
+                    return nil
+                }
+                return [
+                    "model": model,
+                    "e2e": fastRadarMetricPayload(
+                        label: "Harness · 请求",
+                        range: nil,
+                        value: cells[safe: 1]
+                    ),
+                    "ttft": fastRadarMetricPayload(
+                        label: "请求合计",
+                        range: nil,
+                        value: cells[safe: 4]
+                    ),
+                    "tps": fastRadarMetricPayload(
+                        label: "实时均速",
+                        range: nil,
+                        value: speed
+                    )
+                ]
+            }
+        }
+        if summary.isEmpty,
+           title.contains("实时均速") || title.localizedCaseInsensitiveContains("live average speed") {
+            summary = rows.prefix(3).compactMap { row -> [String: String]? in
+                guard let model = row["model"] as? String,
+                      let metric = row["tps"] as? [String: String],
+                      let value = metric["value"], !value.isEmpty else {
+                    return nil
+                }
+                return ["label": "\(model) · TPS", "value": value]
+            }
+        }
         if summary.isEmpty, let firstRow = rows.first {
             summary = ["e2e", "ttft", "tps"].compactMap { key in
                 guard let metric = firstRow[key] as? [String: String],
@@ -787,6 +837,15 @@ public struct CodexRadarClient {
                 guard !label.isEmpty, !detail.isEmpty else { return nil }
                 return "\(label)：\(detail)"
             }.joined(separator: "\n")
+        }
+
+        if method.isEmpty {
+            method = allMatches(#"<p\\b[^>]*>(.*?)</p>"#, in: section)
+                .map { cleanHTMLMultilineText($0[safe: 0]) }
+                .first { value in
+                    value.contains("最近5分钟")
+                        || value.localizedCaseInsensitiveContains("last 5 minutes")
+                } ?? ""
         }
 
         guard !summary.isEmpty || !rows.isEmpty else {
@@ -937,6 +996,55 @@ public struct CodexRadarClient {
                 }
             } else {
                 depth += 1
+            }
+        }
+        return nil
+    }
+
+    private static func firstBalancedSection(
+        containingAnyText needles: [String],
+        in html: String
+    ) -> String? {
+        guard let openingRegex = try? NSRegularExpression(
+            pattern: #"<section\\b[^>]*>"#,
+            options: [.caseInsensitive]
+        ),
+        let tokenRegex = try? NSRegularExpression(
+            pattern: #"</?section\\b[^>]*>"#,
+            options: [.caseInsensitive]
+        ) else {
+            return nil
+        }
+        let fullRange = NSRange(html.startIndex..<html.endIndex, in: html)
+        for opening in openingRegex.matches(in: html, range: fullRange).reversed() {
+            let searchRange = NSRange(
+                location: opening.range.location,
+                length: fullRange.length - opening.range.location
+            )
+            var depth = 0
+            for token in tokenRegex.matches(in: html, range: searchRange) {
+                let tokenText = capture(token, 0, in: html).lowercased()
+                if tokenText.hasPrefix("</") {
+                    depth -= 1
+                    if depth == 0 {
+                        let innerRange = NSRange(
+                            location: NSMaxRange(opening.range),
+                            length: token.range.location - NSMaxRange(opening.range)
+                        )
+                        guard let range = Range(innerRange, in: html) else {
+                            break
+                        }
+                        let section = String(html[range])
+                        if needles.contains(where: {
+                            section.range(of: $0, options: .caseInsensitive) != nil
+                        }) {
+                            return section
+                        }
+                        break
+                    }
+                } else {
+                    depth += 1
+                }
             }
         }
         return nil

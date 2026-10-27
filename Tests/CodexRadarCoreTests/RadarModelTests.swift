@@ -951,6 +951,53 @@ final class RadarModelTests: XCTestCase {
         XCTAssertTrue(current.fastRadar?.method?.contains("Standard 与 Fast") == true)
     }
 
+    func testBuildsLiveSpeedRadarFromHomepageHTML() throws {
+        let html = """
+        <html>
+          <head>
+            <title>10月26日 GPT-6.1 Sol: IQ指数 120.0, 20/20, 费用 $2.0, 耗时 20分钟, cache命中率 90%</title>
+          </head>
+          <body>
+            <section class="speed-overview" id="speed-radar">
+              <h2>全站实时均速</h2>
+              <table>
+                <thead><tr>
+                  <th>模型</th><th>Harness · 请求</th><th>实时均速</th>
+                  <th>趋势</th><th>请求合计</th><th>设备</th>
+                </tr></thead>
+                <tbody>
+                  <tr>
+                    <td><strong>GPT-6.1 Sol</strong></td><td>Codex 876</td>
+                    <td><span>25.0 tok/s</span></td><td>—</td><td>876</td><td>43</td>
+                  </tr>
+                  <tr>
+                    <td>GPT-6 Astra</td><td>Codex 193</td>
+                    <td>21.5 tok/s</td><td>—</td><td>193</td><td>17</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p>速度雷达 · 社区实测 · 最近5分钟 · 包含首字等待，客户端、上下文与档位混合。</p>
+            </section>
+          </body>
+        </html>
+        """
+
+        let current = try CodexRadarClient.currentFromHomepageHTML(
+            html,
+            checkedAt: Date(timeIntervalSince1970: 1_793_000_000)
+        )
+
+        XCTAssertEqual(current.fastRadar?.title, "全站实时均速")
+        XCTAssertEqual(current.fastRadar?.summary.count, 2)
+        XCTAssertEqual(current.fastRadar?.summary.first?.label, "GPT-6.1 Sol · TPS")
+        XCTAssertEqual(current.fastRadar?.rows.count, 2)
+        XCTAssertEqual(current.fastRadar?.rows.first?.model, "GPT-6.1 Sol")
+        XCTAssertEqual(current.fastRadar?.rows.first?.e2e?.value, "Codex 876")
+        XCTAssertEqual(current.fastRadar?.rows.first?.ttft?.value, "876")
+        XCTAssertEqual(current.fastRadar?.rows.first?.tps?.value, "25.0 tok/s")
+        XCTAssertTrue(current.fastRadar?.method?.contains("最近5分钟") == true)
+    }
+
     func testBuildsFastRadarFromCurrentSummaryAndMethodMarkup() throws {
         let html = """
         <html>
