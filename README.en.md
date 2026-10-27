@@ -49,6 +49,12 @@ Download the macOS package and SHA256 file, verify the package, install the app 
 
 ## What's New
 
+### v0.1.83: Sitewide live-speed compatibility
+
+- Keep showing model, Harness requests, live tok/s, and request totals after CodexRadar replaced Fast Radar with its sitewide live-speed table.
+- Retain compatibility with legacy Fast Radar and all-data-cell snapshots, supplementing an empty retired payload from the homepage.
+- Add an offline regression for the current semantic table structure and keep it covered by live contracts.
+
 ### v0.1.82: Forecasts from incomplete history
 
 - Estimate depletion from available history even when a full window or intermediate readings are missing.

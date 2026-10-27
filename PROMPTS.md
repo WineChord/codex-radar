@@ -147,6 +147,7 @@ Git commit 的 hash 由提交内容决定，所以一个 commit 无法在自己�
 | 120 | [`Prompt-Id: 120 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+120%22&type=commits) | 发布额度用尽时间预估版本。 |
 | 121 | [`Prompt-Id: 121 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+121%22&type=commits) | 放宽额度预估对记录完整性的要求。 |
 | 122 | [`Prompt-Id: 122 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+122%22&type=commits) | 兼容旧 Fast 雷达迁移后的全站实时均速表。 |
+| 123 | [`Prompt-Id: 123 commits`](https://github.com/WineChord/codex-radar/search?q=%22Prompt-Id%3A+123%22&type=commits) | 将全站实时均速兼容修复准备为 v0.1.83，并完成正式发布门禁与产物核验。 |
 
 ## Prompts
 
@@ -939,4 +940,10 @@ commit 要求是可以点击的链接
 
 ```text
 对 Codex Radar Sentinel 做例行契约维护：CodexRadar 首页已将旧 Fast 雷达替换为全站实时均速表。解析当前模型、Harness 请求、实时 tok/s、请求合计和最近五分钟口径，同时保留旧 Fast 雷达结构兼容；空表仍视为正常空状态。通过离线回归、实时契约、双架构 macOS 构建和安装包校验后发布补丁。
+```
+
+### 123. v0.1.83 正式发布
+
+```text
+将已验证的全站实时均速兼容修复作为 v0.1.83 patch 发布；同步应用、安装包、双语 README 与发布说明版本，通过当前 main 的完整 macOS 双架构测试、实时契约、截图、通用 ZIP/DMG 与 SHA256 校验后生成并核验正式 Release。
 ```
