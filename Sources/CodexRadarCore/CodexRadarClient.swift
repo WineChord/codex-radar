@@ -748,14 +748,14 @@ public struct CodexRadarClient {
             }
         }
         if rows.isEmpty {
-            rows = allMatches(#"<tr\\b[^>]*>(.*?)</tr>"#, in: section).compactMap { groups -> [String: Any]? in
-                let cells = allMatches(#"<td\\b[^>]*>(.*?)</td>"#, in: groups[safe: 0] ?? "")
+            rows = allMatches(#"<tr\b[^>]*>(.*?)</tr>"#, in: section).compactMap { groups -> [String: Any]? in
+                let cells = allMatches(#"<td\b[^>]*>(.*?)</td>"#, in: groups[safe: 0] ?? "")
                     .map { cleanHTMLText($0[safe: 0]) }
                 guard cells.count >= 6,
                       let model = cells[safe: 0], !model.isEmpty,
                       let speed = cells[safe: 2],
                       speed.range(
-                        of: #"\\btok/s\\b"#,
+                        of: #"\btok/s\b"#,
                         options: [.regularExpression, .caseInsensitive]
                       ) != nil else {
                     return nil
@@ -840,7 +840,7 @@ public struct CodexRadarClient {
         }
 
         if method.isEmpty {
-            method = allMatches(#"<p\\b[^>]*>(.*?)</p>"#, in: section)
+            method = allMatches(#"<p\b[^>]*>(.*?)</p>"#, in: section)
                 .map { cleanHTMLMultilineText($0[safe: 0]) }
                 .first { value in
                     value.contains("最近5分钟")
@@ -1006,11 +1006,11 @@ public struct CodexRadarClient {
         in html: String
     ) -> String? {
         guard let openingRegex = try? NSRegularExpression(
-            pattern: #"<section\\b[^>]*>"#,
+            pattern: #"<section\b[^>]*>"#,
             options: [.caseInsensitive]
         ),
         let tokenRegex = try? NSRegularExpression(
-            pattern: #"</?section\\b[^>]*>"#,
+            pattern: #"</?section\b[^>]*>"#,
             options: [.caseInsensitive]
         ) else {
             return nil
